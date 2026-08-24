@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connect Vercel — AI Wrangler</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --void:#0B0C0E; --raised:#141619; --inset:#1B1E22; --line:rgba(255,255,255,.07);
+      --t1:#EDEFF2; --t2:#9AA1AB; --run:#3FCF8E; --block:#F2A33C; --fail:#FF5C5C;
+      --brand:#E8531F; --brand-text:#FF7A45; --btn:#22262B;
+    }
+    html,body{margin:0;background:var(--void);color:var(--t1);font-family:Inter,-apple-system,sans-serif;min-height:100%;}
+    *{box-sizing:border-box;}
+    a{color:var(--brand-text);text-decoration:none;}
+    button,input,select{font-family:inherit;color:inherit;}
+    .wrap{max-width:720px;margin:0 auto;padding:40px 20px 80px;}
+    .mark{color:var(--brand-text);font-weight:600;letter-spacing:.3px;font-size:14px;}
+    h1{font-size:22px;font-weight:600;margin:18px 0 6px;}
+    .sub{color:var(--t2);font-size:13px;line-height:1.55;margin-bottom:22px;}
+    .card{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:14px;}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+    .muted{color:var(--t2);font-size:12px;}
+    .mono{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t2);}
+    .btn{background:var(--brand);border:none;color:#fff;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;}
+    .btn.ghost{background:var(--btn);border:1px solid var(--line);color:var(--t1);font-weight:500;}
+    .btn:disabled{opacity:.5;cursor:not-allowed;}
+    .pill{font-size:10px;font-weight:600;border:1px solid var(--run);color:var(--run);border-radius:6px;padding:2px 8px;}
+    .err{border-color:var(--fail);color:var(--fail);font-size:13px;line-height:1.45;}
+    label{display:block;font-size:11px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.6px;}
+    input,select{width:100%;background:var(--inset);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px;outline:none;}
+    .proj{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid var(--line);}
+    .proj:first-child{border-top:none;}
+    .proj input{width:auto;}
+    .warn{font-size:12px;color:var(--block);line-height:1.5;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="mark">✛ AI WRANGLER</div>
+    <h1>Connect a customer’s Vercel</h1>
+    <p class="sub">One login, one token, one customer. Bound projects are the only things this workspace can deploy. Tokens never leak across customers.</p>
+    <div id="error" class="card err" hidden></div>
+
+    <div class="card">
+      <label>Customer</label>
+      <div class="row" style="gap:8px;margin-bottom:10px;">
+        <select id="customer"></select>
+        <button class="btn ghost" id="newCust" type="button">＋ New</button>
+      </div>
+      <div id="status" class="muted">Loading…</div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div style="font-weight:600;font-size:14px;">Sign in with Vercel (Integration)</div>
+          <div class="muted" style="margin-top:4px;line-height:1.45;">Client picks which projects this customer can see. This is the real OAuth install.</div>
+        </div>
+        <button class="btn" id="oauth">Connect Vercel</button>
+      </div>
+      <p class="warn" id="oauthHint" style="margin:12px 0 0;" hidden></p>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:600;font-size:14px;margin-bottom:6px;">Or paste a project-scoped token</div>
+      <div class="muted" style="margin-bottom:12px;line-height:1.45;">Works today without a marketplace listing. Create one at Vercel → Account Settings → Tokens, scoped to a <em>single project</em>.</div>
+      <label>Token</label>
+      <input id="token" type="password" autocomplete="off" placeholder="vcp_… or vercel token">
+      <label style="margin-top:10px;">Team ID (optional)</label>
+      <input id="teamId" placeholder="team_…">
+      <div style="margin-top:12px;display:flex;gap:8px;">
+        <button class="btn" id="saveToken">Save token for this customer</button>
+        <button class="btn ghost" id="disconnect">Disconnect</button>
+      </div>
+    </div>
+
+    <div class="card" id="projectsCard" hidden>
+      <div class="row" style="margin-bottom:8px;">
+        <div>
+          <div style="font-weight:600;font-size:14px;">Bind projects</div>
+          <div class="muted" style="margin-top:3px;">Unchecked projects are invisible to this customer’s agents. That is the isolation wall.</div>
+        </div>
+        <button class="btn" id="bind">Save bindings</button>
+      </div>
+      <div id="projects"></div>
+    </div>
+
+    <div class="card" id="deploysCard" hidden>
+      <div class="row" style="margin-bottom:8px;">
+        <div style="font-weight:600;font-size:14px;">Deploy</div>
+        <div class="row" style="gap:8px;">
+          <select id="deployProject" style="width:220px;"></select>
+          <button class="btn ghost" id="preview">Preview deploy</button>
+          <button class="btn" id="prod">Production (gated)</button>
+        </div>
+      </div>
+      <div id="deploys" class="mono"></div>
+    </div>
+
+    <p class="muted"><a href="/">← Back to the OS</a></p>
+  </div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    const errBox = document.getElementById('error');
+    if (q.get('error')) { errBox.hidden = false; errBox.textContent = q.get('error'); }
+
+    const customerSel = document.getElementById('customer');
+    let health = { integration: false };
+    let current = null;
+    let projects = [];
+
+    function cid() { return customerSel.value; }
+
+    async function api(path, opts) {
+      const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
+    }
+
+    async function loadCustomers() {
+      health = await api('/api/health');
+      const hint = document.getElementById('oauthHint');
+      if (!health.integration) {
+        hint.hidden = false;
+        hint.textContent = 'Integration OAuth is not configured yet (VERCEL_INTEGRATION_CLIENT_ID / SLUG). Token paste still works, and it is the safest way to start — one token, one project, one customer.';
+      }
+      const { customers } = await api('/api/customers');
+      const seed = ['Brightline', 'Harbor & Co', 'Atlas Labs'];
+      const names = new Map(customers.map(c => [c.id, c]));
+      for (const n of seed) {
+        const id = n.toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+        if (!names.has(id)) {
+          const row = await api('/api/customers', { method: 'POST', body: JSON.stringify({ id, name: n }) });
+          names.set(row.id, row);
+        }
+      }
+      const all = [...names.values()];
+      customerSel.innerHTML = all.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      const want = q.get('customer');
+      if (want && [...customerSel.options].some(o => o.value === want)) customerSel.value = want;
+      await refresh();
+    }
+
+    async function refresh() {
+      current = await api('/api/customers/' + encodeURIComponent(cid()) + '/vercel/status');
+      const v = current.vercel || {};
+      document.getElementById('status').innerHTML = v.connected
+        ? `<span class="pill">Connected</span> &nbsp; ${v.mode} · ${v.user?.username || v.teamName || 'token'} · ${current.boundProjectIds.length} project(s) bound`
+        : 'Not connected — this customer cannot deploy anything until a token is bound.';
+      document.getElementById('projectsCard').hidden = !v.connected;
+      document.getElementById('deploysCard').hidden = !(v.connected && current.boundProjectIds.length);
+      if (v.connected) await loadProjects();
+    }
+
+    async function loadProjects() {
+      const data = await api('/api/customers/' + encodeURIComponent(cid()) + '/vercel/projects');
+      projects = data.projects || [];
+      const bound = new Set(current.boundProjectIds || []);
+      document.getElementById('projects').innerHTML = projects.length
+        ? projects.map(p => `<label class="proj"><input type="checkbox" value="${p.id}" ${bound.has(p.id)?'checked':''}><span><div>${p.name}</div><div class="mono">${p.id}${p.url ? ' · ' + p.url : ''}</div></span></label>`).join('')
+        : '<div class="muted">No projects visible to this token. Scope it to the customer’s team.</div>';
+      const sel = document.getElementById('deployProject');
+      const boundProjects = projects.filter(p => bound.has(p.id));
+      sel.innerHTML = boundProjects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      if (boundProjects[0]) loadDeploys(boundProjects[0].id);
+    }
+
+    async function loadDeploys(projectId) {
+      const box = document.getElementById('deploys');
+      box.textContent = 'loading…';
+      try {
+        const data = await api('/api/customers/' + encodeURIComponent(cid()) + '/vercel/deployments?projectId=' + encodeURIComponent(projectId));
+        box.innerHTML = (data.deployments || []).slice(0, 8).map(d =>
+          `${d.createdAt ? new Date(d.createdAt).toISOString().slice(0,16).replace('T',' ') : ''}  ${d.state}  ${d.target || 'preview'}  ${d.url || d.id}`
+        ).join('\n') || 'no deployments yet';
+      } catch (e) { box.textContent = e.message; }
+    }
+
+    document.getElementById('oauth').onclick = () => {
+      location.href = '/api/auth/vercel/start?customerId=' + encodeURIComponent(cid()) + '&name=' + encodeURIComponent(customerSel.selectedOptions[0].text);
+    };
+    document.getElementById('customer').onchange = refresh;
+    document.getElementById('newCust').onclick = async () => {
+      const name = prompt('Customer name');
+      if (!name) return;
+      const row = await api('/api/customers', { method: 'POST', body: JSON.stringify({ name }) });
+      await loadCustomers();
+      customerSel.value = row.id;
+      await refresh();
+    };
+    document.getElementById('saveToken').onclick = async () => {
+      try {
+        await api('/api/customers/' + encodeURIComponent(cid()) + '/vercel/token', {
+          method: 'POST',
+          body: JSON.stringify({ token: document.getElementById('token').value, teamId: document.getElementById('teamId').value, name: customerSel.selectedOptions[0].text })
+        });
+        document.getElementById('token').value = '';
+        await refresh();
+      } catch (e) { errBox.hidden = false; errBox.textContent = e.message; }
+    };
+    document.getElementById('disconnect').onclick = async () => {
+      await api('/api/customers/' + encodeURIComponent(cid()) + '/vercel/disconnect', { method: 'POST' });
+      await refresh();
+    };
+    document.getElementById('bind').onclick = async () => {
+      const ids = [...document.querySelectorAll('#projects input:checked')].map(i => i.value);
+      current = await api('/api/customers/' + encodeURIComponent(cid()) + '/vercel/bind', {
+        method: 'POST', body: JSON.stringify({ projectIds: ids })
+      });
+      await refresh();
+    };
+    document.getElementById('deployProject').onchange = (e) => loadDeploys(e.target.value);
+    document.getElementById('preview').onclick = () => deploy('preview');
+    document.getElementById('prod').onclick = () => {
+      if (!confirm('Production deploy for THIS customer only. Continue?')) return;
+      deploy('production');
+    };
+    async function deploy(target) {
+      const projectId = document.getElementById('deployProject').value;
+      try {
+        const data = await api('/api/customers/' + encodeURIComponent(cid()) + '/vercel/deploy', {
+          method: 'POST', body: JSON.stringify({ projectId, target })
+        });
+        alert((data.deployment && data.deployment.url) || 'deploy started');
+        await loadDeploys(projectId);
+      } catch (e) { errBox.hidden = false; errBox.textContent = e.message; }
+    }
+
+    loadCustomers().catch(e => { errBox.hidden = false; errBox.textContent = e.message; });
+  </script>
+</body>
+</html>

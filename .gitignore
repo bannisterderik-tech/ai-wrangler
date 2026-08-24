@@ -1,0 +1,16 @@
+node_modules/
+web/node_modules/
+web/.next/
+web/out/
+.env
+.env.local
+web/.env
+web/.env.local
+data/
+workspaces/
+.DS_Store
+*.db
+*.db-shm
+*.db-wal
+.vercel
+web/.vercel
