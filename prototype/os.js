@@ -633,7 +633,7 @@
           const cards = rows.filter((r) => r.stage === i);
           return `<div class="col"><div class="hd"><span>${name}</span><span>${cards.length}</span></div>
             <div class="stack">${cards.map((r) => `
-              <button class="deal" data-act="sel-lead" data-id="${r.id}" style="cursor:pointer;text-align:left;border-color:${l && r.id === l.id ? "var(--brand)" : "var(--line)"}">
+              <div class="deal" role="button" tabindex="0" data-act="sel-lead" data-id="${r.id}" style="cursor:pointer;text-align:left;border-color:${l && r.id === l.id ? "var(--brand)" : "var(--line)"}">
                 <b>${esc(r.company)}</b>
                 <div class="meta"><span>${esc(r.name)} · ${esc(r.trade)}</span><span class="mono">${money(r.value)}</span></div>
                 <div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(r.note)}</div>
@@ -642,7 +642,7 @@
                   ${i > 0 ? `<button class="btn tiny" data-act="stage" data-id="${r.id}" data-dir="-1">‹</button>` : ""}
                   ${i < STAGES.length - 1 ? `<button class="btn tiny brand" data-act="stage" data-id="${r.id}" data-dir="1">›</button>` : ""}
                 </div>
-              </button>`).join("")}</div></div>`;
+              </div>`).join("")}</div></div>`;
         }).join("")}</div>
       </div>`;
     }
@@ -651,7 +651,7 @@
         <div class="roll" style="width:auto">
           <table class="grid">
             <thead><tr><th>Company</th><th>Owner</th><th>Trade</th><th>Stage</th><th>Retainer</th><th>Score</th></tr></thead>
-            <tbody>${rows.map((r) => `<tr data-act="sel-lead" data-id="${r.id}" style="cursor:pointer;background:${l && r.id === l.id ? "var(--brand-dim)" : "transparent"}">
+            <tbody>${rows.map((r) => `<tr role="button" tabindex="0" data-act="sel-lead" data-id="${r.id}" style="cursor:pointer;background:${l && r.id === l.id ? "var(--brand-dim)" : "transparent"}">
               <td data-l="Company"><b>${esc(r.company)}</b></td><td data-l="Owner">${esc(r.name)}</td><td data-l="Trade">${esc(r.trade)}</td>
               <td data-l="Stage">${esc(STAGES[r.stage])}</td><td data-l="Retainer" class="mono">${money(r.value)}</td><td data-l="Score" class="mono">${r.score}</td>
             </tr>`).join("") || `<tr><td colspan="6" style="color:var(--muted)">No leads match that filter.</td></tr>`}</tbody>
@@ -831,7 +831,7 @@
         <div class="board">${stages.map((name, i) => {
           const cards = prow.filter((x) => x.stage === i);
           return `<div class="col"><div class="hd"><span>${name}</span><span>${cards.length}</span></div>
-            <div class="stack">${cards.map((x) => `<button class="deal" data-act="sel-prospect" data-id="${x.id}"><b>${esc(x.name)}</b><div class="meta"><span>${esc(x.dm)}</span><span>${money(x.value)}</span></div></button>`).join("")}</div></div>`;
+            <div class="stack">${cards.map((x) => `<div class="deal" role="button" tabindex="0" data-act="sel-prospect" data-id="${x.id}"><b>${esc(x.name)}</b><div class="meta"><span>${esc(x.dm)}</span><span>${money(x.value)}</span></div></div>`).join("")}</div></div>`;
         }).join("")}</div></div>`;
     }
     return `<div class="page">
@@ -1517,11 +1517,13 @@
     if (state.jump) {
       state.jump = false;
       if (isPhone()) {
+        // Synchronous on purpose: reading the rect forces layout, and a rAF here
+        // never fires in a backgrounded tab, which silently loses the jump.
         const stage = $(".stage");
-        const target = $(".dossier") || $(".thread") || $(".canvas");
-        if (stage && target && target.offsetParent === stage) {
-          const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-          stage.scrollTo({ top: Math.max(0, target.offsetTop - 4), behavior: calm ? "auto" : "smooth" });
+        const target = stage && (stage.querySelector(".dossier") || stage.querySelector(".thread"));
+        if (stage && target) {
+          const top = target.getBoundingClientRect().top - stage.getBoundingClientRect().top + stage.scrollTop;
+          stage.scrollTop = Math.max(0, top - 4);
         }
       }
     }
@@ -1843,6 +1845,10 @@
     if (act === "mem-q") { state.memQ = e.target.value; render(); keep('[data-act="mem-q"]', state.memQ); }
   });
   document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      const row = e.target.closest && e.target.closest('[role="button"][data-act]');
+      if (row && row === e.target) { e.preventDefault(); row.click(); return; }
+    }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); state.search = !state.search; render(); }
     if (e.key === "Escape") { state.search = false; state.launch = false; state.menu = false; render(); }
   });
