@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 
 const PLAYBOOKS = [
   {
-    name: "Storm 90",
-    desc: "Hail hits. LSA + Meta + Twilio 60s SLA + tarp landing page before the national chains pick up.",
-    steps: ["Spin Zernio Google + Meta geo 20mi", "Twilio SMS the storm list in 60s", "Ship tarp-today landing page", "Power-dial new LSA leads", "Book estimates onto today's board"],
+    name: "Rebuild in 10",
+    desc: "Our delivery playbook. Ten days from kickoff to a production site, a live number, and a form that lands on the dial board.",
+    steps: ["Bind their repo and their Vercel token", "Generate every service and area page from one template", "Wire the form to the dialer, call bar above the fold", "Provision the DID and register A2P", "Ship to preview, get the promote approval, hand over the login"],
   },
   {
     name: "Speed-to-lead",

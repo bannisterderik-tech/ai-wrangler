@@ -27,7 +27,7 @@ const SEED: Record<string, Msg[]> = {
 };
 
 const OPS: Thread[] = [
-  { id: "I1", name: "Maya @ Apex", phone: "", kind: "client", via: "sms", book: "Apex Roofing", preview: "Can the AI text storm leads in under a minute?", unread: true, sla: 0, wrangle: true, task: "Turn on 60s SMS SLA" },
+  { id: "I1", name: "Maya @ Apex", phone: "", kind: "client", via: "sms", book: "Apex Roofing", preview: "Can the receptionist text a new lead in under a minute?", unread: true, sla: 0, wrangle: true, task: "Turn on the 60s response SLA" },
   { id: "I2", name: "Dev @ Cascade", phone: "", kind: "client", via: "email", book: "Cascade HVAC", preview: "We're losing after-hours calls to the big guys.", unread: true, sla: 0, wrangle: true, task: "Night receptionist + Twilio overflow" },
   { id: "VM1", name: "Missed · 530-555-4401", phone: "+1 530 555 4401", kind: "lead", via: "vm", book: "Summit Roofing", preview: "Voicemail 0:18 — need a website like Apex, please call", unread: true, sla: 92, wrangle: false },
 ];

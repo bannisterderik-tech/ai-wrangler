@@ -87,7 +87,7 @@ export default function CommandPage() {
             {[
               ["AI", "Zernio · Apex Google RSA is 2.1× impression share vs last week."],
               ["You", "Approval needed: Cascade after-hours SMS blast (46 opted-in)."],
-              ["Twilio", "Inbound from 530-555-0142 — routed to Apex storm queue."],
+              ["Twilio", "Inbound from 530-555-0142 — routed to the Apex line."],
               ["AI", "Booked Priya Shah estimate Thursday 7:30a."],
               ["Partner", "Ken Williamson sent a reroof. Auto-texted in 19s."],
             ].map(([who, text]) => (

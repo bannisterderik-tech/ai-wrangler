@@ -38,12 +38,12 @@ export default function CustomersPage() {
   const body = {
     overview: <Kv rows={[["Trade", c.trade], ["Market", c.city], ["Rank", `#${c.rank} · ${c.share}`], ["Retainer", `${money(c.mrr)}/mo`], ["What we sell them", "Site · ads · Twilio · AI — not their roof calls"]]} />,
     people: <p className="text-[13px]">Owner, CSR, estimator at the shop. Call/SMS from Inbox. Isolated to this customer.</p>,
-    funnel: <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>Their homeowner jobs are not Wrangler leads. We run the site, the ads, the number. Storm calls stay in their world.</p>,
+    funnel: <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>Their own customer jobs are not Wrangler leads. We run the site, the ads, the number, and the AI that answers it.</p>,
     build: <Kv rows={[["GitHub", `${c.id}/site`], ["Vercel", `${c.id}.vercel.app`], ["Jobs", "isolated worktree"]]} />,
     dominate: <div>{ads.map((a) => <div key={a.id} className="flex justify-between border-b py-2 text-[13px]" style={{ borderColor: "var(--hairline)" }}><span>{a.name}</span><span className="font-mono">{a.platform} · {money(a.spend)}</span></div>)}</div>,
     phone: <Kv rows={[["DID", "one number, this book only"], ["A2P", "10DLC per brand"], ["Missed call", "SMS in 20s"]]} />,
     money: <Kv rows={[["Retainer", `${money(c.mrr)}/mo`], ["Ads 30d", money(ads.reduce((s, a) => s + a.spend, 0))], ["Twilio", "metered"], ["AI", "capped per job"]]} />,
-    memory: <p className="text-[13.5px] leading-relaxed">House rules, brand voice, busy season — the AI reads this before it writes a word a homeowner could see.</p>,
+    memory: <p className="text-[13.5px] leading-relaxed">House rules, brand voice, busy season — the AI reads this before it writes a word their customers could see.</p>,
     walls: <Kv rows={[["Repo", "unique"], ["Vercel token", "theirs"], ["Zernio profile", "theirs"], ["Twilio DID", "not shared"]]} />,
   }[tab];
 

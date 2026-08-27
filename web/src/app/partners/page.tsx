@@ -32,7 +32,7 @@ export default function PartnersPage() {
     overview: <Kv rows={[["Kind", p.kind], ["Market", p.city], ["Sent us", String(p.sent)], ["Won", String(p.won)], ["Take", p.take]]} />,
     people: <p className="text-[13px]">Decision maker on file. SMS from the dock — reciprocity is the contract.</p>,
     flow: <p className="text-[13px]">{p.sent} inbound referrals · {p.won} won. Send one back this week.</p>,
-    comarket: <Kv rows={[["Play", "Storm list + tarp page"], ["QR", "Truck wrap → Text-for-Info"], ["Ads", "Co-op Zernio geo"]]} />,
+    comarket: <Kv rows={[["Play", "Shared landing page + one shared number"], ["QR", "Truck wrap → Text-for-Info"], ["Ads", "Co-op Zernio geo"]]} />,
     agreement: <Kv rows={[["Take", p.take], ["W9", "on file"], ["Paid", "monthly after collected"]]} />,
     history: <p className="text-[13px]">Last ping in the Twilio thread.</p>,
   }[tab];

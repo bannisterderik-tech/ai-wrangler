@@ -33,8 +33,8 @@ export default function ProspectsPage() {
     overview: <Kv rows={[["Trade", r.trade], ["Market", r.city], ["Stage", PROSPECT_STAGES[r.stage]], ["Retainer", `${money(r.value)}/mo`], ["Why now", r.pain], ["Demo", r.demo || "not booked"], ["Crew", String(r.employees)], ["Jobs / mo", String(r.jobsMo)]]} />,
     people: <Kv rows={[["Decision maker", r.dm], ["Role", r.role], ["Phone", r.phone], ["Email", r.email]]} />,
     discovery: <Kv rows={[["Pain", r.pain], ["Stack today", r.stack], ["Why us", r.why]]} />,
-    sequence: <div className="text-[13px]">{["Day 0 · Loom of Apex storm page", "Day 1 · Call the owner", "Day 3 · SMS the demo hold", "Day 7 · Proposal", "Day 10 · Isolation walkthrough"].map((t, i) => <label key={t} className="mb-2 flex gap-2"><input type="checkbox" checked={i < r.stage} readOnly />{t}</label>)}</div>,
-    deal: <Kv rows={[["MRR", `${money(r.value)}/mo`], ["Onboarding", "Storm 90 + DID + Zernio"], ["Term", "12 mo"], ["Status", PROSPECT_STAGES[r.stage]]]} />,
+    sequence: <div className="text-[13px]">{["Day 0 · Loom of the Apex rebuild", "Day 1 · Call the owner", "Day 3 · SMS the demo hold", "Day 7 · Proposal", "Day 10 · Isolation walkthrough"].map((t, i) => <label key={t} className="mb-2 flex gap-2"><input type="checkbox" checked={i < r.stage} readOnly />{t}</label>)}</div>,
+    deal: <Kv rows={[["MRR", `${money(r.value)}/mo`], ["Onboarding", "Rebuild in 10 + DID + Zernio"], ["Term", "12 mo"], ["Status", PROSPECT_STAGES[r.stage]]]} />,
     history: <p className="text-[13px]">{r.why}</p>,
   }[tab];
 

@@ -70,7 +70,7 @@ export default function LeadsPage() {
       ]} />
     ),
     discovery: <Kv rows={[["Pain", l.note], ["Why Wrangler", "Site + ads + Twilio + isolation — not another web guy"]]} />,
-    scope: <Kv rows={[["Build", "Site · GBP · LSA · Twilio 60s SLA"], ["Not in scope", "Their homeowner jobs. That's their CRM. We don't take roof calls."]]} />,
+    scope: <Kv rows={[["Build", "Site · GBP · LSA · Twilio 60s SLA"], ["Not in scope", "Their own customer jobs. That lives in their software, not ours."]]} />,
     comms: <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>{script}</p>,
     tasks: <div className="text-[13px]">{["Call the owner", "Book 20-min teardown", "Send Apex case study"].map((t) => <label key={t} className="mb-2 flex gap-2"><input type="checkbox" />{t}</label>)}</div>,
     money: <Kv rows={[["Retainer", `${money(l.value)}/mo`], ["Term", "12 mo"], ["Competing with", "Angi / DIY ads"]]} />,

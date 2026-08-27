@@ -2,7 +2,7 @@
 window.WR = window.WR || {};
 
 WR.PROSPECTS = [
-  { id: "R1", name: "Summit Roofing", trade: "Roofing", city: "Redding, CA", value: 4500, stage: 1, phone: "+1 530 555 4401", email: "jake@summitroofing.net", dm: "Jake Summit", role: "Owner", pain: "Buying Angi leads at $92. Close rate 11%. After-hours goes to voicemail.", stack: "Angi · Jobber · in-house Google ads", why: "Saw Apex's storm page rank #1 in Red Bluff. Wants the same machine.", demo: "Thu 2:00p", employees: 9, jobsMo: 22 },
+  { id: "R1", name: "Summit Roofing", trade: "Roofing", city: "Redding, CA", value: 4500, stage: 1, phone: "+1 530 555 4401", email: "jake@summitroofing.net", dm: "Jake Summit", role: "Owner", pain: "Buying Angi leads at $92. Close rate 11%. After-hours goes to voicemail.", stack: "Angi · Jobber · in-house Google ads", why: "Saw Apex's rebuilt site rank #1 in Red Bluff. Wants the same build.", demo: "Thu 2:00p", employees: 9, jobsMo: 22 },
   { id: "R2", name: "North Valley HVAC", trade: "HVAC", city: "Chico, CA", value: 3800, stage: 2, phone: "+1 530 555 4418", email: "lisa@nvhvac.com", dm: "Lisa Park", role: "COO", pain: "CSR drowned. Speed-to-lead is 14 minutes. Goodman dealer eating nights.", stack: "ServiceTitan · Facebook ads", why: "Lost 3 after-hours replacements last week — they want the site + night AI.", demo: "Proposal sent Mon", employees: 14, jobsMo: 40 },
   { id: "R3", name: "River City Electric", trade: "Electrical", city: "Red Bluff, CA", value: 2800, stage: 0, phone: "+1 530 555 4470", email: "owen@rcelectric.co", dm: "Owen Diaz", role: "Owner-operator", pain: "No site. GBP photos from 2019. Panel-upgrade demand from EVs, zero capture.", stack: "None. Pencil and a van.", why: "Ken Williamson intro.", demo: null, employees: 4, jobsMo: 12 },
   { id: "R4", name: "Tehama Air & Heat", trade: "HVAC", city: "Corning, CA", value: 3200, stage: 3, phone: "+1 530 555 4422", email: "sam@tehamaair.com", dm: "Sam Ruiz", role: "Founder", pain: "Wants to stop being the cheap guy. Needs reviews + LSA + a real site.", stack: "Housecall Pro", why: "Won — contract in DocuSign.", demo: "Won", employees: 7, jobsMo: 18 },
@@ -19,7 +19,7 @@ WR.LEAD_X = {
     people: [{ name: "Jake Summit", role: "Owner", phone: "+1 530 555 4401", email: "jake@summitroofing.net" }],
     money: { mrr: 4500, term: "12 mo", competitor: "Angi + a cousin who 'does websites'" },
     attrib: { campaign: "Apex case study", network: "referral", partner: null, firstTouch: "this morning" },
-    tasks: [{ t: "Call Jake", done: false }, { t: "Book teardown", done: false }, { t: "Send Apex storm page Loom", done: false }],
+    tasks: [{ t: "Call Jake", done: false }, { t: "Book teardown", done: false }, { t: "Send the Apex rebuild Loom", done: false }],
     files: [{ n: "apex-case-study.pdf", k: "proof" }],
     next: { title: "Call Jake — he asked for the Apex machine", why: "Inbound, hot, 38s and climbing. First agency that talks books the teardown.", do: "dial" },
   },
@@ -68,11 +68,11 @@ WR.CUST_X = {
       { l: "Speed-to-lead", v: "47s", ok: true },
       { l: "Share of search", v: "18% · rank #2", ok: false },
       { l: "Reviews this month", v: "9 · 4.9★", ok: true },
-      { l: "Site", v: "Storm page live", ok: true },
+      { l: "Site", v: "Rebuild live", ok: true },
       { l: "Ad ROAS", v: "6.2× Google", ok: true },
       { l: "Isolation", v: "Repo + DID + Zernio unique", ok: true },
     ],
-    next: { title: "Kill the #1 competitor on ‘emergency roof repair Red Bluff’", why: "We're #2. Storm 90 playbook + $75/day more on LSA closes the gap this week.", do: "ads" },
+    next: { title: "Kill the #1 competitor on ‘emergency roof repair Red Bluff’", why: "We're #2. Finish the service-area pages and put $75/day more on LSA and we take it this week.", do: "ads" },
   },
   cascade: {
     legal: "Cascade HVAC Inc", founded: 1998, crew: 16, hours: "24/7 on-call",
@@ -96,7 +96,7 @@ WR.CUST_X = {
 WR.PART_X = {
   P1: {
     legal: "Williamson Water LLC", contact: { name: "Ken Williamson", role: "Owner", phone: "+1 970 555 0144", email: "ken@williamsonwater.com" },
-    trades: "Sends roofing/HVAC *owners* who need a site — not homeowner jobs",
+    trades: "Sends us shop *owners* who need a site and a lead system — not their customer jobs",
     territory: "Montrose + Tehama (snowbirds)", exclusive: "Wrangler for web/tech in Red Bluff trades",
     take: "10% of collected", w9: "on file", last: "this morning",
     flow: [{ n: "River City Electric — needs a site", dir: "in", when: "today" }, { n: "Apex case study PDF", dir: "out", when: "last week" }],
