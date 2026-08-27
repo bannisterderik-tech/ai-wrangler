@@ -303,6 +303,8 @@
     partSort: "sent",
     partQ: "",
     launch: false,
+    menu: false,
+    jump: false,
     chan: "all",
     job: "J1",
     jobFilter: "all",
@@ -350,7 +352,9 @@
     render();
     setTimeout(() => { if (state.toast === msg) { state.toast = null; render(); } }, 2800);
   };
+  const isPhone = () => window.matchMedia("(max-width: 860px)").matches;
   const go = (page) => {
+    state.menu = false;
     if (page === "sms") page = "inbox";
     if (page === "pipeline") { page = "leads"; state.leadView = "kanban"; }
     state.page = page;
@@ -648,8 +652,8 @@
           <table class="grid">
             <thead><tr><th>Company</th><th>Owner</th><th>Trade</th><th>Stage</th><th>Retainer</th><th>Score</th></tr></thead>
             <tbody>${rows.map((r) => `<tr data-act="sel-lead" data-id="${r.id}" style="cursor:pointer;background:${l && r.id === l.id ? "var(--brand-dim)" : "transparent"}">
-              <td><b>${esc(r.company)}</b></td><td>${esc(r.name)}</td><td>${esc(r.trade)}</td>
-              <td>${esc(STAGES[r.stage])}</td><td class="mono">${money(r.value)}</td><td class="mono">${r.score}</td>
+              <td data-l="Company"><b>${esc(r.company)}</b></td><td data-l="Owner">${esc(r.name)}</td><td data-l="Trade">${esc(r.trade)}</td>
+              <td data-l="Stage">${esc(STAGES[r.stage])}</td><td data-l="Retainer" class="mono">${money(r.value)}</td><td data-l="Score" class="mono">${r.score}</td>
             </tr>`).join("") || `<tr><td colspan="6" style="color:var(--muted)">No leads match that filter.</td></tr>`}</tbody>
           </table>
         </div>
@@ -1477,7 +1481,8 @@
     document.documentElement.setAttribute("data-theme", state.theme);
     const app = $("#app");
     app.innerHTML = `
-      <div class="os ${state.call ? "live" : ""}">
+      <div class="os ${state.call ? "live" : ""} ${state.menu ? "menu-open" : ""}">
+        <div class="scrim" data-act="menu-close"></div>
         <aside class="side">
           <div class="brand"><div class="mark">✛</div><div><h1>AI WRANGLER</h1><small>Local domination OS</small></div></div>
           <nav class="nav">${NAV.map((g) => `<div class="nav-h ${g[0] === "BUILD" ? "build" : ""}">${g[0]}</div>${g[1].map(([id, l]) => ni(id, l)).join("")}`).join("")}</nav>
@@ -1488,12 +1493,13 @@
         </aside>
         <section class="main">
           <header class="top">
+            <button class="burger" data-act="menu" aria-label="Menu" aria-expanded="${state.menu ? "true" : "false"}"><span></span><span></span><span></span></button>
             <h2>${esc(TITLES[state.page] || "AI Wrangler")}</h2>
             <div class="top-actions">
-              <button class="chip" data-act="search">Search everything… <span class="k">⌘K</span></button>
-              <span class="chip">Agency view</span>
+              <button class="chip search-chip" data-act="search" aria-label="Search"><span class="glass">⌕</span><span class="hide-sm">Search everything… <span class="k">⌘K</span></span></button>
+              <span class="chip hide-sm">Agency view</span>
               <button class="chip" data-act="theme">${state.theme === "dark" ? "Light" : "Dark"}</button>
-              <span class="chip mono">${clock()}</span>
+              <span class="chip mono hide-md">${clock()}</span>
             </div>
           </header>
           <div class="stage">${(PAGES[state.page] || pageCommand)()}</div>
@@ -1508,6 +1514,17 @@
     `;
     const q = $('[data-act="q"]');
     if (q) q.focus();
+    if (state.jump) {
+      state.jump = false;
+      if (isPhone()) {
+        const stage = $(".stage");
+        const target = $(".dossier") || $(".thread") || $(".canvas");
+        if (stage && target && target.offsetParent === stage) {
+          const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+          stage.scrollTo({ top: Math.max(0, target.offsetTop - 4), behavior: calm ? "auto" : "smooth" });
+        }
+      }
+    }
   }
 
   function hits() {
@@ -1561,6 +1578,8 @@
     const act = n.getAttribute("data-act");
     const id = n.getAttribute("data-id");
     if (act === "nav") go(n.getAttribute("data-page"));
+    if (act === "menu") { state.menu = !state.menu; render(); }
+    if (act === "menu-close") { state.menu = false; render(); }
     if (act === "theme") { state.theme = state.theme === "dark" ? "light" : "dark"; localStorage.setItem("wrangler-theme", state.theme); render(); }
     if (act === "search") { state.search = true; render(); }
     if (act === "search-off") { state.search = false; render(); }
@@ -1576,11 +1595,16 @@
       toast("Wrangled → Head Wrangler · isolated job queued");
       go("work");
     }
+    if (act === "sms-sel") state.jump = true;
     if (act === "sms-sel") { state.sms = id; render(); }
+    if (act === "sel-lead") state.jump = true;
     if (act === "sel-lead") { state.lead = id; state.tab = "overview"; render(); }
     if (act === "close-lead") { state.lead = null; render(); }
+    if (act === "sel-cust") state.jump = true;
     if (act === "sel-cust") { state.custId = id; state.tab = "overview"; render(); }
+    if (act === "sel-prospect") state.jump = true;
     if (act === "sel-prospect") { state.prospect = id; state.tab = "overview"; render(); }
+    if (act === "sel-partner") state.jump = true;
     if (act === "sel-partner") { state.partner = id; state.tab = "overview"; render(); }
     if (act === "tab") { state.tab = id; render(); }
     if (act === "next") {
@@ -1644,11 +1668,13 @@
       toast(id + (state.integrations[id] ? " connected" : " disconnected"));
       render();
     }
+    if (act === "sel-bill") state.jump = true;
     if (act === "sel-bill") { state.billId = id; state.tab = "overview"; render(); }
     if (act === "invoice") { toast("Invoice queued · " + cust(id).name + " · ACH"); }
     if (act === "raise") toast("Raise drafted — it lands in your inbox to send, not theirs");
     if (act === "sel-cust-go") { state.custId = id; state.tab = "overview"; go("customers"); }
     if (act === "job-filter") { state.jobFilter = id; render(); }
+    if (act === "sel-job") state.jump = true;
     if (act === "sel-job") { state.job = id; state.tab = "overview"; render(); }
     if (act === "sel-job-go") { state.job = id; state.tab = "overview"; go("work"); }
     if (act === "open-preview") { const j = job(id); toast("Preview · " + (j && j.preview ? j.preview : "not deployed yet")); }
@@ -1659,6 +1685,7 @@
       toast("Stopped · branch left open, nothing merged");
       render();
     }
+    if (act === "sel-appr") state.jump = true;
     if (act === "sel-appr") { state.appr = id; render(); }
     if (act === "appr-yes") {
       const a = APPROVALS.find((x) => x.id === id);
@@ -1676,6 +1703,7 @@
       render();
     }
     if (act === "appr-hold") toast("Asked the agent to show its work first");
+    if (act === "sel-chg") state.jump = true;
     if (act === "sel-chg") { state.chg = id; render(); }
     if (act === "rollback") {
       const c0 = CHANGES.find((x) => x.id === id);
@@ -1683,11 +1711,14 @@
       toast("Rolled back · previous deploy restored");
       render();
     }
+    if (act === "sel-pb") state.jump = true;
     if (act === "sel-pb") { state.pb = id; render(); }
     if (act === "pb-run") { toast(PLAYBOOKS.find((x) => x.id === id).name + " queued — safe steps run, the rest lands on Needs you"); go("work"); }
     if (act === "pb-edit") toast("Playbooks are code. Edit them in the repo, not in a form.");
+    if (act === "sel-member") state.jump = true;
     if (act === "sel-member") { state.member = id; render(); }
     if (act === "member-go") { state.member = id; go("team"); }
+    if (act === "mem-scope") state.jump = true;
     if (act === "mem-scope") { state.memScope = id; state.memQ = ""; render(); }
     if (act === "mem-del") {
       const i = MEM.findIndex((m) => m.id === id);
@@ -1813,7 +1844,7 @@
   });
   document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); state.search = !state.search; render(); }
-    if (e.key === "Escape") { state.search = false; state.launch = false; render(); }
+    if (e.key === "Escape") { state.search = false; state.launch = false; state.menu = false; render(); }
   });
 
   addEventListener("hashchange", () => {

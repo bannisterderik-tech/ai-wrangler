@@ -137,20 +137,34 @@ a:hover { text-decoration: underline; }
 .btn.stop { background: var(--stop); color: #fff; border-color: transparent; }
 .btn.full { width: 100%; }
 
-.main { display: grid; grid-template-rows: var(--top) 1fr; min-width: 0; min-height: 0; }
+.main { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--top) 1fr; min-width: 0; min-height: 0; }
 .top {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 22px; border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--raised) 80%, transparent);
   backdrop-filter: blur(16px);
 }
-.top h2 { margin: 0; font-family: var(--display); font-size: 18px; font-weight: 700; }
+.top h2 {
+  margin: 0; font-family: var(--display); font-size: 18px; font-weight: 700;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.burger {
+  display: none; flex: none; width: 38px; height: 38px; margin-right: 10px;
+  border: 1px solid var(--line); background: var(--btn); border-radius: 10px;
+  padding: 0; align-items: center; justify-content: center; flex-direction: column; gap: 4px;
+}
+.burger span { display: block; width: 16px; height: 1.5px; background: var(--text); border-radius: 2px; }
+.search-chip .glass { display: none; font-size: 15px; line-height: 1; }
+.scrim {
+  display: none; position: fixed; inset: 0; z-index: 39;
+  background: var(--scrim); backdrop-filter: blur(2px);
+}
 .top-actions { display: flex; align-items: center; gap: 8px; }
 .chip {
   border: 1px solid var(--line); background: var(--btn); border-radius: 999px;
   padding: 6px 12px; font-size: 12px; color: var(--muted); display: inline-flex; gap: 8px; align-items: center;
 }
-.k { font-family: var(--mono); font-size: 10px; border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; }
+.chip .k { font-family: var(--mono); font-size: 10px; border: 1px solid var(--line); padding: 1px 5px; border-radius: 4px; }
 .stage { min-width: 0; min-height: 0; overflow: hidden; position: relative; }
 
 .page { height: 100%; width: 100%; display: flex; flex-direction: column; min-height: 0; }
@@ -351,6 +365,7 @@ html[data-theme="light"] .dock { background: #fff4ee; }
 
 .page > .desk, .page > .board { flex: 1; min-height: 0; }
 .desk { display: grid; grid-template-columns: 300px 1fr 280px; height: 100%; min-height: 0; }
+.desk > *, .split > *, .livework > *, .grid-2 > *, .grid-3 > * { min-width: 0; }
 .desk.wide-list { grid-template-columns: minmax(380px, 1.15fr) minmax(300px, 1fr) 260px; }
 .desk.norail { grid-template-columns: 300px 1fr; }
 .desk.full-list { grid-template-columns: 1fr; }
@@ -391,16 +406,128 @@ html[data-theme="light"] .dock { background: #fff4ee; }
   .kpis { grid-template-columns: repeat(3, 1fr); }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .markets { grid-template-columns: 1fr 1fr; }
-  .split, .split.wide, .split.lead, .livework, .desk, .desk.norail { grid-template-columns: 1fr; }
+  .split, .split.wide, .split.lead, .livework,
+  .desk, .desk.norail, .desk.full-list, .desk.wide-list { grid-template-columns: 1fr; }
   .list, .desk .roll { max-height: 34vh; border-right: 0; border-bottom: 1px solid var(--line); }
   .rail { display: none; }
 }
-@media (max-width: 760px) {
+
+/*
+ * Phone. The sidebar becomes a drawer, and the whole stage scrolls as one page
+ * instead of a grid of panes that each scroll inside a fixed viewport — panes
+ * within panes are unusable with a thumb.
+ */
+@media (max-width: 860px) {
+  :root { --top: 56px; --dock: 60px; }
   .os { grid-template-columns: 1fr; }
-  .side { display: none; }
-  .dock { grid-column: 1; grid-template-columns: 1fr; }
+  .os::before { display: none; }
+
+  .side {
+    position: fixed; top: 0; bottom: 0; left: 0; width: min(84vw, 300px);
+    grid-row: auto; z-index: 40; transform: translateX(-100%);
+    transition: transform .22s cubic-bezier(.4, 0, .2, 1);
+    box-shadow: 0 0 60px rgba(0, 0, 0, .5);
+    background: var(--raised);
+  }
+  .os.menu-open .side { transform: none; }
+  .os.menu-open .scrim { display: block; }
+  .burger { display: flex; }
+  .ni { padding: 10px; font-size: 14px; }
+  .nav-h { padding: 14px 10px 4px; }
+
+  .top { padding: 0 14px; gap: 10px; }
+  .top h2 { flex: 1; font-size: 16px; }
+  .top-actions { gap: 6px; flex: none; }
+  .hide-sm, .hide-md { display: none; }
+  .search-chip { padding: 8px 11px; }
+  .search-chip .glass { display: inline; }
+
+  /* one scroll container for the whole screen */
+  .stage { overflow: auto; -webkit-overflow-scrolling: touch; }
+  .page { height: auto; min-height: 100%; }
+  .desk, .split, .livework { height: auto; }
+  .desk .roll, .list {
+    max-height: none; overflow: visible;
+    border-right: 0; border-bottom: 1px solid var(--line);
+  }
+  .dossier, .thread, .dbody, .card .body, .msgs {
+    overflow: visible; max-height: none; min-height: 0;
+  }
+  .canvas { max-height: none; min-height: 0; overflow-x: auto; overflow-y: visible; }
+  .canvas > .kpis, .canvas > .hero { padding-left: 0; padding-right: 0; }
+  .page > .desk, .page > .board, .grid-2, .grid-3 { flex: none; }
+  .board { height: auto; min-height: 68vh; }
+  .rail {
+    display: flex; border-left: 0; border-top: 1px solid var(--line);
+    overflow: visible;
+  }
+  /* Leads is the one desk whose detail is optional, so on a phone it replaces
+     the list rather than sitting a screenful below it. "Close" is the way back. */
+  .desk.wide-list > .roll { display: none; }
+  .page:has(> .desk.wide-list) > .statline { display: none; }
+
+  .hero { flex-direction: column; align-items: stretch; padding: 18px 16px 6px; }
+  .hero h3 { font-size: clamp(26px, 7.4vw, 34px); }
+  .hero p { font-size: 13px; }
+  .hero .top-actions { gap: 8px; }
+  .hero .top-actions .btn { flex: 1; }
+  .kpis { grid-template-columns: 1fr 1fr; padding: 10px 16px 6px; gap: 8px; }
+  .pad { padding: 14px 16px; }
+  .dh, .acts, .dbody { padding-left: 16px; padding-right: 16px; }
+  .statline { padding: 8px 12px; }
+  .statline input { min-width: 0; flex: 1 1 140px; }
+  .markets { grid-template-columns: 1fr 1fr; }
+
+  /* tables are the one thing allowed to scroll sideways, inside themselves */
+  .roll > table.grid, .canvas table.grid, .sec > table.grid { min-width: 560px; }
+  .roll, .canvas .sec, .dbody { overflow-x: auto; }
+
+  /* thumbs need something to hit */
+  .btn { padding: 11px 14px; }
+  .btn.tiny { padding: 8px 11px; font-size: 12px; }
+  .ptab { padding: 12px 12px; }
+  .item { padding: 14px; }
+  .file, .person { padding: 12px 0; }
+
+  .dock { grid-column: 1; grid-template-columns: 1fr auto; gap: 10px; padding: 0 14px; }
+  .wave { display: none; }
+  .call-id .ph { font-size: 11px; }
+  .dialpad { gap: 6px; }
+
+  .search .box { width: calc(100vw - 28px); }
+  .modal, .sheet { padding: 0; }
+}
+
+@media (max-width: 620px) {
+  .roll > table.grid, .canvas table.grid, .sec > table.grid { min-width: 0; }
+  .roll > table.grid thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .roll > table.grid, .roll > table.grid tbody, .roll > table.grid tr, .roll > table.grid td { display: block; width: 100%; }
+  .roll > table.grid tr {
+    padding: 12px 16px; border-bottom: 1px solid var(--line);
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 10px;
+  }
+  .roll > table.grid td { border: 0; padding: 0; font-size: 13px; color: var(--muted); }
+  .roll > table.grid td[data-l="Company"] { grid-column: 1; grid-row: 1; font-size: 15px; color: var(--text); }
+  .roll > table.grid td[data-l="Score"] { grid-column: 2; grid-row: 1; text-align: right; color: var(--text); font-weight: 600; }
+  .roll > table.grid td[data-l="Owner"] { grid-column: 1; grid-row: 2; }
+  .roll > table.grid td[data-l="Retainer"] { grid-column: 2; grid-row: 2; text-align: right; }
+  .roll > table.grid td[data-l="Trade"],
+  .roll > table.grid td[data-l="Stage"] { grid-row: 3; display: inline-block; width: auto; }
+  .roll > table.grid td[data-l="Trade"] { grid-column: 1; }
+  .roll > table.grid td[data-l="Stage"] { grid-column: 2; text-align: right; }
+  .roll > table.grid td[data-l="Trade"]::before,
+  .roll > table.grid td[data-l="Stage"]::before { content: ""; }
+  .roll > table.grid td[data-l="Trade"],
+  .roll > table.grid td[data-l="Stage"] { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--faint); margin-top: 4px; }
+}
+
+@media (max-width: 420px) {
+  .kv { grid-template-columns: 1fr; gap: 2px; }
+  .kv .k { padding-top: 8px; }
+  .dh .who { font-size: 22px; }
   .kpis { grid-template-columns: 1fr 1fr; }
 }
+
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
