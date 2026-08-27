@@ -4,6 +4,8 @@ Agency OS for running AI builds across many client sites **without mixing them**
 
 **Frontend preview (no database):** [bannisterderik-tech.github.io/ai-wrangler](https://bannisterderik-tech.github.io/ai-wrangler/)
 
+Funnel (CRM, Twilio dialer, SMS, Zernio ads, partners) sits at the top. Build work sits at the bottom. Every screen is full-viewport. Twilio / Zernio keys go in `.env.example` when you are ready — until then the desk runs as a live-shaped demo.
+
 GitHub Pages serves the clickable OS sim so you can walk the UI before Postgres and Vercel are wired. It is noindex. The live product is still `web/`.
 
 - **Product:** [`web/`](web/) — Next.js 16 app on Postgres. **This is what you deploy** (Railway / later Vercel).

@@ -33,7 +33,7 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="flex flex-col gap-2 overflow-y-auto px-[18px] py-4">
+    <div className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto px-5 py-4">
       <div className="mb-1 text-[11.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
         Customer messages from email and Slack land here. One click hands them to the Head Wrangler.
       </div>

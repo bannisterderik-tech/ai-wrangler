@@ -20,7 +20,7 @@ export default function SettingsPage() {
   const ghBound = customers.reduce((a, c) => a + (c.github?.bound || 0), 0);
 
   return (
-    <div className="mx-auto flex max-w-[680px] flex-col gap-2 overflow-y-auto p-4">
+    <div className="flex h-full min-h-0 flex-col gap-2 overflow-y-auto p-5">
       <div className="text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
         Each connection issues the AI its own limited token — never your password. Isolation is per customer.
       </div>
@@ -45,6 +45,18 @@ export default function SettingsPage() {
         }
         on={!!gh.connected}
         href="/github"
+      />
+      <Row
+        name="Twilio"
+        desc="Power dialer, inbound DID, SMS, A2P 10DLC. One number per customer."
+        detail="Set TWILIO_ACCOUNT_SID / AUTH_TOKEN / CALLER_ID — demo mode until then."
+        on={false}
+      />
+      <Row
+        name="Zernio"
+        desc="Ads across Google, Meta, TikTok, LinkedIn, Pinterest, X, OpenAI. One profile per customer."
+        detail="Set ZERNIO_API_KEY — the ads desk runs demo campaigns until then."
+        on={false}
       />
       <Row name="Supabase" desc="Databases, with row-level walls between customers." detail="Not connected yet." on={false} />
     </div>

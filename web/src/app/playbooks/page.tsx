@@ -5,6 +5,16 @@ import { useRouter } from "next/navigation";
 
 const PLAYBOOKS = [
   {
+    name: "Storm 90",
+    desc: "Hail hits. LSA + Meta + Twilio 60s SLA + tarp landing page before the national chains pick up.",
+    steps: ["Spin Zernio Google + Meta geo 20mi", "Twilio SMS the storm list in 60s", "Ship tarp-today landing page", "Power-dial new LSA leads", "Book estimates onto today's board"],
+  },
+  {
+    name: "Speed-to-lead",
+    desc: "Missed call → SMS in 20s → dialer queue → voicemail drop. The local shop that answers wins.",
+    steps: ["Missed-call webhook → SMS template T1", "Push lead onto power-dial list", "AMD + voicemail drop", "Advance pipeline to Speed-to-lead"],
+  },
+  {
     name: "New e-commerce client setup",
     desc: "Repo, store scaffold, checkout, analytics — ready in a day.",
     steps: ["Create repo + environments", "Scaffold the storefront", "Wire payments (test mode)", "Analytics + uptime checks", "Draft the launch checklist"],
@@ -50,7 +60,7 @@ export default function PlaybooksPage() {
       <div className="mb-3 text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
         Repeatable recipes. Pick a customer and the Head Wrangler runs every step — asking for your OK at the sensitive ones.
       </div>
-      <div className="grid max-w-[920px] grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3">
         {PLAYBOOKS.map((pb) => (
           <div key={pb.name} className="rounded-xl p-[15px]" style={{ background: "var(--surface-raised)", border: "1px solid var(--hairline)" }}>
             <div className="text-[13px] font-semibold">{pb.name}</div>

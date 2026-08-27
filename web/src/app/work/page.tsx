@@ -39,7 +39,7 @@ export default function WorkPage() {
   const pct = current ? Math.max(0, Math.round((left / current.budgetCents) * 100)) : 0;
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[230px_1fr]">
+    <div className="grid h-full min-h-0 grid-cols-[230px_1fr] overflow-hidden">
       <div className="flex flex-col gap-1.5 overflow-y-auto p-2.5" style={{ borderRight: "1px solid var(--hairline)" }}>
         {jobs.map((j) => (
           <button

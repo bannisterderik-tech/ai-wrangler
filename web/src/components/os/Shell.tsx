@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NAV, TITLES } from "@/lib/nav";
+import { DialerDock, DialerProvider } from "./DialerDock";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
+  const router = useRouter();
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [clock, setClock] = useState("");
   const [needs, setNeeds] = useState(0);
@@ -75,157 +77,116 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="fixed inset-0 flex" style={{ background: "var(--surface-void)" }}>
-      <aside
-        className="flex w-[216px] shrink-0 flex-col"
-        style={{ background: "var(--surface-raised)", borderRight: "1px solid var(--hairline)" }}
+    <DialerProvider>
+      <div
+        className="fixed inset-0 grid"
+        style={{
+          gridTemplateColumns: "248px 1fr",
+          gridTemplateRows: "1fr 64px",
+          background: "var(--surface-void)",
+        }}
       >
-        <div className="px-4 pb-3.5 pt-4">
-          <div className="flex items-center gap-2 text-[14px] font-semibold tracking-[0.3px]">
-            <span style={{ color: "var(--brand-text)", fontSize: 15 }}>✛</span>
-            AI WRANGLER
-          </div>
-          <div
-            className="mt-1 text-[10px] uppercase tracking-[0.8px]"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            Your AI Operating System
-          </div>
-        </div>
-        <nav className="flex flex-1 flex-col gap-0 overflow-y-auto px-2">
-          {NAV.map((group) => (
-            <div key={group.section}>
-              <div
-                className="px-3 pb-0.5 pt-1.5 text-[9px] font-semibold tracking-widest"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {group.section}
-              </div>
-              {group.items.map((item) => {
-                const active = path === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="flex items-center justify-between rounded-[7px] px-3 py-1 text-[11.5px] no-underline"
-                    style={{
-                      background: active ? "var(--surface-inset)" : "transparent",
-                      color: "var(--text-primary)",
-                      fontWeight: active ? 600 : 400,
-                    }}
-                  >
-                    <span>{item.label}</span>
-                    {item.id === "approvals" && needs > 0 ? (
-                      <span
-                        className="rounded-lg px-1.5 text-[10px] font-semibold tabular-nums"
-                        style={{ background: "var(--state-blocked)", color: "#0B0C0E" }}
-                      >
-                        {needs}
-                      </span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-        <div className="flex flex-col gap-1.5 border-t p-2.5" style={{ borderColor: "var(--hairline)" }}>
-          <Link
-            href="/customers"
-            className="rounded-lg py-1.5 text-center text-xs font-semibold text-white no-underline"
-            style={{ background: "var(--brand)" }}
-          >
-            ＋ New customer
-          </Link>
-          <Link
-            href="/work"
-            className="rounded-lg border py-1.5 text-center text-xs no-underline"
-            style={{
-              background: "var(--btn)",
-              borderColor: "var(--hairline)",
-              color: "var(--text-primary)",
-            }}
-          >
-            ＋ Give the AI a task
-          </Link>
-          <Link
-            href="/github"
-            className="rounded-lg border py-1.5 text-center text-xs no-underline"
-            style={{
-              background: "var(--btn)",
-              borderColor: "var(--hairline)",
-              color: "var(--text-primary)",
-            }}
-          >
-            Our GitHub
-          </Link>
-          <div className="flex gap-1.5">
-            <button
-              onClick={toggleTheme}
-              className="flex-1 cursor-pointer rounded-lg border py-1 text-[11px]"
-              style={{
-                background: "none",
-                borderColor: "var(--hairline)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              {theme === "dark" ? "Light" : "Dark"} mode
-            </button>
-            <span
-              className="flex flex-1 items-center justify-center text-[11px] tabular-nums"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              {clock}
-            </span>
-          </div>
-        </div>
-      </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header
-          className="flex h-[52px] shrink-0 items-center justify-between px-5"
+        <aside
+          className="flex flex-col"
           style={{
+            gridRow: "1 / span 2",
             background: "var(--surface-raised)",
-            borderBottom: "1px solid var(--hairline)",
+            borderRight: "1px solid var(--hairline)",
           }}
         >
-          <div className="text-[15px] font-semibold">{TITLES[path] || "AI Wrangler"}</div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5 px-4 pb-3.5 pt-4">
             <span
-              className="rounded-lg border px-3.5 py-1.5 text-xs"
-              style={{
-                background: "var(--btn)",
-                borderColor: "var(--hairline)",
-                color: "var(--text-secondary)",
-              }}
+              className="grid h-7 w-7 place-items-center rounded-lg text-[15px] font-extrabold"
+              style={{ background: "linear-gradient(135deg, var(--brand), #ff8a4c)", color: "#140800" }}
             >
-              Search everything…
+              ✛
             </span>
-            <span
-              className="rounded-lg border px-3 py-1.5 text-xs"
-              style={{
-                background: "var(--btn)",
-                borderColor: "var(--hairline)",
-                color: "var(--text-primary)",
-              }}
-            >
-              Agency view ▾
-            </span>
-            <button
-              onClick={signOut}
-              title={me ? `Signed in as ${me.name} (${me.via})` : "Sign out"}
-              className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs"
-              style={{
-                background: "var(--btn)",
-                borderColor: "var(--hairline)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              {me ? `${me.name} · Sign out` : "Sign out"}
-            </button>
+            <div>
+              <div className="text-[14px] font-semibold tracking-[0.3px]">AI WRANGLER</div>
+              <div className="text-[10px] uppercase tracking-[1.4px]" style={{ color: "var(--text-secondary)" }}>
+                Local domination OS
+              </div>
+            </div>
           </div>
-        </header>
-        <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+          <nav className="flex flex-1 flex-col overflow-y-auto px-2.5">
+            {NAV.map((group) => (
+              <div key={group.section}>
+                <div
+                  className="px-2.5 pb-0.5 pt-3 text-[9px] font-semibold tracking-[1.6px]"
+                  style={{ color: group.section === "BUILD" ? "var(--brand-text)" : "var(--text-secondary)" }}
+                >
+                  {group.section}
+                </div>
+                {group.items.map((item) => {
+                  const active = path === item.href;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="flex items-center justify-between rounded-[9px] px-2.5 py-2 text-[13px] no-underline"
+                      style={{
+                        background: active ? "var(--brand-dim, rgba(255,77,24,0.14))" : "transparent",
+                        color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                        fontWeight: active ? 600 : 400,
+                        boxShadow: active ? "inset 3px 0 0 var(--brand)" : "none",
+                      }}
+                    >
+                      <span>{item.label}</span>
+                      {item.id === "approvals" && needs > 0 ? (
+                        <span
+                          className="rounded-lg px-1.5 text-[10px] font-semibold tabular-nums"
+                          style={{ background: "var(--state-blocked)", color: "#0B0C0E" }}
+                        >
+                          {needs}
+                        </span>
+                      ) : null}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+          <div className="flex flex-col gap-1.5 border-t p-2.5" style={{ borderColor: "var(--hairline)" }}>
+            <Link href="/leads" className="btn-os brand" style={{ textAlign: "center", textDecoration: "none" }}>
+              ＋ New lead
+            </Link>
+            <button className="btn-os" onClick={() => router.push("/dialer")}>
+              ＋ Dial the board
+            </button>
+            <div className="flex gap-1.5">
+              <button className="btn-os flex-1" onClick={toggleTheme}>
+                {theme === "dark" ? "Light" : "Dark"}
+              </button>
+              <span className="flex flex-1 items-center justify-center font-mono text-[11px]" style={{ color: "var(--text-secondary)" }}>
+                {clock}
+              </span>
+            </div>
+          </div>
+        </aside>
+        <div className="flex min-h-0 min-w-0 flex-col">
+          <header
+            className="flex h-14 shrink-0 items-center justify-between px-5"
+            style={{ background: "var(--surface-raised)", borderBottom: "1px solid var(--hairline)" }}
+          >
+            <div className="text-[17px] font-semibold tracking-tight">{TITLES[path] || "AI Wrangler"}</div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full border px-3.5 py-1.5 text-xs" style={{ borderColor: "var(--hairline)", color: "var(--text-secondary)" }}>
+                Search everything… ⌘K
+              </span>
+              <span className="rounded-full border px-3 py-1.5 text-xs" style={{ borderColor: "var(--hairline)" }}>
+                Agency view
+              </span>
+              <button className="btn-os" onClick={signOut} title={me ? `Signed in as ${me.name}` : "Sign out"}>
+                {me ? `${me.name} · Sign out` : "Sign out"}
+              </button>
+            </div>
+          </header>
+          <main className="min-h-0 min-w-0 flex-1 overflow-hidden">{children}</main>
+        </div>
+        <div style={{ gridColumn: 2 }}>
+          <DialerDock />
+        </div>
       </div>
-    </div>
+    </DialerProvider>
   );
 }

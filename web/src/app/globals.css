@@ -1,41 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  --surface-void: #0b0c0e;
-  --surface-raised: #141619;
-  --surface-inset: #1b1e22;
+  --surface-void: #05060a;
+  --surface-raised: #0b0d12;
+  --surface-inset: #161a23;
   --hairline: rgba(255, 255, 255, 0.07);
-  --text-primary: #edeff2;
-  --text-secondary: #9aa1ab;
-  --state-thinking: #6e8bff;
-  --state-running: #3fcf8e;
-  --state-blocked: #f2a33c;
-  --state-failed: #ff5c5c;
-  --accent-ink: #c9d1ff;
-  --scrim: rgba(0, 0, 0, 0.5);
-  --btn: #22262b;
-  --brand: #e8531f;
-  --brand-text: #ff7a45;
+  --text-primary: #f4f1ea;
+  --text-secondary: #8b91a1;
+  --state-thinking: #6ea8ff;
+  --state-running: #3dffb0;
+  --state-blocked: #ffc14a;
+  --state-failed: #ff4d6a;
+  --accent-ink: #6ea8ff;
+  --scrim: rgba(2, 3, 6, 0.72);
+  --btn: #1a1f2a;
+  --brand: #ff4d18;
+  --brand-text: #ff8a4c;
+  --brand-dim: rgba(255, 77, 24, 0.14);
   --background: var(--surface-void);
   --foreground: var(--text-primary);
 }
 
 html[data-theme="light"] {
-  --surface-void: #eef0f3;
-  --surface-raised: #ffffff;
-  --surface-inset: #f3f5f8;
-  --hairline: rgba(10, 15, 25, 0.1);
-  --text-primary: #16181c;
-  --text-secondary: #5d6570;
-  --state-thinking: #4462e8;
-  --state-running: #189a64;
-  --state-blocked: #c77a16;
-  --state-failed: #d93a3a;
-  --accent-ink: #3a50c0;
-  --scrim: rgba(20, 24, 30, 0.35);
-  --btn: #e6e9ee;
-  --brand: #c2410c;
+  --surface-void: #ece8e1;
+  --surface-raised: #f7f4ee;
+  --surface-inset: #efebe3;
+  --hairline: rgba(20, 16, 12, 0.1);
+  --text-primary: #14120f;
+  --text-secondary: #5c574e;
+  --state-thinking: #2658d9;
+  --state-running: #0f9f6e;
+  --state-blocked: #c48412;
+  --state-failed: #d12b45;
+  --accent-ink: #2658d9;
+  --scrim: rgba(20, 16, 12, 0.4);
+  --btn: #efebe3;
+  --brand: #e03d0f;
   --brand-text: #c2410c;
+  --brand-dim: rgba(224, 61, 15, 0.1);
 }
 
 html,
@@ -102,5 +104,35 @@ button {
 }
 
 .font-mono {
-  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-family: var(--font-mono), "IBM Plex Mono", ui-monospace, monospace;
+}
+
+.btn-os {
+  border: 1px solid var(--hairline);
+  background: var(--btn);
+  color: var(--text-primary);
+  border-radius: 10px;
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-os.brand {
+  background: var(--brand);
+  border-color: transparent;
+  color: #fff;
+}
+.btn-os.stop {
+  background: var(--state-failed);
+  border-color: transparent;
+  color: #fff;
+}
+.btn-os.go {
+  background: var(--state-running);
+  border-color: transparent;
+  color: #062016;
+}
+
+h1, h2, h3, .display {
+  font-family: var(--font-display), Syne, var(--font-sans), sans-serif;
 }

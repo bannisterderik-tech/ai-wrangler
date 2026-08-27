@@ -1,85 +1,104 @@
+"use client";
+
 import Link from "next/link";
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { approvals, customers, jobs } from "@/lib/schema";
-import { Card } from "@/lib/ui";
-import { money } from "@/lib/ui";
+import { ADS, CUSTOMERS, LEADS, customerName } from "@/lib/os-demo";
+import { useDialer } from "@/components/os/DialerDock";
 
-/** Live control plane: never prerender a customer’s numbers at build time. */
-export const dynamic = "force-dynamic";
+function Kpi({ l, n, s }: { l: string; n: string; s: string }) {
+  return (
+    <div className="rounded-[14px] border p-4" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>
+      <div className="text-[10px] uppercase tracking-[1.2px]" style={{ color: "var(--text-secondary)" }}>{l}</div>
+      <div className="mt-2 font-mono text-[28px] font-semibold tracking-tight">{n}</div>
+      <div className="mt-1 text-[11.5px]" style={{ color: "var(--state-running)" }}>{s}</div>
+    </div>
+  );
+}
 
-export default async function BriefingPage() {
-  const [clientRows, pending, allJobs] = await Promise.all([
-    db.select().from(customers),
-    db.select().from(approvals).where(eq(approvals.status, "pending")),
-    db.select().from(jobs),
-  ]);
-  const running = allJobs.filter((j) => j.status === "thinking" || j.status === "working");
-  const spent = allJobs.reduce((a, j) => a + (j.spentCents || 0), 0);
-  const names = Object.fromEntries(clientRows.map((c) => [c.id, c.name]));
-  const hour = new Date().getHours();
-  const greet = hour < 12 ? "Good morning." : "Good afternoon.";
+export default function CommandPage() {
+  const { dial } = useDialer();
+  const hot = LEADS.filter((l) => l.stage <= 1).slice(0, 6);
+  const spend = ADS.reduce((a, x) => a + x.spend, 0);
+  const leadsN = ADS.reduce((a, x) => a + x.leads, 0);
 
   return (
-    <div className="flex justify-center p-6">
-      <div className="flex w-[760px] max-w-full flex-col gap-3.5">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex items-end justify-between gap-4 px-5 pt-5">
         <div>
-          <div className="text-[22px] font-semibold">{greet}</div>
-          <div className="mt-1 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
-            {running.length} job{running.length === 1 ? "" : "s"} running · {pending.length} waiting on you ·{" "}
-            {money(spent)} spent today · {clientRows.length} customers
-          </div>
+          <h3 className="m-0 text-[34px] leading-none tracking-tight">Good morning. Five trades. One war room.</h3>
+          <p className="mt-2 max-w-[640px] text-[13.5px]" style={{ color: "var(--text-secondary)" }}>
+            Speed-to-lead is 47s. The AI is already texting storm leads, dialing the board, and spinning Zernio ads.
+            Isolation is on — Apex never sees Cascade&apos;s book.
+          </p>
         </div>
-        <div className="grid grid-cols-2 gap-3.5">
-          <Card kicker="Finished while you were away">
-            <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
-              Work is in flight. Finished jobs will land here.
-            </div>
-          </Card>
-          <Card kicker="Needs you">
-            {pending.length === 0 ? (
-              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                Nothing waiting on you. Enjoy the coffee.
-              </div>
-            ) : (
-              pending.map((p) => (
-                <Link
-                  key={p.id}
-                  href="/approvals"
-                  className="mb-1.5 block rounded-lg border px-2.5 py-2 text-left text-xs leading-snug no-underline"
-                  style={{ borderColor: "var(--state-blocked)", color: "var(--text-primary)" }}
-                >
-                  <span className="font-semibold" style={{ color: "var(--state-blocked)" }}>
-                    {names[p.customerId]}
-                  </span>{" "}
-                  — {p.title}
-                </Link>
-              ))
-            )}
-          </Card>
-          <Card kicker="Money">
-            <div className="text-2xl font-semibold tabular-nums">{money(spent)}</div>
-            <div className="mt-0.5 text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
-              spent today across all customers
-            </div>
-            <div className="mt-1.5 text-[11.5px]" style={{ color: "var(--state-running)" }}>
-              {money(Math.round(spent * 0.42))} saved by reusing context
-            </div>
-          </Card>
-          <Card kicker="Worth an eye">
-            <div className="flex flex-col gap-1.5 text-[12.5px] leading-snug">
-              <div>Isolation is on. Tokens never cross customers.</div>
-              {running.map((j) => (
-                <div key={j.id} className="flex gap-1.5">
-                  <span style={{ color: "var(--state-blocked)" }}>•</span>
-                  <span>
-                    {names[j.customerId]} — {j.title}
-                  </span>
+        <div className="flex gap-2">
+          <Link href="/dialer" className="btn-os brand no-underline">Start power dial</Link>
+          <Link href="/ads" className="btn-os no-underline">Launch ads</Link>
+        </div>
+      </div>
+      <div className="grid grid-cols-6 gap-2.5 px-5 py-3">
+        <Kpi l="Speed to lead" n="47s" s="target < 60s" />
+        <Kpi l="Calls today" n="38" s="Twilio · 4 lines" />
+        <Kpi l="SMS sent" n="126" s="A2P 10DLC live" />
+        <Kpi l="Ad spend" n={`$${spend.toLocaleString()}`} s={`${leadsN} leads · Zernio`} />
+        <Kpi l="Booked estimates" n="14" s="+3 vs yesterday" />
+        <Kpi l="AI jobs live" n="2" s="Head Wrangler on box" />
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-3 gap-3 overflow-hidden px-5 pb-5">
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>
+          <h4 className="m-0 border-b px-3.5 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ borderColor: "var(--hairline)", color: "var(--text-secondary)" }}>
+            Hot board — call these now
+          </h4>
+          <div className="min-h-0 flex-1 overflow-auto p-2">
+            {hot.map((l) => (
+              <div key={l.id} className="flex items-start justify-between gap-2 border-b px-1 py-2.5" style={{ borderColor: "var(--hairline)" }}>
+                <div>
+                  <div className="text-[13px] font-semibold">{l.name} · {customerName(l.cust)}</div>
+                  <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>{l.note}</div>
                 </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+                <div className="flex shrink-0 gap-1">
+                  <button className="btn-os brand" onClick={() => dial(l.id)}>Call</button>
+                  <Link href="/sms" className="btn-os no-underline">SMS</Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>
+          <h4 className="m-0 border-b px-3.5 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ borderColor: "var(--hairline)", color: "var(--text-secondary)" }}>
+            Local domination — share of search
+          </h4>
+          <div className="grid min-h-0 flex-1 grid-cols-2 gap-2 overflow-auto p-3">
+            {CUSTOMERS.map((c) => (
+              <div key={c.id} className="rounded-xl border p-3" style={{ background: "var(--surface-inset)", borderColor: "var(--hairline)" }}>
+                <b>{c.city.split(",")[0]}</b>
+                <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>{c.name} · rank #{c.rank}</div>
+                <div className="mt-2.5 h-1.5 overflow-hidden rounded-full" style={{ background: "var(--surface-void)" }}>
+                  <i className="block h-full" style={{ width: c.share, background: "linear-gradient(90deg, var(--brand), var(--state-running))" }} />
+                </div>
+                <div className="mt-1.5 font-mono text-xs">{c.share} share</div>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="flex min-h-0 flex-col overflow-hidden rounded-[14px] border" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>
+          <h4 className="m-0 border-b px-3.5 py-3 text-[11px] font-semibold uppercase tracking-wider" style={{ borderColor: "var(--hairline)", color: "var(--text-secondary)" }}>
+            AI + human feed
+          </h4>
+          <div className="min-h-0 flex-1 overflow-auto p-3 text-[12.5px]">
+            {[
+              ["AI", "Zernio · Apex Google RSA is 2.1× impression share vs last week."],
+              ["You", "Approval needed: Cascade after-hours SMS blast (46 opted-in)."],
+              ["Twilio", "Inbound from 530-555-0142 — routed to Apex storm queue."],
+              ["AI", "Booked Priya Shah estimate Thursday 7:30a."],
+              ["Partner", "Ken Williamson sent a reroof. Auto-texted in 19s."],
+            ].map(([who, text]) => (
+              <div key={text} className="mb-2 flex gap-2">
+                <span className="h-fit rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase" style={{ borderColor: "var(--hairline)", color: "var(--brand-text)" }}>{who}</span>
+                <span>{text}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );

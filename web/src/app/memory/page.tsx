@@ -58,7 +58,7 @@ export default function MemoryPage() {
         ))}
       </div>
       <div className="flex flex-1 justify-center overflow-y-auto p-4">
-        <div className="flex w-[640px] max-w-full flex-col gap-2.5">
+        <div className="flex w-full flex-col gap-2.5">
           <div className="text-[11.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
             What the AI remembers about this customer. Wrong or stale? Delete it — the AI forgets instantly.
           </div>

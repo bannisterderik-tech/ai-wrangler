@@ -1,23 +1,26 @@
 export const NAV = [
-  { section: "LIVE", items: [
-    { href: "/", id: "briefing", label: "Briefing" },
-    { href: "/work", id: "work", label: "Live work" },
-    { href: "/manager", id: "manager", label: "Head Wrangler" },
-    { href: "/inbox", id: "inbox", label: "Inbox" },
-  ]},
-  { section: "SHIP", items: [
-    { href: "/approvals", id: "approvals", label: "Needs you" },
-    { href: "/changes", id: "changes", label: "All changes" },
-    { href: "/org", id: "org", label: "The AI team" },
-    { href: "/playbooks", id: "playbooks", label: "Playbooks" },
+  { section: "FUNNEL", items: [
+    { href: "/", id: "command", label: "Command" },
+    { href: "/pipeline", id: "pipeline", label: "Pipeline" },
+    { href: "/leads", id: "leads", label: "Leads" },
+    { href: "/dialer", id: "dialer", label: "Dialer" },
+    { href: "/sms", id: "sms", label: "SMS" },
+    { href: "/ads", id: "ads", label: "Ads" },
+    { href: "/partners", id: "partners", label: "Partners" },
   ]},
   { section: "CLIENTS", items: [
     { href: "/customers", id: "customers", label: "Customers" },
-    { href: "/sales", id: "sales", label: "Sales" },
+    { href: "/inbox", id: "inbox", label: "Inbox" },
     { href: "/billing", id: "billing", label: "Billing" },
-    { href: "/marketing", id: "marketing", label: "Marketing" },
   ]},
-  { section: "AGENCY", items: [
+  { section: "BUILD", items: [
+    { href: "/work", id: "work", label: "Live work" },
+    { href: "/manager", id: "manager", label: "Head Wrangler" },
+    { href: "/approvals", id: "approvals", label: "Needs you" },
+    { href: "/changes", id: "changes", label: "Changes" },
+    { href: "/playbooks", id: "playbooks", label: "Playbooks" },
+  ]},
+  { section: "SYSTEM", items: [
     { href: "/team", id: "team", label: "Your team" },
     { href: "/memory", id: "memory", label: "Memory" },
     { href: "/spending", id: "spending", label: "Spending" },
@@ -28,7 +31,13 @@ export const NAV = [
 ] as const;
 
 export const TITLES: Record<string, string> = {
-  "/": "Morning briefing",
+  "/": "Command — dominate the market",
+  "/pipeline": "Pipeline",
+  "/leads": "Lead desk",
+  "/dialer": "Twilio power dialer",
+  "/sms": "SMS — every book",
+  "/ads": "Zernio ads",
+  "/partners": "Partners & trade referrals",
   "/work": "Live work",
   "/manager": "Head Wrangler",
   "/inbox": "Inbox",
@@ -37,9 +46,9 @@ export const TITLES: Record<string, string> = {
   "/org": "The AI team",
   "/playbooks": "Playbooks",
   "/customers": "Customers",
-  "/sales": "Sales",
-  "/billing": "Billing",
-  "/marketing": "Marketing",
+  "/sales": "Pipeline",
+  "/billing": "Billing & margin",
+  "/marketing": "Ads",
   "/team": "Your team",
   "/memory": "Memory",
   "/spending": "Spending",

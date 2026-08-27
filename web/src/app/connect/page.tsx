@@ -63,7 +63,7 @@ export default function ConnectPage() {
   const current = customers.find((c) => c.id === selected);
 
   return (
-    <div className="mx-auto flex max-w-[720px] flex-col gap-3.5 p-7">
+    <div className="flex h-full min-h-0 flex-col gap-3.5 overflow-auto p-6">
       <div>
         <div className="text-[22px] font-semibold">Connect a customer’s Vercel</div>
         <p className="mt-1 text-[12.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
