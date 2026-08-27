@@ -15,14 +15,11 @@
       ["billing", "Billing"],
     ]],
     ["BUILD", [
-      ["work", "Live work"],
-      ["wrangler", "Head Wrangler"],
-      ["approvals", "Needs you"],
-      ["changes", "Changes"],
+      ["work", "The floor"],
+      ["sessions", "Sessions"],
       ["playbooks", "Playbooks"],
     ]],
     ["SYSTEM", [
-      ["team", "Your team"],
       ["memory", "Memory"],
       ["spending", "Spending"],
       ["connect", "Connect Vercel"],
@@ -36,16 +33,17 @@
     prospects: "Prospects — firms we want",
     dialer: "Twilio power dialer",
     ads: "Zernio ads",
-    partners: "Partner dossier",
+    partners: "Partners — the franchise network",
     customers: "Customer dossier",
     inbox: "Inbox — every thread",
     billing: "Billing & margin",
-    work: "Live work",
-    wrangler: "Head Wrangler",
-    approvals: "Needs you",
-    changes: "All changes",
+    work: "The floor — everything the AI is doing",
+    sessions: "Sessions — every Claude Code on the floor",
     playbooks: "Playbooks",
-    team: "Your team",
+    approvals: "The floor — everything the AI is doing",
+    changes: "The floor — everything the AI is doing",
+    wrangler: "Sessions — every Claude Code on the floor",
+    team: "Sessions — every Claude Code on the floor",
     memory: "Memory — what the AI is allowed to remember",
     spending: "Spending",
     connect: "Connect Vercel",
@@ -68,7 +66,7 @@
     { id: "L5", name: "Gina Holt", company: "Holt Plumbing Co", trade: "Plumbing", phone: "+1 530 555 4430", kind: "lead", src: "Google", score: 76, stage: 1, city: "Red Bluff, CA", note: "Jobber + a Wix page. Wants isolation + ads.", sla: 22, value: 3000 },
     { id: "L6", name: "Marcus Bell", company: "Bell Brothers Roofing", trade: "Roofing", phone: "+1 530 555 4441", kind: "lead", src: "Partner ping", score: 72, stage: 0, city: "Redding, CA", note: "Buying Angi. Close rate 9%. Asked for a teardown.", sla: 63, value: 4200 },
     { id: "L7", name: "Priya Shah", company: "Shah Pest Control", trade: "Pest", phone: "+1 530 555 4455", kind: "lead", src: "Referral", score: 85, stage: 3, city: "Tehama, CA", note: "Won — DocuSign. Kickoff: GBP + click-to-call site.", sla: 0, value: 2200 },
-    { id: "L8", name: "Ken Williamson", company: "Williamson Water", trade: "Water", phone: "+1 970 555 0144", kind: "partner", src: "Trade", score: 90, stage: 4, city: "Montrose, CO", note: "Sends roofing/HVAC owners our way.", sla: 0, value: 0 },
+    { id: "L8", name: "Ken Williamson", company: "Williamson Digital", trade: "Franchise", phone: "+1 970 555 0144", kind: "partner", src: "Founding partner", score: 90, stage: 4, city: "Montrose, CO", note: "Runs Montrose + Delta County under our name. Six shops.", sla: 0, value: 0 },
   ];
   const ADS = [
     { id: "A1", cust: "apex", platform: "google", name: "Roof replacement — Red Bluff 20mi", status: "active", spend: 1840, leads: 41, cpl: 44.88, roas: 6.2, goal: "leads" },
@@ -78,14 +76,53 @@
     { id: "A5", cust: "valley", platform: "meta", name: "Termite swarm season", status: "active", spend: 640, leads: 19, cpl: 33.68, roas: 7.1, goal: "leads" },
     { id: "A6", cust: "ridge", platform: "google", name: "EV panel upgrade", status: "pending_review", spend: 0, leads: 0, cpl: 0, roas: 0, goal: "leads" },
   ];
+  const TIERS = {
+    founding: { name: "Founding", fee: 0, royalty: 18, exclusive: true, kit: "everything, forever" },
+    operator: { name: "Operator", fee: 950, royalty: 12, exclusive: true, kit: "full kit" },
+    associate: { name: "Associate", fee: 450, royalty: 8, exclusive: false, kit: "core kit" },
+  };
+  const KIT = [
+    { id: "K1", kind: "brand", name: "The AI Wrangler name", what: "Their market, our name. Site, deck, contracts, and the teardown script.", tier: "associate" },
+    { id: "K2", kind: "os", name: "Their own Wrangler tenant", what: "This OS, their customers, their walls. We cannot read their book and neither can any other partner.", tier: "associate" },
+    { id: "K3", kind: "playbook", name: "Rebuild in 10", what: "The delivery playbook. Kickoff to production in ten days.", tier: "associate" },
+    { id: "K4", kind: "playbook", name: "Teardown close", what: "The sales motion. Their broken funnel on screen, never a deck.", tier: "associate" },
+    { id: "K5", kind: "recipe", name: "site-builder", what: "Agent recipe: read the old site, generate the route template, open a preview.", tier: "operator" },
+    { id: "K6", kind: "recipe", name: "receptionist", what: "Agent recipe: DID, A2P registration, missed-call SMS under sixty seconds.", tier: "operator" },
+    { id: "K7", kind: "recipe", name: "local-seo", what: "Agent recipe: service-area pages from the customer's own job history, plus schema.", tier: "operator" },
+    { id: "K8", kind: "skill", name: "teardown-audit", what: "Claude Code skill: pull a prospect's site, GBP, ads and response time into one score.", tier: "associate" },
+    { id: "K9", kind: "skill", name: "review-engine", what: "Claude Code skill: wire their job system's close-out webhook to the review ask.", tier: "operator" },
+    { id: "K10", kind: "recipe", name: "franchise-launch", what: "The recipe that stands up a new partner: tenant, walls, kit, first three customers.", tier: "founding" },
+  ];
   const PARTNERS = [
-    { id: "P1", name: "Williamson Water", kind: "Trade partner", city: "Montrose, CO", sent: 11, won: 4, take: "10%" },
-    { id: "P2", name: "Tehama Family Fitness", kind: "Community", city: "Red Bluff", sent: 3, won: 1, take: "gift card" },
-    { id: "P3", name: "Dudley Excavating", kind: "Trade partner", city: "Tehama County", sent: 7, won: 3, take: "12%" },
-    { id: "P4", name: "Mistletoe Construction", kind: "GC", city: "Red Bluff", sent: 9, won: 5, take: "8%" },
+    { id: "P1", name: "Williamson Digital", op: "Ken Williamson", role: "Owner",
+      phone: "+1 970 555 0144", email: "ken@williamsondigital.com", thread: "L8",
+      city: "Montrose, CO", territory: "Montrose + Delta County, CO", tier: "founding",
+      status: "live", since: "Mar 2026", customers: 6, mrr: 19400, certified: ["K1", "K2", "K3", "K4", "K5", "K6", "K7", "K8", "K9"],
+      lastPay: "Aug 1 · $3,492", note: "First partner. Took the model before it had a name and now runs the biggest book outside ours." },
+    { id: "P2", name: "Cascade Range Digital", op: "Dana Moreau", role: "Founder",
+      phone: "+1 541 555 0188", email: "dana@cascaderange.co", thread: null,
+      city: "Bend, OR", territory: "Bend + Redmond, OR", tier: "operator",
+      status: "live", since: "May 2026", customers: 4, mrr: 12800, certified: ["K1", "K2", "K3", "K4", "K5", "K8"],
+      lastPay: "Aug 1 · $2,486", note: "Strong closer, thin on delivery. Has not shipped a receptionist yet." },
+    { id: "P3", name: "Dudley & Co", op: "Cal Dudley", role: "Ops",
+      phone: "+1 530 555 7701", email: "cal@dudleyco.com", thread: null,
+      city: "Tehama County, CA", territory: "pending — overlaps ours", tier: "associate",
+      status: "onboarding", since: "Aug 2026", customers: 1, mrr: 2400, certified: ["K1", "K3"],
+      lastPay: "—", note: "Territory request overlaps Red Bluff, which is ours. Has to move the boundary or take Glenn County." },
+    { id: "P4", name: "Gulf Coast Wrangler", op: "Marisol Vega", role: "Owner",
+      phone: "+1 251 555 0132", email: "marisol@gulfcoastwrangler.com", thread: null,
+      city: "Mobile, AL", territory: "Mobile + Baldwin County, AL", tier: "operator",
+      status: "applied", since: "—", customers: 0, mrr: 0, certified: [],
+      lastPay: "—", note: "Ran a two-person shop for nine years. Wants the recipes, not the training wheels." },
+    { id: "P5", name: "High Desert Systems", op: "Ryan Alcott", role: "Owner",
+      phone: "+1 775 555 0179", email: "ryan@highdesertsys.com", thread: null,
+      city: "Reno, NV", territory: "Washoe County, NV", tier: "associate",
+      status: "paused", since: "Jan 2026", customers: 2, mrr: 4200, certified: ["K1", "K2", "K3"],
+      lastPay: "Jun 1 · $336", note: "Two months behind on royalty. Kit access is frozen, his customers are not — they still get served." },
   ];
   const JOBS = [
     { id: "J1", cust: "apex", title: "Next.js rebuild — 41 routes off Wix", status: "working", spent: 6.4, budget: 20,
+      owner: "U1", gate: "AP2", change: "C1",
       agent: "apex-builder", model: "claude-opus", started: "6:12a", repo: "apex-roofing/site", branch: "agent/rebuild",
       preview: "apex-rebuild.vercel.app", risk: "Preview only. Production is a separate approval.",
       scope: "Site rebuild · click-to-call · form → dialer",
@@ -100,6 +137,7 @@
       ],
       files: [["app/(marketing)/[service]/page.tsx", "+186 −0"], ["app/api/lead/route.ts", "+41 −0"], ["components/CallBar.tsx", "+28 −4"], ["app/layout.tsx", "+3 −5"]] },
     { id: "J2", cust: "cascade", title: "AI receptionist + 60s response SLA", status: "blocked", spent: 3.1, budget: 10,
+      owner: "U2", gate: "AP1", change: "C3",
       agent: "cascade-ops", model: "claude-opus", started: "5:48a", repo: "cascade-hvac/site", branch: "agent/receptionist",
       preview: null, risk: "The first live send is irreversible once it leaves Twilio.",
       scope: "AI receptionist · missed-call SMS · after-hours routing",
@@ -113,6 +151,7 @@
       ],
       files: [["workflows/missed-call.ts", "+94 −0"], ["config/twilio.json", "+12 −2"]] },
     { id: "J3", cust: "ironclad", title: "Review engine wired to their invoicing", status: "thinking", spent: 1.2, budget: 10,
+      owner: "U2", gate: null, change: null,
       agent: "ironclad-growth", model: "claude-opus", started: "7:31a", repo: "ironclad-plumbing/site", branch: "agent/reviews",
       preview: null, risk: "Read-only so far. Nothing sends.",
       scope: "Housecall Pro webhook · review ask · GBP posting",
@@ -123,6 +162,7 @@
       ],
       files: [] },
     { id: "J4", cust: "valley", title: "Local SEO program — 9 service-area pages", status: "done", spent: 4.8, budget: 12,
+      owner: "U3", gate: null, change: "C2",
       agent: "valley-local", model: "claude-opus", started: "yesterday 4:02p", repo: "valley-pest/site", branch: "agent/service-areas",
       preview: "valleypest.com", risk: "Shipped. Rollback is one click on Changes.",
       scope: "Service-area pages · schema · GBP sync",
@@ -133,6 +173,30 @@
         { k: "done", t: "Merged and live. Share of search 19% → 22%." },
       ],
       files: [["app/areas/[city]/page.tsx", "+240 −0"], ["content/areas.json", "+118 −0"]] },
+    { id: "J5", cust: "ridge", title: "Paid search program — $40/day", status: "blocked", spent: 0.8, budget: 6,
+      owner: "U3", gate: "AP3", change: null,
+      agent: "zernio-buyer", model: "claude-opus", started: "7:02a", repo: "ridgeline-electric/site", branch: "—",
+      preview: null, risk: "Nothing spends until you approve the daily cap.",
+      scope: "Search program · calls-only after 6pm · $40/day",
+      goal: "Point paid traffic at the new site now that there is something worth landing on.",
+      steps: [
+        { k: "tool", t: "zernio: draft Search campaign — Corning +20mi, EV panel intent" },
+        { k: "think", t: "Their site converts at 4.4% in preview. Below $70 CPL this pays back in one job." },
+        { k: "gate", t: "Waiting on you: approve $40/day." },
+      ],
+      files: [] },
+    { id: "J6", cust: "ridge", title: "Service-area pages — first pass", status: "rolled_back", spent: 2.2, budget: 12,
+      owner: null, gate: null, change: "C4",
+      agent: "ridge-local", model: "claude-opus", started: "Mon 9:40a", repo: "ridgeline-electric/site", branch: "agent/areas",
+      preview: null, risk: "Already rolled back. Nothing of it is live.",
+      scope: "Service-area pages · schema",
+      goal: "Same build as Valley, pointed at Ridgeline's real service list — which is what went wrong the first time.",
+      steps: [
+        { k: "tool", t: "generate area pages from the content source" },
+        { k: "think", t: "Content source was the Corning branch sheet, not the area list." },
+        { k: "done", t: "Rolled back by you. Unclaimed — needs someone to point it at the right source and run it again." },
+      ],
+      files: [["app/areas/[city]/page.tsx", "+140 −74"]] },
   ];
   const APPROVALS = [
     { id: "AP1", cust: "cascade", job: "J2", title: "Turn the AI receptionist on for live traffic", asked: "12m ago", by: "cascade-ops",
@@ -145,31 +209,31 @@
       blast: "apex-roofing/site · Apex's Vercel token · 1 project", cost: "$0", irreversible: false, status: "open",
       why: "Preview converts at 6.1% against 2.3% on the Wix page, and loads five seconds faster on a phone.",
       guard: "Deploys with Apex's token to Apex's project id. It cannot touch Cascade's." },
-    { id: "AP3", cust: "ridge", title: "Zernio: start the paid program at $40/day", asked: "1h ago", by: "zernio-buyer",
+    { id: "AP3", cust: "ridge", job: "J5", title: "Zernio: start the paid program at $40/day", asked: "1h ago", by: "zernio-buyer",
       what: "Turn on the search program we scoped for Ridgeline: $40/day cap, their radius, calls-only after 6pm.",
       blast: "Ridgeline's Zernio account · $1,200/mo ceiling", cost: "$40/day", irreversible: false, status: "open",
       why: "Ridgeline is rank #6 with zero paid coverage. The new site has nothing pointed at it.",
       guard: "Spend is capped in Zernio, billed to Ridgeline, and pauses itself if cost per lead passes $70." },
-    { id: "AP4", cust: "ironclad", title: "Bind repo ironclad-plumbing/site", asked: "yesterday", by: "you",
+    { id: "AP4", cust: "ironclad", job: null, title: "Bind repo ironclad-plumbing/site", asked: "yesterday", by: "you",
       what: "Bind the repo to Ironclad Plumbing so its agent can read and write it.",
       blast: "1 repo · 1 customer · permanent until unbound", cost: "$0", irreversible: false, status: "approved",
       why: "The review engine needs write access to ship the ask page.",
       guard: "The database refuses a second customer on the same repo. One resource, one customer." },
   ];
   const CHANGES = [
-    { id: "C1", cust: "apex", title: "Next.js rebuild — 41 routes", repo: "apex-roofing/site", branch: "agent/rebuild",
+    { id: "C1", job: "J1", cust: "apex", title: "Next.js rebuild — 41 routes", repo: "apex-roofing/site", branch: "agent/rebuild",
       state: "preview", when: "18m ago", by: "apex-builder", add: 258, del: 9, preview: "apex-rebuild.vercel.app",
       note: "Preview converts at 6.1% vs 2.3%, and mobile LCP went 4.8s → 0.9s. Waiting on your promote.",
       files: [["app/(marketing)/[service]/page.tsx", "+186 −0"], ["app/api/lead/route.ts", "+41 −0"], ["components/CallBar.tsx", "+28 −4"], ["app/layout.tsx", "+3 −5"]] },
-    { id: "C2", cust: "valley", title: "Nine service-area pages + schema", repo: "valley-pest/site", branch: "agent/service-areas",
+    { id: "C2", job: "J4", cust: "valley", title: "Nine service-area pages + schema", repo: "valley-pest/site", branch: "agent/service-areas",
       state: "live", when: "yesterday 5:40p", by: "valley-local", add: 358, del: 0, preview: "valleypest.com",
       note: "Live. Share of search 19% → 22% in nine days.",
       files: [["app/areas/[city]/page.tsx", "+240 −0"], ["content/areas.json", "+118 −0"]] },
-    { id: "C3", cust: "cascade", title: "Missed-call → SMS workflow", repo: "cascade-hvac/site", branch: "agent/receptionist",
+    { id: "C3", job: "J2", cust: "cascade", title: "Missed-call → SMS workflow", repo: "cascade-hvac/site", branch: "agent/receptionist",
       state: "blocked", when: "2h ago", by: "cascade-ops", add: 106, del: 2, preview: null,
       note: "Code is ready. Going live is gated on Needs you.",
       files: [["workflows/missed-call.ts", "+94 −0"], ["config/twilio.json", "+12 −2"]] },
-    { id: "C4", cust: "ridge", title: "Service-area pages — first pass", repo: "ridgeline-electric/site", branch: "agent/areas",
+    { id: "C4", job: "J6", cust: "ridge", title: "Service-area pages — first pass", repo: "ridgeline-electric/site", branch: "agent/areas",
       state: "rolled_back", when: "Mon 11:20a", by: "ridge-local", add: 140, del: 74, preview: null,
       note: "Rolled back — the agent wrote Corning hours onto the Red Bluff page. Content source was wrong, not the template.",
       files: [["app/areas/[city]/page.tsx", "+140 −74"]] },
@@ -196,12 +260,13 @@
               "SMS the ask with a one-tap link from their number",
               "Post the five-star to their GBP through Zernio",
               "Route anything under four stars to the owner, never public"] },
-    { id: "PB4", name: "Partner ping", live: ["apex", "valley"], runs: 11, trigger: "New lead lands in a partner's territory",
-      blurb: "Our own referral motion. Partners send us shops that need a site; we send them work back.",
-      steps: ["New lead lands inside a partner's territory",
-              "SMS the partner before we work it ourselves",
-              "Log the intro and the agreed take",
-              "Split tracking on the deal if it closes"] },
+    { id: "PB4", name: "Franchise launch", live: [], runs: 5, trigger: "A partner signs the license",
+      blurb: "How a new agency goes from signature to their first three customers under our name.",
+      steps: ["Check the territory against every existing partner — overlap is refused, not negotiated",
+              "Stand up their own Wrangler tenant, walls up, empty",
+              "Grant the kit their tier pays for — brand, playbooks, recipes, skills",
+              "Certify the operator on Teardown close before they are allowed to sell",
+              "Ride along on their first three closes, then get out of the way"] },
     { id: "PB5", name: "Teardown close", live: ["apex", "cascade"], runs: 19, trigger: "Prospect books a demo",
       blurb: "Our sales motion. Show them their own broken funnel on screen. Never open a deck.",
       steps: ["Pull their site, GBP, ads, and response time into one screen",
@@ -210,19 +275,45 @@
               "Send the recording and the scope inside an hour",
               "Nudge at day two if the proposal has not moved"] },
   ];
+  const MCP_TOOLS = [
+    ["list_jobs", "see the board, filtered to the customers you are scoped to"],
+    ["claim_job", "take a job so nobody else picks it up"],
+    ["read_bound_repo", "read a repo bound to that job's customer — nothing else"],
+    ["open_branch", "write a branch and open a preview"],
+    ["post_step", "stream what you are doing back onto the floor"],
+    ["request_approval", "stop at the wall and ask a human"],
+    ["release_job", "put it back on the board"],
+  ];
+  const PEOPLE = [
+    { id: "U1", name: "You", handle: "derik", role: "Operator", approver: true,
+      machine: "MacBook Pro · Red Bluff", status: "connected", version: "claude-code 2.4.1", since: "6:02a",
+      token: "wr_sess_7f21c8ea", scope: ["apex", "cascade", "ironclad", "ridge", "valley"],
+      tools: ["list_jobs", "claim_job", "read_bound_repo", "open_branch", "post_step", "request_approval", "release_job"] },
+    { id: "U2", name: "Marisol Vega", handle: "marisol", role: "Build wrangler", approver: false,
+      machine: "MacBook Air · Mobile, AL", status: "connected", version: "claude-code 2.4.1", since: "5:48a",
+      token: "wr_sess_b19c44d2", scope: ["cascade", "ironclad"],
+      tools: ["list_jobs", "claim_job", "read_bound_repo", "open_branch", "post_step", "request_approval"] },
+    { id: "U3", name: "Theo Ruiz", handle: "theo", role: "Local + ads", approver: false,
+      machine: "ThinkPad · Chico", status: "idle", version: "claude-code 2.3.9", since: "yesterday 6:40p",
+      token: "wr_sess_c882a04f", scope: ["valley", "ridge"],
+      tools: ["list_jobs", "claim_job", "read_bound_repo", "post_step", "request_approval"] },
+    { id: "U4", name: "Priya Nandan", handle: "priya", role: "Build wrangler", approver: false,
+      machine: "not connected yet", status: "invited", version: "—", since: "—",
+      token: "wr_sess_4d10be77", scope: ["apex"],
+      tools: ["list_jobs", "claim_job", "read_bound_repo", "post_step"] },
+  ];
+  const person = (id) => PEOPLE.find((x) => x.id === id);
   const TEAM = [
-    { id: "TM0", name: "You", kind: "human", role: "Operator", where: "the only human with the door key", status: "online",
-      scope: "Everything. Approvals stop here.", tools: ["approve", "dial", "send"], jobs: 0 },
-    { id: "TM1", name: "Head Wrangler", kind: "ai", role: "Orchestrator", where: "Claude Code on your laptop (MCP)", status: "online",
-      scope: "All five customers, one workspace at a time. Never two open at once.", tools: ["github", "vercel", "twilio", "zernio"], jobs: 3 },
-    { id: "TM2", name: "apex-builder", kind: "ai", role: "Site builder", where: "sandbox · apex-roofing/site", status: "working",
+    { id: "TM2", name: "apex-builder", kind: "ai", session: "U1", role: "Site builder", where: "sandbox · apex-roofing/site", status: "working",
       scope: "Apex Roofing only. Cannot see another customer's repo or token.", tools: ["github", "vercel"], jobs: 1 },
-    { id: "TM3", name: "cascade-ops", kind: "ai", role: "Phone + SMS systems", where: "sandbox · Cascade DID", status: "blocked",
+    { id: "TM3", name: "cascade-ops", kind: "ai", session: "U2", role: "Phone + SMS systems", where: "sandbox · Cascade DID", status: "blocked",
       scope: "Cascade HVAC only. Sends nothing without an approval.", tools: ["twilio"], jobs: 1 },
-    { id: "TM4", name: "ironclad-growth", kind: "ai", role: "Integrations + local", where: "sandbox · ironclad-plumbing/site", status: "thinking",
+    { id: "TM4", name: "ironclad-growth", kind: "ai", session: "U2", role: "Integrations + local", where: "sandbox · ironclad-plumbing/site", status: "thinking",
       scope: "Ironclad Plumbing only. Read-only until it has something to ship.", tools: ["github", "zernio"], jobs: 1 },
-    { id: "TM5", name: "zernio-buyer", kind: "ai", role: "Media buyer", where: "Zernio API · per-customer accounts", status: "online",
-      scope: "One ad account per customer. Budgets capped per customer.", tools: ["zernio"], jobs: 0 },
+    { id: "TM5", name: "valley-local", kind: "ai", session: "U3", role: "Local + content", where: "sandbox · valley-pest/site", status: "idle",
+      scope: "Valley Pest only.", tools: ["github", "zernio"], jobs: 0 },
+    { id: "TM6", name: "zernio-buyer", kind: "ai", session: "U3", role: "Media buyer", where: "Zernio API · per-customer accounts", status: "blocked",
+      scope: "One ad account per customer. Budgets capped per customer.", tools: ["zernio"], jobs: 1 },
   ];
   const MEM = [
     { id: "M1", scope: "apex", kind: "voice", t: "Maya signs everything “Maya @ Apex.” Never “Team Apex.”" },
@@ -284,7 +375,7 @@
     tab: "overview",
     custId: "apex",
     prospect: "R1",
-    partner: "P1",
+    partner: null,
     call: null,
     muted: false,
     power: false,
@@ -307,11 +398,9 @@
     jump: false,
     chan: "all",
     job: "J1",
-    jobFilter: "all",
-    appr: "AP1",
-    chg: "C1",
+    jobFilter: null,
+    who: "U1",
     pb: "PB1",
-    member: "TM1",
     memScope: "agency",
     memQ: "",
     billId: "apex",
@@ -353,9 +442,10 @@
     setTimeout(() => { if (state.toast === msg) { state.toast = null; render(); } }, 2800);
   };
   const isPhone = () => window.matchMedia("(max-width: 860px)").matches;
+  const ALIAS = { sms: "inbox", approvals: "work", changes: "work", wrangler: "sessions", team: "sessions" };
   const go = (page) => {
     state.menu = false;
-    if (page === "sms") page = "inbox";
+    if (ALIAS[page]) { if (page === "approvals") state.jobFilter = "gate"; if (page === "changes") state.tab = "diff"; page = ALIAS[page]; }
     if (page === "pipeline") { page = "leads"; state.leadView = "kanban"; }
     state.page = page;
     state.tab = "overview";
@@ -416,9 +506,6 @@
     return Object.assign({
       legal: c.name, owner: { name: "Owner", role: "Owner", phone: "", email: "" },
     }, d, base);
-  }
-  function pd(id) {
-    return Object.assign({}, WR.PART_DEFAULT || {}, (WR.PART_X && WR.PART_X[id]) || {});
   }
   function kv(rows) {
     return `<div class="kv">${rows.map(([k, v]) => `<div class="k">${esc(k)}</div><div class="v">${v}</div>`).join("")}</div>`;
@@ -488,7 +575,7 @@
   }
   function ni(id, label) {
     const on = state.page === id ? "on" : "";
-    const pending = id === "approvals" ? APPROVALS.filter((a) => a.status === "open").length : id === "inbox" ? threads().filter((t) => t.unread).length : 0;
+    const pending = id === "work" ? openGates().length : id === "inbox" ? threads().filter((t) => t.unread).length : 0;
     const live = id === "work" && JOBS.some((j) => j.status === "working");
     return `<button class="ni ${on}" data-act="nav" data-page="${id}"><span>${esc(label)}</span>${pending ? `<span class="badge">${pending}</span>` : live ? `<span class="dot"></span>` : ""}</button>`;
   }
@@ -555,7 +642,7 @@
                 ["You", "wait", "Approval needed: Cascade after-hours SMS blast (46 opted-in)."],
                 ["Twilio", "info", "Inbound from Summit Roofing — wants the Apex machine."],
                 ["AI", "go", "Tehama Air proposal sitting 2 days — nudge queued."],
-                ["Partner", "brand", "Ken Williamson intro'd River City Electric."],
+                ["Partner", "brand", "Williamson Digital closed their sixth shop in Montrose."],
               ].map((x) => `<div class="row"><span class="pill ${x[1]}">${x[0]}</span><div style="flex:1;font-size:12.5px">${x[2]}</div></div>`).join("")}
             </div>
           </div>
@@ -750,52 +837,147 @@
       </div>`;
   }
 
+  const PART_PILL = { live: "go", onboarding: "wait", applied: "info", paused: "stop" };
+  const kitFor = (tier) => KIT.filter((k) => k.tier === "associate" || (tier !== "associate" && k.tier === "operator") || (tier === "founding" && k.tier === "founding"));
+
   function pagePartners() {
-    const p = PARTNERS.find((x) => x.id === state.partner) || PARTNERS[0];
-    const x = pd(p.id);
-    const tab = state.tab || "overview";
-    const tabs = [["overview", "Overview"], ["people", "People"], ["flow", "Flow"], ["comarket", "Co-market"], ["agreement", "Agreement"], ["history", "History"]];
-    const who = x.contact || { name: p.name, role: p.kind, phone: "", email: "" };
-    let body = "";
-    if (tab === "overview") body = kv([
-      ["Kind", esc(p.kind)], ["Market", esc(p.city)], ["Trades", esc(x.trades || p.kind)],
-      ["Territory", esc(x.territory || p.city)], ["Exclusive", esc(x.exclusive || "none")],
-      ["Sent us", p.sent], ["Won", p.won], ["Take", esc(p.take)], ["Last ping", esc(x.last || "—")],
-    ]);
-    if (tab === "people") body = peopleList([who], "L8");
-    if (tab === "flow") body = (x.flow && x.flow.length ? x.flow.map((f) => `<div class="file"><span>${esc(f.n)}</span><span class="pill ${f.dir === "in" ? "go" : "info"}">${f.dir === "in" ? "they sent" : "we sent"} · ${esc(f.when)}</span></div>`).join("") : `<div style="color:var(--muted)">No jobs moved yet. Reciprocity is the contract.</div>`);
-    if (tab === "comarket") body = kv([["Play", "Shared landing page + one shared number"], ["QR / truck", "Partner wrap → Text-for-Info keyword"], ["Ads", "Co-op Zernio geo, split 50/50"]]);
-    if (tab === "agreement") body = kv([["Take", esc(p.take)], ["W9", esc(x.w9 || "needed")], ["Exclusive zips", esc(x.exclusive || "none")], ["Paid how", "Monthly, after collected"]]);
-    if (tab === "history") body = history([{ when: x.last || "—", who: "ping", cls: "go", text: "Last contact" }, { when: "—", who: "note", cls: "brand", text: p.name + " in the rolodex" }]);
+    const sel = state.partner ? PARTNERS.find((x) => x.id === state.partner) : null;
+    const p = sel || null;
     let plist = PARTNERS.slice();
     const pq = (state.partQ || "").toLowerCase();
-    if (pq) plist = plist.filter((r) => (r.name + r.kind + r.city).toLowerCase().includes(pq));
-    if (state.partSort === "won") plist.sort((a, b) => b.won - a.won);
+    if (pq) plist = plist.filter((r) => (r.name + r.op + r.city + r.territory + r.status).toLowerCase().includes(pq));
+    if (state.partSort === "customers") plist.sort((a, b) => b.customers - a.customers);
     else if (state.partSort === "name") plist.sort((a, b) => a.name.localeCompare(b.name));
-    else plist.sort((a, b) => b.sent - a.sent);
-    return `<div class="page">
-      <div class="statline">
-        <input data-act="part-q" placeholder="Search partners…" value="${esc(state.partQ || "")}">
-        <select data-act="part-sort">${[["sent", "Sort: sent us"], ["won", "Sort: won"], ["name", "Sort: name"]].map(([v, n]) => `<option value="${v}" ${state.partSort === v ? "selected" : ""}>${n}</option>`).join("")}</select>
+    else if (state.partSort === "status") plist.sort((a, b) => a.status.localeCompare(b.status));
+    else plist.sort((a, b) => b.mrr - a.mrr);
+
+    const live = PARTNERS.filter((r) => r.status === "live");
+    const network = PARTNERS.reduce((a, r) => a + r.mrr, 0);
+    const royalty = PARTNERS.reduce((a, r) => a + (r.status === "live" ? Math.round(r.mrr * TIERS[r.tier].royalty / 100) + TIERS[r.tier].fee : 0), 0);
+    const shops = PARTNERS.reduce((a, r) => a + r.customers, 0);
+
+    const roll = `<div class="roll">${plist.map((r) => `<button class="item ${p && r.id === p.id ? "on" : ""}" data-act="sel-partner" data-id="${r.id}">
+      <div class="t">${esc(r.name)} <span class="pill ${PART_PILL[r.status]}">${esc(r.status)}</span></div>
+      <div class="m">${esc(r.op)} · ${esc(r.city)}</div>
+      <div class="m mono">${r.customers} shops · ${money(r.mrr)}/mo · ${esc(TIERS[r.tier].name)}</div>
+    </button>`).join("") || `<div class="pad" style="color:var(--muted)">No partners match that.</div>`}</div>`;
+
+    const stats = `<div class="kpis">
+      ${kpi("Partners live", live.length, PARTNERS.length + " in the network")}
+      ${kpi("Their book", money(network), shops + " shops under our name")}
+      ${kpi("Royalty + fees", money(royalty), "per month, collected")}
+      ${kpi("Territories", live.length + PARTNERS.filter((r) => r.status === "onboarding").length, "one market, one partner", "up")}
+    </div>`;
+
+    const bar2 = `<div class="statline">
+      <input data-act="part-q" placeholder="Search partners, operators, territories…" value="${esc(state.partQ || "")}">
+      <select data-act="part-sort">${[["mrr", "Sort: their book"], ["customers", "Sort: shops"], ["status", "Sort: status"], ["name", "Sort: name"]].map(([v, n]) => `<option value="${v}" ${state.partSort === v ? "selected" : ""}>${n}</option>`).join("")}</select>
+    </div>`;
+
+    if (!p) {
+      return `<div class="page">${stats}${bar2}
+        <div class="desk full-list">${roll}</div>
+      </div>`;
+    }
+
+    const t = TIERS[p.tier];
+    const granted = KIT.filter((k) => p.certified.indexOf(k.id) >= 0);
+    const owed = kitFor(p.tier).filter((k) => p.certified.indexOf(k.id) < 0);
+    const take = Math.round(p.mrr * t.royalty / 100) + t.fee;
+    const tab = state.tab || "overview";
+    let body = "";
+    if (tab === "overview") body = kv([
+      ["Operator", `<b>${esc(p.op)}</b> · ${esc(p.role)}`],
+      ["Territory", esc(p.territory)],
+      ["Tier", `${esc(t.name)} · ${t.fee ? money(t.fee) + "/mo + " : ""}${t.royalty}% of collected`],
+      ["Status", `<span class="pill ${PART_PILL[p.status]}">${esc(p.status)}</span>`],
+      ["Signed", esc(p.since)],
+      ["Their book", `${p.customers} shops · ${money(p.mrr)}/mo`],
+      ["We collect", `${money(take)}/mo`],
+      ["Phone", `<span class="mono">${esc(p.phone)}</span>`],
+      ["Email", esc(p.email)],
+    ]) + `<div class="sec" style="margin-top:18px"><h5>Read</h5>
+      <div style="font-size:13.5px;line-height:1.55;color:var(--ink,var(--text))">${esc(p.note)}</div></div>`;
+
+    if (tab === "territory") body = `<div class="sec"><h5>What they own</h5>
+      ${kv([["Market", esc(p.territory)], ["Exclusive", t.exclusive ? "Yes — nobody else sells here under our name" : "No — Associate tier shares the market"], ["Base", esc(p.city)]])}
       </div>
-      <div class="desk" style="flex:1">
-      <div class="roll">${plist.map((r) => `<button class="item ${r.id === p.id ? "on" : ""}" data-act="sel-partner" data-id="${r.id}">
-        <div class="t">${esc(r.name)}</div><div class="m">${esc(r.kind)} · sent ${r.sent} · won ${r.won}</div>
-      </button>`).join("")}</div>
-      <div class="dossier">
-        <div class="dh"><span class="pill brand">${esc(p.kind)}</span>
-          <div class="who">${esc(p.name)}</div>
-          <div class="sub">${esc(p.city)} · take ${esc(p.take)} · ${esc(who.name)}</div>
-        </div>
-        <div class="acts">
-          <button class="btn tiny brand" data-act="sms-open" data-id="L8">SMS</button>
-          <button class="btn tiny" data-act="dial" data-id="L8">Call</button>
-        </div>
-        ${tabbar(tabs)}
-        <div class="dbody">${body}</div>
+      <div class="sec"><h5>Every territory in the network</h5>
+        ${PARTNERS.filter((r) => r.territory !== "—").map((r) => `<div class="file"><span>${esc(r.territory)}</span><span class="pill ${r.id === p.id ? "brand" : r.territory.indexOf("overlaps") >= 0 ? "stop" : ""}">${esc(r.name)}</span></div>`).join("")}
+        <div class="file"><span>Red Bluff · Redding · Chico · Corning, CA</span><span class="pill go">us</span></div>
       </div>
-      ${rail(x.next || { title: "Ping them", why: "Partners who get paid and thanked keep sending.", do: "sms" })}
-    </div></div>`;
+      <p style="color:var(--muted);font-size:12.5px">A territory is bound the same way a repo is: one market, one partner, refused at the database rather than argued about on a call.</p>`;
+
+    if (tab === "kit") body = `<div class="sec"><h5>Granted — they can run these today</h5>
+      ${granted.map((k) => `<div class="file"><span><span class="pill ${k.kind === "recipe" ? "brand" : k.kind === "skill" ? "info" : k.kind === "playbook" ? "go" : ""}" style="margin-right:8px">${esc(k.kind)}</span>${esc(k.name)}<div style="color:var(--muted);font-size:12px;margin-top:3px">${esc(k.what)}</div></span><span class="pill go">certified</span></div>`).join("") || `<div style="color:var(--muted)">Nothing granted yet.</div>`}
+      </div>
+      ${owed.length ? `<div class="sec"><h5>Their tier pays for these — not certified yet</h5>
+        ${owed.map((k) => `<div class="file"><span><span class="pill" style="margin-right:8px">${esc(k.kind)}</span>${esc(k.name)}</span><button class="btn tiny brand" data-act="certify" data-id="${p.id}" data-kit="${k.id}">Certify</button></div>`).join("")}
+      </div>` : ""}
+      <p style="color:var(--muted);font-size:12.5px">Recipes and skills are the actual product. A partner who has the brand but not the recipes is a logo; a partner with the recipes ships the same build we do.</p>`;
+
+    if (tab === "book") body = `<div class="sec"><h5>What they run</h5>
+      ${kv([["Shops", p.customers], ["Their retainers", money(p.mrr) + "/mo"], ["Average", p.customers ? money(Math.round(p.mrr / p.customers)) + "/mo" : "—"]])}
+      </div>
+      <div class="sec"><h5>What we can see</h5>
+        <div style="font-size:13px;line-height:1.6;color:var(--muted)">These four numbers and nothing else. Their customers, threads, repos and tokens live in their own tenant. We cannot open a partner's customer record any more than one customer can open another's — it is the same wall, one level up.</div>
+      </div>`;
+
+    if (tab === "money") body = kv([
+      ["Licence fee", t.fee ? money(t.fee) + "/mo" : "none — founding partner"],
+      ["Royalty", t.royalty + "% of collected, not of billed"],
+      ["This month", money(take)],
+      ["Last payment", esc(p.lastPay)],
+      ["Ad spend", "never ours — their customers, their cards"],
+    ]) + `<div class="sec" style="margin-top:18px"><h5>Why a share and not a markup</h5>
+      <div style="font-size:13px;line-height:1.6;color:var(--muted)">A markup on tools makes us a reseller they will route around the moment they can. A share of what they collect means we only make money when they do, and it is the reason the recipes keep getting handed over instead of held back.</div></div>`;
+
+    if (tab === "walls") body = kv([
+      ["Their tenant", `<span class="mono">${esc(p.id.toLowerCase())}.wrangler</span> · isolated`],
+      ["Their GitHub", "their org, their tokens — never ours"],
+      ["Their Twilio", "their numbers, their A2P brand"],
+      ["Can they see us", "No"],
+      ["Can we see them", "Aggregate only — shops, book, royalty"],
+      ["Can partners see each other", "No"],
+    ]) + `<p style="color:var(--muted);font-size:12.5px;margin-top:12px">If a partner leaves, they keep their customers and we revoke the kit. Nothing to unwind, nothing held hostage. That is deliberate — the model has to survive somebody quitting or nobody serious will sign.</p>`;
+
+    if (tab === "history") body = history([
+      { when: p.since, who: "signed", cls: "brand", text: p.name + " licensed " + p.territory },
+      { when: "onboard", who: "walls", cls: "go", text: "Own tenant provisioned, isolated from ours and every other partner" },
+      { when: "kit", who: "grant", cls: "info", text: granted.length + " of " + kitFor(p.tier).length + " kit items certified" },
+      { when: "now", who: p.status, cls: PART_PILL[p.status], text: p.note },
+    ]);
+
+    const next = p.status === "applied"
+      ? { title: "Decide on " + p.op.split(" ")[0], why: "Territory is clear. The only question is whether they can sell before we hand over the recipes.", do: "sms" }
+      : p.status === "onboarding"
+        ? { title: "Settle the territory before anything else", why: p.territory.indexOf("overlaps") >= 0 ? "Their request overlaps Red Bluff, which is ours. Move the boundary or offer Glenn County — do not grant it and sort it later." : "Get the boundary signed, then provision the tenant.", do: "sms" }
+        : p.status === "paused"
+          ? { title: "Two months behind — call, do not email", why: "Kit access is frozen and his two shops are still being served. That is the fair order, but it does not hold forever.", do: "dial" }
+          : owed.length
+            ? { title: "Certify " + p.op.split(" ")[0] + " on " + owed[0].name, why: "They pay for it and cannot run it. Every uncertified item is a build they hand back to us.", do: "none" }
+            : { title: "Nothing owed here", why: p.name + " is current, certified, and running " + p.customers + " shops. Leave them alone.", do: "none" };
+
+    return `<div class="page">${stats}${bar2}
+      <div class="desk wide-list">
+        ${roll}
+        <div class="dossier">
+          <div class="dh"><span class="pill ${PART_PILL[p.status]}">${esc(p.status)}</span><span class="pill brand">${esc(t.name)}</span>
+            <div class="who">${esc(p.name)}</div>
+            <div class="sub">${esc(p.op)} · ${esc(p.territory)}</div>
+            <div class="pills"><span class="pill">${p.customers} shops</span><span class="pill mono">${money(p.mrr)}/mo book</span><span class="pill mono">${money(take)}/mo to us</span></div>
+          </div>
+          <div class="acts">
+            <button class="btn tiny brand" data-act="dial" data-id="${p.id}">Call ${esc(p.op.split(" ")[0])}</button>
+            ${p.thread ? `<button class="btn tiny" data-act="sms-open" data-id="${p.thread}">Inbox</button>` : ""}
+            <button class="btn tiny" data-act="tab" data-id="kit">Kit</button>
+            <button class="btn tiny" data-act="close-partner" style="margin-left:auto">Close</button>
+          </div>
+          ${tabbar([["overview", "Overview"], ["territory", "Territory"], ["kit", "Licensed kit"], ["book", "Their book"], ["money", "Money"], ["walls", "Walls"], ["history", "History"]])}
+          <div class="dbody">${body}</div>
+        </div>
+        ${rail(next, `<h5>The model</h5><div style="font-size:12.5px;color:var(--muted);line-height:1.55">They bring the market and the relationships. We license the name, the playbooks, the agent recipes and the skills, and take a share of what they collect. One market, one partner.</div>`)}
+      </div></div>`;
   }
 
   function pageProspects() {
@@ -987,6 +1169,7 @@
   const CHG_PILL = { preview: "wait", live: "go", blocked: "stop", rolled_back: "info" };
   const CHG_WORD = { preview: "preview", live: "live", blocked: "gated", rolled_back: "rolled back" };
   const job = (id) => JOBS.find((j) => j.id === id);
+  const bar2m = (used, cap) => bar(used, cap, used / cap > 0.8 ? "warn" : "");
   const bar = (used, cap, cls) => `<div class="meter"><i class="${cls || ""}" style="width:${Math.min(100, Math.round((used / cap) * 100))}%"></i></div>`;
 
   function pageBilling() {
@@ -1050,189 +1233,222 @@
       </div></div>`;
   }
 
+  const gateOf = (j) => (j && j.gate ? APPROVALS.find((a) => a.id === j.gate) : null);
+  const changeOf = (j) => (j && j.change ? CHANGES.find((c) => c.id === j.change) : null);
+  const openGates = () => JOBS.filter((j) => { const g = gateOf(j); return g && g.status === "open"; });
+  const JOB_WORD = { working: "working", blocked: "waiting on a human", thinking: "reading", done: "shipped", rolled_back: "rolled back" };
+
   function pageWork() {
-    const rows = JOBS.filter((j) => state.jobFilter === "all" || j.status === state.jobFilter);
-    const j = job(state.job) && rows.some((r) => r.id === state.job) ? job(state.job) : rows[0];
-    if (!j) return `<div class="page pad" style="color:var(--muted)">Nothing in this filter.</div>`;
+    const gated = openGates();
+    const filters = [
+      ["gate", "Needs you", gated.length],
+      ["mine", "Mine", JOBS.filter((j) => j.owner === "U1").length],
+      ["running", "Running", JOBS.filter((j) => j.status === "working" || j.status === "thinking").length],
+      ["free", "Unclaimed", JOBS.filter((j) => !j.owner).length],
+      ["shipped", "Shipped", JOBS.filter((j) => j.status === "done").length],
+      ["all", "Everything", JOBS.length],
+    ];
+    const pick = (f) => {
+      if (f === "gate") return gated;
+      if (f === "mine") return JOBS.filter((j) => j.owner === "U1");
+      if (f === "running") return JOBS.filter((j) => j.status === "working" || j.status === "thinking");
+      if (f === "free") return JOBS.filter((j) => !j.owner);
+      if (f === "shipped") return JOBS.filter((j) => j.status === "done");
+      return JOBS.slice();
+    };
+    let f = state.jobFilter;
+    if (!f || (f === "gate" && !gated.length)) f = gated.length ? "gate" : "all";
+    const rows = pick(f);
+    const j = rows.find((r) => r.id === state.job) || rows[0];
+
+    const bar = `<div class="statline">
+      ${filters.filter((x) => x[2] || x[0] === "all").map(([v, n, c]) => `<button class="btn tiny ${f === v ? "brand" : ""}" data-act="job-filter" data-id="${v}">${n}${c ? ` <span class="mono">${c}</span>` : ""}</button>`).join("")}
+      <span style="margin-left:auto" class="mono">$${JOBS.reduce((a, x) => a + x.spent, 0).toFixed(2)} today · ${PEOPLE.filter((u) => u.status === "connected").length} sessions live</span>
+    </div>`;
+    const roll = `<div class="roll">${rows.map((x) => {
+      const g = gateOf(x);
+      const o = person(x.owner);
+      return `<button class="item ${j && x.id === j.id ? "on" : ""}" data-act="sel-job" data-id="${x.id}">
+        <div class="t">${g && g.status === "open" ? "● " : ""}${esc(x.title)}</div>
+        <div class="m">${esc(cust(x.cust).name)} · <span class="pill ${JOB_PILL[x.status] || ""}">${esc(JOB_WORD[x.status] || x.status)}</span></div>
+        <div class="m mono">${o ? esc(o.handle) : "unclaimed"} · ${esc(x.agent)} · $${x.spent.toFixed(2)}/$${x.budget}</div>
+      </button>`;
+    }).join("") || `<div class="pad" style="color:var(--muted)">Nothing here.</div>`}</div>`;
+
+    if (!j) return `<div class="page">${bar}<div class="pad" style="color:var(--muted)">Nothing on the floor in that filter.</div></div>`;
+
     const c = cust(j.cust);
+    const g = gateOf(j);
+    const ch = changeOf(j);
+    const owner = person(j.owner);
     const tab = state.tab || "overview";
     let body = "";
     if (tab === "overview") body = `<div class="tlog">${j.steps.map((x) => `<div class="${x.k}">${esc(x.t)}</div>`).join("")}</div>
-      ${j.status === "working" ? `<div class="think" style="opacity:.7;padding:8px 10px;border-left:2px solid var(--info);color:var(--muted);font-size:13px">…still working</div>` : ""}`;
+      ${j.status === "working" ? `<div class="think" style="opacity:.7;padding:8px 10px;border-left:2px solid var(--info);color:var(--muted);font-size:13px">…still working${owner ? " · streamed from " + esc(owner.handle) + "'s session" : ""}</div>` : ""}`;
+    if (tab === "gate") body = !g
+      ? `<div style="color:var(--muted)">Nothing is waiting on a human here.</div>`
+      : `<div class="sec"><h5>${g.irreversible ? "This cannot be undone" : "This is reversible"}</h5>
+          <div style="font-size:13.5px;line-height:1.55">${esc(g.what)}</div></div>
+        ${kv([["Blast radius", esc(g.blast)], ["Cost", esc(g.cost)], ["Reversible", g.irreversible ? "<b style=\"color:var(--stop)\">No</b>" : "Yes — one click on the diff"], ["Asked", esc(g.asked) + " by " + esc(g.by)], ["Why now", esc(g.why)]])}
+        <div class="sec" style="margin-top:18px"><h5>What the wall is doing</h5>
+          <div style="font-size:13px;color:var(--muted);line-height:1.55">${esc(g.guard)}</div></div>
+        ${g.status === "open" ? `<div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap">
+          <button class="btn go" data-act="appr-yes" data-id="${g.id}">Approve${g.irreversible ? " — I understand it sends" : ""}</button>
+          <button class="btn stop" data-act="appr-no" data-id="${g.id}">Reject</button>
+          <button class="btn" data-act="appr-hold" data-id="${g.id}">Ask the agent for more</button>
+        </div>` : `<div class="file" style="margin-top:20px"><b>Decided</b><span class="pill ${g.status === "approved" ? "go" : "info"}">${esc(g.status)}</span></div>`}`;
+    if (tab === "diff") body = !ch
+      ? (j.files.length
+          ? `<div class="sec">${j.files.map((x) => `<div class="file"><span class="mono">${esc(x[0])}</span><span class="mono" style="color:var(--muted)">${esc(x[1])}</span></div>`).join("")}</div>`
+          : `<div style="color:var(--muted)">Nothing written yet — this job is still reading.</div>`)
+      : `<div class="sec"><h5><span class="pill ${CHG_PILL[ch.state]}">${esc(CHG_WORD[ch.state])}</span> <span class="mono" style="margin-left:8px">${esc(ch.repo)} · ${esc(ch.branch)}</span></h5>
+          <div style="font-size:13.5px;line-height:1.55;margin:10px 0 14px">${esc(ch.note)}</div>
+          ${ch.files.map((x) => `<div class="file"><span class="mono">${esc(x[0])}</span><span class="mono" style="color:var(--muted)">${esc(x[1])}</span></div>`).join("")}
+          <div class="file"><b>${ch.files.length} files</b><b class="mono"><span style="color:var(--go)">+${ch.add}</span> <span style="color:var(--stop)">−${ch.del}</span></b></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${ch.preview ? `<button class="btn tiny brand" data-act="open-preview-url" data-id="${ch.id}">Open ${esc(ch.preview)}</button>` : ""}
+          ${ch.state === "live" ? `<button class="btn tiny stop" data-act="rollback" data-id="${ch.id}">Roll back</button>` : ""}
+        </div>`;
     if (tab === "scope") body = kv([
-      ["Goal", esc(j.goal)], ["Scope", esc(j.scope)], ["Agent", `<span class="mono">${esc(j.agent)}</span> · ${esc(j.model)}`],
+      ["Goal", esc(j.goal)], ["Scope", esc(j.scope)],
+      ["Owner", owner ? `<b>${esc(owner.name)}</b> · <span class="mono">${esc(owner.handle)}</span>` : `<span style="color:var(--wait)">unclaimed</span>`],
+      ["Agent", `<span class="mono">${esc(j.agent)}</span> · ${esc(j.model)}`],
       ["Started", esc(j.started)], ["Risk", esc(j.risk)],
     ]);
-    if (tab === "files") body = j.files.length
-      ? `<div class="sec">${j.files.map((f) => `<div class="file"><span class="mono">${esc(f[0])}</span><span class="mono" style="color:var(--muted)">${esc(f[1])}</span></div>`).join("")}</div>
-         <button class="btn tiny" data-act="nav" data-page="changes">Open in Changes</button>`
-      : `<div style="color:var(--muted)">Nothing written yet — this job is still reading.</div>`;
     if (tab === "budget") body = `<div class="sec"><h5>Spend cap for this job</h5>
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span class="mono">$${j.spent.toFixed(2)} used</span><span class="mono" style="color:var(--muted)">cap $${j.budget}</span></div>
-      ${bar(j.spent, j.budget, j.spent / j.budget > 0.8 ? "warn" : "")}
-      <p style="color:var(--muted);font-size:12.5px;margin-top:12px">The agent stops at the cap and asks. It does not get to decide that the job was worth more than you said.</p></div>`;
+      ${bar2m(j.spent, j.budget)}
+      <p style="color:var(--muted);font-size:12.5px;margin-top:12px">The agent stops at the cap and asks. It does not get to decide the job was worth more than you said.</p></div>`;
     if (tab === "walls") body = kv([
       ["Customer", esc(c.name)],
       ["Repo", `<span class="mono">${esc(j.repo)}</span> · bound to ${esc(c.name)} only`],
       ["Deploy", j.preview ? `<span class="mono">${esc(j.preview)}</span> · their Vercel token` : "no deploy yet"],
+      ["Session scope", owner ? owner.scope.map((x) => cust(x).name).join(" · ") : "—"],
       ["Cannot see", CUST.filter((x) => x.id !== c.id).map((x) => x.name).join(" · ")],
-    ]) + `<p style="color:var(--muted);font-size:12.5px;margin-top:12px">If this job named another customer's repo it would get a 403, not a merge.</p>`;
-    const filters = [["all", "All"], ["working", "Working"], ["blocked", "Blocked"], ["thinking", "Thinking"], ["done", "Done"]];
-    const gate = j.steps.filter((x) => x.k === "gate")[0];
-    return `<div class="page">
-      <div class="statline">${filters.map(([v, n]) => `<button class="btn tiny ${state.jobFilter === v ? "brand" : ""}" data-act="job-filter" data-id="${v}">${n}</button>`).join("")}
-        <span style="margin-left:auto" class="mono">$${JOBS.reduce((a, x) => a + x.spent, 0).toFixed(2)} spent today</span></div>
+    ]) + `<p style="color:var(--muted);font-size:12.5px;margin-top:12px">If this job named another customer's repo it would get a 403, not a merge — and the same is true of the human session that claimed it.</p>`;
+
+    const tabs = [["overview", "Transcript"]];
+    if (g) tabs.push(["gate", g.status === "open" ? "Needs you ●" : "Decision"]);
+    tabs.push(["diff", ch ? "Diff" : "Files"], ["scope", "Scope"], ["budget", "Budget"], ["walls", "Walls"]);
+
+    return `<div class="page">${bar}
       <div class="desk">
-        <div class="roll">${rows.map((x) => `<button class="item ${x.id === j.id ? "on" : ""}" data-act="sel-job" data-id="${x.id}">
-          <div class="t">${esc(x.title)}</div>
-          <div class="m">${esc(cust(x.cust).name)} · <span class="pill ${JOB_PILL[x.status]}">${esc(x.status)}</span></div>
-          <div class="m mono">$${x.spent.toFixed(2)} / $${x.budget}</div></button>`).join("")}</div>
+        ${roll}
         <div class="dossier">
-          <div class="dh"><span class="pill ${JOB_PILL[j.status]}">${esc(j.status)}</span>
+          <div class="dh"><span class="pill ${JOB_PILL[j.status] || ""}">${esc(JOB_WORD[j.status] || j.status)}</span>${g && g.status === "open" ? `<span class="pill stop">needs you</span>` : ""}
             <div class="who">${esc(j.title)}</div>
-            <div class="sub">${esc(c.name)} · <span class="mono">${esc(j.agent)}</span> · started ${esc(j.started)}</div>
-            <div class="pills"><span class="pill mono">${esc(j.repo)}</span><span class="pill mono">${esc(j.branch)}</span>${j.preview ? `<span class="pill go mono">${esc(j.preview)}</span>` : ""}</div>
+            <div class="sub">${esc(c.name)} · <span class="mono">${esc(j.agent)}</span> · ${owner ? "claimed by " + esc(owner.handle) : "unclaimed"} · started ${esc(j.started)}</div>
+            <div class="pills"><span class="pill mono">${esc(j.repo)}</span>${j.branch !== "—" ? `<span class="pill mono">${esc(j.branch)}</span>` : ""}${j.preview ? `<span class="pill go mono">${esc(j.preview)}</span>` : ""}</div>
           </div>
           <div class="acts">
+            ${g && g.status === "open" ? `<button class="btn tiny go" data-act="tab" data-id="gate">Decide it</button>` : ""}
             ${j.preview ? `<button class="btn tiny brand" data-act="open-preview" data-id="${j.id}">Open preview</button>` : ""}
-            ${gate ? `<button class="btn tiny go" data-act="nav" data-page="approvals">Go to approval</button>` : ""}
+            ${j.owner ? `<button class="btn tiny" data-act="release-job" data-id="${j.id}">Release</button>` : `<button class="btn tiny brand" data-act="claim-job" data-id="${j.id}">Claim</button>`}
             <button class="btn tiny" data-act="sel-cust-go" data-id="${c.id}">Customer</button>
             ${j.status === "working" || j.status === "thinking" ? `<button class="btn tiny stop" data-act="stop-job" data-id="${j.id}">Stop</button>` : ""}
           </div>
-          ${tabbar([["overview", "Transcript"], ["scope", "Scope"], ["files", "Files"], ["budget", "Budget"], ["walls", "Walls"]])}
+          ${tabbar(tabs)}
           <div class="dbody">${body}</div>
         </div>
-        ${rail(gate
-          ? { title: gate.t, why: j.risk, do: "approvals" }
-          : j.status === "done"
-            ? { title: "Shipped — tell " + c.name.split(" ")[0], why: "Send the before/after. This is the proof that renews the retainer.", do: "sms" }
-            : { title: "Let it run", why: j.goal, do: "watch" },
-          `<h5>Budget</h5><div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">$${j.spent.toFixed(2)} of $${j.budget}</div>${bar(j.spent, j.budget, j.spent / j.budget > 0.8 ? "warn" : "")}`)}
+        ${rail(g && g.status === "open"
+          ? { title: g.title, why: g.irreversible ? "Irreversible. Read the blast radius, then decide — the agent already checked the wall." : g.why, do: "gate" }
+          : !j.owner
+            ? { title: "Nobody owns this", why: "It sits on the board until a session claims it. Unclaimed work is how things quietly rot.", do: "claim" }
+            : j.status === "done"
+              ? { title: "Shipped — tell " + c.name.split(" ")[0], why: "Send the before and after. This is the proof that renews the retainer.", do: "sms" }
+              : { title: "Let it run", why: j.goal, do: "watch" },
+          `<h5>Budget</h5><div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">$${j.spent.toFixed(2)} of $${j.budget}</div>${bar2m(j.spent, j.budget)}
+           <h5 style="margin-top:14px">Session</h5><div style="font-size:12.5px;color:var(--muted);line-height:1.5">${owner ? esc(owner.name) + " · " + esc(owner.machine) + "<br>" + esc(owner.version) : "No session has claimed this."}</div>`)}
       </div></div>`;
   }
 
-  function pageWrangler() {
-    const feed = [
-      { who: "mcp", cls: "info", t: "claude-code connected on your laptop · 4 tools granted" },
-      { who: "wall", cls: "brand", t: "5 customer workspaces mounted, one open at a time" },
-      { who: "apex-builder", cls: "go", t: "route template done — 41 pages generated, LCP 4.8s → 0.9s" },
-      { who: "cascade-ops", cls: "wait", t: "paused: the receptionist will not answer live traffic without you" },
-      { who: "ironclad-growth", cls: "info", t: "reading Housecall Pro webhooks — nothing written yet" },
-      { who: "zernio-buyer", cls: "go", t: "Apex Google impression share 2.1× week over week" },
-      { who: "you", cls: "", t: "approved: bind ironclad-plumbing/site → Ironclad Plumbing" },
-    ];
-    const agents = TEAM.filter((t) => t.kind === "ai");
-    return `<div class="page desk">
-      <div class="roll">
-        <div class="acts" style="border-bottom:1px solid var(--line)"><span class="pill go">session live</span><span class="pill mono">mcp · stdio</span></div>
-        ${agents.map((a) => `<button class="item" data-act="member-go" data-id="${a.id}">
-          <div class="t">${esc(a.name)} <span class="pill ${a.status === "working" ? "go" : a.status === "blocked" ? "stop" : "info"}">${esc(a.status)}</span></div>
-          <div class="m">${esc(a.role)}</div>
-          <div class="m mono">${esc(a.where)}</div></button>`).join("")}
-      </div>
-      <div class="dossier">
-        <div class="dh"><span class="pill brand">orchestrator</span>
-          <div class="who">Head Wrangler</div>
-          <div class="sub">Claude Code on your laptop, over MCP. It plans and delegates. It does not send, spend, or deploy on its own.</div>
-        </div>
-        <div class="dbody">
-          <div class="sec"><h5>Session</h5>
-            <div class="tl">${feed.map((f) => `<div class="ev"><div class="when">${esc(f.who)}</div><div>${esc(f.t)}</div></div>`).join("")}</div>
-          </div>
-        </div>
-        <form class="composer" data-act="wrangler-send">
-          <textarea name="body" placeholder="Tell the Head Wrangler what to do — “rebuild Ridgeline's service-area pages off their real job list”"></textarea>
-          <button class="btn brand" type="submit">Send</button>
-        </form>
-      </div>
-      <aside class="rail">
-        <h5>What it can do alone</h5>
-        <div style="font-size:12.5px;color:var(--muted);line-height:1.55">Read a bound repo. Write a branch. Open a preview. Draft copy, ads, and messages. Spend up to a job's cap.</div>
-        <h5>What it cannot</h5>
-        <div style="font-size:12.5px;color:var(--muted);line-height:1.55">Merge to production. Send a first message to a real person. Move money. Touch a customer it is not scoped to. Every one of those is a button you press.</div>
-        <div class="next-box"><b>${APPROVALS.filter((a) => a.status === "open").length} things are waiting on you</b>
-          <div style="color:var(--muted);font-size:12.5px;margin:6px 0 12px">The agents are stopped at the wall, not idle.</div>
-          <button class="btn brand full" data-act="nav" data-page="approvals">Open the queue</button></div>
-      </aside>
-    </div>`;
-  }
+  function pageSessions() {
+    const u = PEOPLE.find((x) => x.id === state.who) || PEOPLE[0];
+    const mine = JOBS.filter((x) => x.owner === u.id);
+    const free = JOBS.filter((x) => !x.owner);
+    const agents = TEAM.filter((a) => a.session === u.id);
+    const live = PEOPLE.filter((x) => x.status === "connected").length;
+    const tab = state.tab || "overview";
+    const cmd = `claude mcp add wrangler \\\n  --transport http https://os.aiwrangler.com/mcp \\\n  --header "Authorization: Bearer ${u.token}"`;
 
-  function pageApprovals() {
-    const open = APPROVALS.filter((a) => a.status === "open");
-    const a = APPROVALS.find((x) => x.id === state.appr) || open[0] || APPROVALS[0];
-    const c = cust(a.cust);
-    const decided = APPROVALS.filter((x) => x.status !== "open");
-    return `<div class="page desk">
-      <div class="roll">
-        <div class="acts" style="border-bottom:1px solid var(--line)"><span class="pill wait">${open.length} open</span><span class="pill">${decided.length} decided</span></div>
-        ${APPROVALS.map((x) => `<button class="item ${x.id === a.id ? "on" : ""}" data-act="sel-appr" data-id="${x.id}">
-          <div class="t">${x.status === "open" ? "● " : ""}${esc(x.title)}</div>
-          <div class="m">${esc(cust(x.cust).name)} · ${esc(x.asked)}</div>
-          <div class="m"><span class="pill ${x.status === "open" ? (x.irreversible ? "stop" : "wait") : x.status === "approved" ? "go" : "info"}">${x.status === "open" ? (x.irreversible ? "irreversible" : "needs you") : x.status}</span></div>
-        </button>`).join("")}
+    let body = "";
+    if (tab === "overview") body = `<div class="sec"><h5>Live from ${esc(u.handle)}'s machine</h5>
+        ${agents.length ? agents.map((a) => {
+          const job = JOBS.find((x) => x.agent === a.name);
+          const last = job && job.steps[job.steps.length - 1];
+          return `<div class="file"><span><b>${esc(a.name)}</b> <span class="pill ${a.status === "working" ? "go" : a.status === "blocked" ? "stop" : "info"}">${esc(a.status)}</span>
+            <div style="color:var(--muted);font-size:12px;margin-top:4px">${last ? esc(last.t) : esc(a.scope)}</div></span>
+            ${job ? `<button class="btn tiny" data-act="sel-job-go" data-id="${job.id}">Open</button>` : ""}</div>`;
+        }).join("") : `<div style="color:var(--muted)">No agents running in this session.</div>`}
       </div>
-      <div class="dossier">
-        <div class="dh"><span class="pill ${a.irreversible ? "stop" : "wait"}">${a.irreversible ? "cannot be undone" : "reversible"}</span>
-          <div class="who">${esc(a.title)}</div>
-          <div class="sub">${esc(c.name)} · asked ${esc(a.asked)} by <span class="mono">${esc(a.by)}</span></div>
-        </div>
-        <div class="dbody">
-          <div class="sec"><h5>What happens if you approve</h5>
-            <div style="font-size:13.5px;line-height:1.55">${esc(a.what)}</div></div>
-          ${kv([["Blast radius", esc(a.blast)], ["Cost", esc(a.cost)], ["Reversible", a.irreversible ? "<b style=\"color:var(--stop)\">No</b>" : "Yes — one click on Changes"], ["Why now", esc(a.why)]])}
-          <div class="sec" style="margin-top:18px"><h5>What the wall is doing</h5>
-            <div style="font-size:13px;color:var(--muted);line-height:1.55">${esc(a.guard)}</div></div>
-          ${a.status === "open" ? `<div style="display:flex;gap:8px;margin-top:20px">
-            <button class="btn go" data-act="appr-yes" data-id="${a.id}">Approve${a.irreversible ? " — I understand it sends" : ""}</button>
-            <button class="btn stop" data-act="appr-no" data-id="${a.id}">Reject</button>
-            <button class="btn" data-act="appr-hold" data-id="${a.id}">Ask the agent for more</button>
-          </div>` : `<div class="file" style="margin-top:20px"><b>Decided</b><span class="pill ${a.status === "approved" ? "go" : "info"}">${esc(a.status)}</span></div>`}
+      ${kv([
+        ["Machine", esc(u.machine)],
+        ["Client", `<span class="mono">${esc(u.version)}</span>`],
+        ["Connected", esc(u.since)],
+        ["Can approve", u.approver ? "<b>Yes</b> — irreversible things stop here" : "No — their gates route to you"],
+        ["Claimed", mine.length + " job" + (mine.length === 1 ? "" : "s")],
+      ])}`;
+    if (tab === "claimed") body = `<div class="sec"><h5>Claimed by ${esc(u.handle)}</h5>
+        ${mine.map((x) => `<div class="file"><span>${esc(x.title)}<div style="color:var(--muted);font-size:12px;margin-top:3px">${esc(cust(x.cust).name)} · ${esc(JOB_WORD[x.status] || x.status)}</div></span>
+          <span style="display:flex;gap:6px"><button class="btn tiny" data-act="sel-job-go" data-id="${x.id}">Open</button><button class="btn tiny stop" data-act="release-job" data-id="${x.id}">Release</button></span></div>`).join("") || `<div style="color:var(--muted)">Nothing claimed.</div>`}
+      </div>
+      <div class="sec"><h5>On the board, unclaimed</h5>
+        ${free.map((x) => `<div class="file"><span>${esc(x.title)}<div style="color:var(--muted);font-size:12px;margin-top:3px">${esc(cust(x.cust).name)}</div></span>
+          <button class="btn tiny brand" data-act="assign-job" data-id="${x.id}" data-who="${u.id}">Give it to ${esc(u.handle)}</button></div>`).join("") || `<div style="color:var(--muted)">Board is clear.</div>`}
+      </div>`;
+    if (tab === "connect") body = `<div class="sec"><h5>${u.status === "invited" ? "Send " + esc(u.name.split(" ")[0]) + " this" : "How this session connects"}</h5>
+        <p style="font-size:13px;color:var(--muted);line-height:1.6;max-width:62ch">They run this once on their own laptop. Their Claude Code then sees the board, claims work, and streams every step back here — scoped to the customers below and nothing else.</p>
+        <pre class="cmd">${esc(cmd)}</pre>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn tiny brand" data-act="copy-cmd" data-id="${u.id}">Copy command</button>
+          <button class="btn tiny" data-act="rotate-token" data-id="${u.id}">Rotate token</button>
         </div>
       </div>
-      ${rail({ title: a.status === "open" ? "Read the blast radius first" : "Nothing left on this one", why: a.status === "open" ? "Irreversible things are two clicks on purpose. The agent already checked the wall; you are checking the judgement." : "It is done. The trail is on Changes.", do: "none" },
-        `<h5>House rule</h5><div style="font-size:12.5px;color:var(--muted);line-height:1.55">Production deploys and first live sends are always two clicks. Never one. An agent that can send without you is a liability with a login.</div>`)}
-    </div>`;
-  }
+      <div class="sec"><h5>Then it can</h5>
+        ${MCP_TOOLS.map(([n, w]) => `<div class="file"><span><span class="mono" style="color:var(--brand-2)">${esc(n)}</span><div style="color:var(--muted);font-size:12px;margin-top:3px">${esc(w)}</div></span>
+          <span class="pill ${u.tools.indexOf(n) >= 0 ? "go" : ""}">${u.tools.indexOf(n) >= 0 ? "granted" : "not granted"}</span></div>`).join("")}
+      </div>`;
+    if (tab === "scope") body = `<div class="sec"><h5>Customers this session can mount</h5>
+        ${CUST.map((x) => `<div class="file"><span>${esc(x.name)}<div style="color:var(--muted);font-size:12px;margin-top:3px">${esc(x.city)}</div></span>
+          <button class="btn tiny ${u.scope.indexOf(x.id) >= 0 ? "" : "brand"}" data-act="scope-toggle" data-id="${u.id}" data-cust="${x.id}">${u.scope.indexOf(x.id) >= 0 ? "Scoped" : "Grant"}</button></div>`).join("")}
+      </div>
+      <p style="color:var(--muted);font-size:12.5px;max-width:62ch">Scope is enforced at the tool, not in the prompt. <span class="mono">read_bound_repo</span> on a customer outside this list returns a 403 to their Claude Code, the same 403 an agent gets. Asking nicely does not change it.</p>`;
 
-  function pageChanges() {
-    const ch = CHANGES.find((x) => x.id === state.chg) || CHANGES[0];
-    const c = cust(ch.cust);
-    return `<div class="page desk">
-      <div class="roll">${CHANGES.map((x) => `<button class="item ${x.id === ch.id ? "on" : ""}" data-act="sel-chg" data-id="${x.id}">
-        <div class="t">${esc(x.title)}</div>
-        <div class="m">${esc(cust(x.cust).name)} · ${esc(x.when)}</div>
-        <div class="m"><span class="pill ${CHG_PILL[x.state]}">${esc(CHG_WORD[x.state])}</span> <span class="mono" style="color:var(--go)">+${x.add}</span> <span class="mono" style="color:var(--stop)">−${x.del}</span></div>
-      </button>`).join("")}</div>
-      <div class="dossier">
-        <div class="dh"><span class="pill ${CHG_PILL[ch.state]}">${esc(CHG_WORD[ch.state])}</span>
-          <div class="who">${esc(ch.title)}</div>
-          <div class="sub mono">${esc(ch.repo)} · ${esc(ch.branch)}</div>
-          <div class="pills"><span class="pill">${esc(c.name)}</span><span class="pill mono">by ${esc(ch.by)}</span><span class="pill mono">${esc(ch.when)}</span></div>
-        </div>
-        <div class="acts">
-          ${ch.preview ? `<button class="btn tiny brand" data-act="open-preview-url" data-id="${ch.id}">Open ${esc(ch.preview)}</button>` : ""}
-          ${ch.state === "preview" ? `<button class="btn tiny go" data-act="nav" data-page="approvals">Promote — needs approval</button>` : ""}
-          ${ch.state === "live" ? `<button class="btn tiny stop" data-act="rollback" data-id="${ch.id}">Roll back</button>` : ""}
-          <button class="btn tiny" data-act="sel-cust-go" data-id="${c.id}">Customer</button>
-        </div>
-        <div class="dbody">
-          <div class="sec"><h5>What changed</h5>
-            <div style="font-size:13.5px;line-height:1.55;margin-bottom:14px">${esc(ch.note)}</div>
-            ${ch.files.map((f) => `<div class="file"><span class="mono">${esc(f[0])}</span><span class="mono" style="color:var(--muted)">${esc(f[1])}</span></div>`).join("")}
-            <div class="file"><b>${ch.files.length} files</b><b class="mono"><span style="color:var(--go)">+${ch.add}</span> <span style="color:var(--stop)">−${ch.del}</span></b></div>
-          </div>
-          <div class="sec"><h5>Where it can go</h5>
-            ${kv([["Repo", `<span class="mono">${esc(ch.repo)}</span> · bound to ${esc(c.name)}`], ["Deploy target", `${esc(c.name)}'s own Vercel project, their token`], ["Nowhere else", CUST.filter((x) => x.id !== c.id).map((x) => x.name).join(" · ")]])}
-          </div>
-        </div>
+    return `<div class="page">
+      <div class="statline">
+        <span class="pill go">${live} connected</span>
+        <span class="pill">${JOBS.filter((x) => x.owner).length} claimed</span>
+        ${free.length ? `<span class="pill wait">${free.length} on the board</span>` : ""}
+        <span style="margin-left:auto;color:var(--muted)">Everyone brings their own Claude Code. Nobody shares a login.</span>
       </div>
-      ${rail(ch.state === "preview"
-        ? { title: "Promote the rebuild", why: ch.note, do: "approvals" }
-        : ch.state === "rolled_back"
-          ? { title: "Re-run with the right source", why: "The template was fine. The content source was wrong. Point it at their real area list and run it again.", do: "job" }
-          : { title: "Nothing to do here", why: "This one is settled. Rollback stays one click if it turns.", do: "none" },
-        `<h5>Every change is a branch</h5><div style="font-size:12.5px;color:var(--muted);line-height:1.55">Agents never commit to main. They open a branch, deploy a preview, and stop. Main is a decision, not a side effect.</div>`)}
-    </div>`;
+      <div class="desk">
+        <div class="roll">${PEOPLE.map((x) => `<button class="item ${x.id === u.id ? "on" : ""}" data-act="sel-who" data-id="${x.id}">
+          <div class="t">${esc(x.name)} <span class="pill ${x.status === "connected" ? "go" : x.status === "idle" ? "info" : "wait"}">${esc(x.status)}</span></div>
+          <div class="m">${esc(x.role)} · ${JOBS.filter((y) => y.owner === x.id).length} claimed</div>
+          <div class="m mono">${esc(x.machine)}</div>
+        </button>`).join("")}</div>
+        <div class="dossier">
+          <div class="dh"><span class="pill ${u.status === "connected" ? "go" : u.status === "idle" ? "info" : "wait"}">${esc(u.status)}</span>${u.approver ? `<span class="pill brand">approver</span>` : ""}
+            <div class="who">${esc(u.name)}</div>
+            <div class="sub"><span class="mono">${esc(u.handle)}</span> · ${esc(u.role)} · ${esc(u.machine)}</div>
+            <div class="pills"><span class="pill mono">${esc(u.version)}</span><span class="pill">${agents.length} agents</span><span class="pill">${u.scope.length} customers</span></div>
+          </div>
+          <div class="acts">
+            <button class="btn tiny brand" data-act="tab" data-id="connect">${u.status === "invited" ? "Send the invite" : "Connection"}</button>
+            <button class="btn tiny" data-act="tab" data-id="claimed">Claimed work</button>
+            ${u.status === "connected" && u.id !== "U1" ? `<button class="btn tiny stop" data-act="revoke" data-id="${u.id}">Revoke session</button>` : ""}
+          </div>
+          ${tabbar([["overview", "Live"], ["claimed", "Work"], ["connect", "Connect"], ["scope", "Scope"]])}
+          <div class="dbody">${body}</div>
+        </div>
+        ${rail(u.status === "invited"
+          ? { title: "Send " + u.name.split(" ")[0] + " the command", why: "Nothing happens until they run it on their own machine. There is no seat to log into.", do: "copy" }
+          : free.length
+            ? { title: free.length + " job" + (free.length === 1 ? "" : "s") + " on the board", why: "Any connected session can claim these. Work with no owner is work nobody is watching.", do: "board" }
+            : { title: "Floor is covered", why: "Every job has an owner and every session is scoped. Go sell something.", do: "none" },
+          `<h5>Why their own Claude Code</h5><div style="font-size:12.5px;color:var(--muted);line-height:1.55">One shared agent account means one blast radius. Each person's session carries its own token, its own customer scope, and its own audit trail — so “who told it to do that” always has an answer.</div>`)}
+      </div></div>`;
   }
 
   function pagePlaybooks() {
@@ -1262,33 +1478,6 @@
       </div>
       ${rail({ title: "Run " + pb.name, why: "Pick a customer and the agents take the steps that are safe to take alone. The rest lands on Needs you.", do: "pb" },
         `<h5>Live on</h5>${pb.live.map((id) => `<div class="file"><span>${esc(cust(id).name)}</span><span class="pill go">on</span></div>`).join("") || `<div style="color:var(--muted);font-size:12.5px">Nobody yet.</div>`}`)}
-    </div>`;
-  }
-
-  function pageTeam() {
-    const m = TEAM.find((x) => x.id === state.member) || TEAM[0];
-    return `<div class="page desk">
-      <div class="roll">${TEAM.map((x) => `<button class="item ${x.id === m.id ? "on" : ""}" data-act="sel-member" data-id="${x.id}">
-        <div class="t">${esc(x.name)} <span class="pill ${x.kind === "human" ? "brand" : x.status === "working" ? "go" : x.status === "blocked" ? "stop" : "info"}">${esc(x.kind === "human" ? "human" : x.status)}</span></div>
-        <div class="m">${esc(x.role)}</div></button>`).join("")}</div>
-      <div class="dossier">
-        <div class="dh"><span class="pill ${m.kind === "human" ? "brand" : "info"}">${m.kind === "human" ? "human" : "ai"}</span>
-          <div class="who">${esc(m.name)}</div>
-          <div class="sub">${esc(m.role)} · ${esc(m.where)}</div>
-          <div class="pills">${m.tools.map((t) => `<span class="pill mono">${esc(t)}</span>`).join("")}${m.jobs ? `<span class="pill go">${m.jobs} job${m.jobs > 1 ? "s" : ""} live</span>` : ""}</div>
-        </div>
-        <div class="dbody">
-          <div class="sec"><h5>Scope — the only thing it can touch</h5>
-            <div style="font-size:13.5px;line-height:1.55">${esc(m.scope)}</div></div>
-          <div class="sec"><h5>Tools granted</h5>
-            ${m.tools.map((t) => `<div class="file"><span class="mono">${esc(t)}</span><span class="pill go">granted</span></div>`).join("")}
-            ${["github", "vercel", "twilio", "zernio"].filter((t) => m.tools.indexOf(t) < 0 && m.kind === "ai").map((t) => `<div class="file"><span class="mono" style="color:var(--faint)">${esc(t)}</span><span class="pill">not granted</span></div>`).join("")}
-          </div>
-          ${m.jobs ? `<div class="sec"><h5>Working on</h5>${JOBS.filter((j) => j.agent === m.name || m.name === "Head Wrangler").filter((j) => j.status !== "done").map((j) => `<button class="file" style="width:100%;background:none;border:0;border-bottom:1px solid var(--line);color:inherit" data-act="sel-job-go" data-id="${j.id}"><span>${esc(j.title)}</span><span class="pill ${JOB_PILL[j.status]}">${esc(j.status)}</span></button>`).join("")}</div>` : ""}
-        </div>
-      </div>
-      ${rail({ title: m.kind === "human" ? "You are the only approver" : "Watch " + m.name, why: m.kind === "human" ? "Every irreversible thing in this OS routes to you. That is the design, not a bottleneck to optimise away." : m.scope, do: m.kind === "human" ? "approvals" : "work" },
-        `<h5>Why one agent per customer</h5><div style="font-size:12.5px;color:var(--muted);line-height:1.55">A single agent with all five tokens is one bad prompt away from writing Cascade's hours onto Apex's site. Separate sandboxes make that impossible instead of unlikely.</div>`)}
     </div>`;
   }
 
@@ -1448,10 +1637,9 @@
   const PAGES = {
     command: pageCommand, pipeline: pagePipeline, leads: pageLeads, prospects: pageProspects, dialer: pageDialer,
     sms: pageSms, ads: pageAds, partners: pagePartners, customers: pageCustomers,
-    inbox: pageInbox, billing: pageBilling, work: pageWork, wrangler: pageWrangler,
-    approvals: pageApprovals, changes: pageChanges, playbooks: pagePlaybooks,
-    team: pageTeam, memory: pageMemory, spending: pageSpending, connect: pageConnect,
-    github: pageGithub, settings: pageSettings,
+    inbox: pageInbox, billing: pageBilling, work: pageWork, sessions: pageSessions,
+    playbooks: pagePlaybooks, memory: pageMemory, spending: pageSpending,
+    connect: pageConnect, github: pageGithub, settings: pageSettings,
   };
 
   function dur() {
@@ -1535,7 +1723,7 @@
     LEADS.forEach((l) => out.push({ label: l.name, kind: l.kind, page: l.kind === "partner" ? "partners" : "leads", id: l.id }));
     CUST.forEach((c) => out.push({ label: c.name, kind: "customer", page: "customers", id: c.id }));
     PX.forEach((p) => out.push({ label: p.name, kind: "prospect", page: "prospects", id: p.id }));
-    PARTNERS.forEach((p) => out.push({ label: p.name, kind: "partner", page: "partners", id: p.id }));
+    PARTNERS.forEach((p) => out.push({ label: p.name, kind: "franchise", page: "partners", id: p.id }));
     ADS.forEach((a) => out.push({ label: a.name, kind: "ad", page: "ads" }));
     return out.filter((h) => !q || h.label.toLowerCase().includes(q)).slice(0, 8);
   }
@@ -1546,10 +1734,7 @@
     const r = PX.find((x) => x.id === id);
     if (r) return { name: r.dm, phone: r.phone, book: r.name };
     const p = PARTNERS.find((x) => x.id === id);
-    if (p) {
-      const c = pd(p.id).contact || {};
-      return { name: c.name || p.name, phone: c.phone || "", book: p.name };
-    }
+    if (p) return { name: p.op, phone: p.phone, book: p.name };
     return null;
   }
   function dial(id) {
@@ -1602,6 +1787,16 @@
     if (act === "sel-lead") state.jump = true;
     if (act === "sel-lead") { state.lead = id; state.tab = "overview"; render(); }
     if (act === "close-lead") { state.lead = null; render(); }
+    if (act === "close-partner") { state.partner = null; render(); }
+    if (act === "certify") {
+      const pr = PARTNERS.find((x) => x.id === id);
+      const k = KIT.find((x) => x.id === n.getAttribute("data-kit"));
+      if (pr && k && pr.certified.indexOf(k.id) < 0) {
+        pr.certified.push(k.id);
+        toast(pr.op.split(" ")[0] + " certified on " + k.name);
+      }
+      render();
+    }
     if (act === "sel-cust") state.jump = true;
     if (act === "sel-cust") { state.custId = id; state.tab = "overview"; render(); }
     if (act === "sel-prospect") state.jump = true;
@@ -1612,7 +1807,13 @@
     if (act === "next") {
       const d = n.getAttribute("data-do");
       if (d === "dial") { const t = state.page === "prospects" ? state.prospect : state.lead; if (t) dial(t); else toast("Pick a lead first"); }
-      else if (d === "sms") { state.sms = state.page === "partners" ? "L8" : (state.lead || state.sms); go("inbox"); }
+      else if (d === "sms") {
+        if (state.page === "partners") {
+          const pr = PARTNERS.find((x) => x.id === state.partner);
+          if (pr && pr.thread) { state.sms = pr.thread; go("inbox"); }
+          else toast("No thread with " + (pr ? pr.op : "them") + " yet — call instead");
+        } else { state.sms = state.lead || state.sms; go("inbox"); }
+      }
       else if (d === "ads") go("ads");
       else if (d === "approvals") go("approvals");
       else if (d === "settings") go("settings");
@@ -1621,6 +1822,10 @@
       else if (d === "invoice") toast("Invoice queued · ACH");
       else if (d === "pb") { toast("Queued — safe steps run, the rest lands on Needs you"); go("work"); }
       else if (d === "watch") toast("Watching · you get pinged the moment it needs you");
+      else if (d === "gate") { state.tab = "gate"; render(); }
+      else if (d === "claim") { const j = job(state.job); if (j) { j.owner = "U1"; toast("Claimed"); render(); } }
+      else if (d === "copy") { state.tab = "connect"; render(); }
+      else if (d === "board") { state.tab = "claimed"; render(); }
       else if (d === "none") toast("Nothing to do here");
       else toast("Queued");
     }
@@ -1687,8 +1892,6 @@
       toast("Stopped · branch left open, nothing merged");
       render();
     }
-    if (act === "sel-appr") state.jump = true;
-    if (act === "sel-appr") { state.appr = id; render(); }
     if (act === "appr-yes") {
       const a = APPROVALS.find((x) => x.id === id);
       if (a) {
@@ -1705,8 +1908,6 @@
       render();
     }
     if (act === "appr-hold") toast("Asked the agent to show its work first");
-    if (act === "sel-chg") state.jump = true;
-    if (act === "sel-chg") { state.chg = id; render(); }
     if (act === "rollback") {
       const c0 = CHANGES.find((x) => x.id === id);
       if (c0) { c0.state = "rolled_back"; c0.note = "Rolled back by you. The previous deploy is live again."; }
@@ -1717,9 +1918,54 @@
     if (act === "sel-pb") { state.pb = id; render(); }
     if (act === "pb-run") { toast(PLAYBOOKS.find((x) => x.id === id).name + " queued — safe steps run, the rest lands on Needs you"); go("work"); }
     if (act === "pb-edit") toast("Playbooks are code. Edit them in the repo, not in a form.");
-    if (act === "sel-member") state.jump = true;
-    if (act === "sel-member") { state.member = id; render(); }
-    if (act === "member-go") { state.member = id; go("team"); }
+    if (act === "sel-who") state.jump = true;
+    if (act === "sel-who") { state.who = id; state.tab = "overview"; render(); }
+    if (act === "claim-job") {
+      const j = job(id);
+      if (j) { j.owner = "U1"; toast("Claimed · it is yours until you release it"); }
+      render();
+    }
+    if (act === "release-job") {
+      const j = job(id);
+      if (j) { j.owner = null; toast("Released · back on the board for any session"); }
+      render();
+    }
+    if (act === "assign-job") {
+      const j = job(id);
+      const u = person(n.getAttribute("data-who"));
+      if (j && u) { j.owner = u.id; toast("Assigned to " + u.handle + " · it shows up in their Claude Code"); }
+      render();
+    }
+    if (act === "copy-cmd") {
+      const u = person(id);
+      const text = 'claude mcp add wrangler --transport http https://os.aiwrangler.com/mcp --header "Authorization: Bearer ' + u.token + '"';
+      if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {});
+      toast("Copied · send it to " + u.name.split(" ")[0] + ", it only works on their machine");
+    }
+    if (act === "rotate-token") {
+      const u = person(id);
+      if (u) { u.token = "wr_sess_" + (u.handle.length * 7919 + 40503).toString(16) + "b2"; toast("Rotated · their old session is dead as of now"); }
+      render();
+    }
+    if (act === "scope-toggle") {
+      const u = person(id);
+      const cid = n.getAttribute("data-cust");
+      if (u) {
+        const i = u.scope.indexOf(cid);
+        if (i >= 0) { u.scope.splice(i, 1); toast(cust(cid).name + " removed — their tools 403 on it now"); }
+        else { u.scope.push(cid); toast(cust(cid).name + " granted to " + u.handle); }
+      }
+      render();
+    }
+    if (act === "revoke") {
+      const u = person(id);
+      if (u) {
+        u.status = "invited"; u.version = "—"; u.since = "—";
+        JOBS.forEach((j) => { if (j.owner === u.id) j.owner = null; });
+        toast(u.name.split(" ")[0] + "'s session revoked · their claimed work went back on the board");
+      }
+      render();
+    }
     if (act === "mem-scope") state.jump = true;
     if (act === "mem-scope") { state.memScope = id; state.memQ = ""; render(); }
     if (act === "mem-del") {
@@ -1855,13 +2101,13 @@
 
   addEventListener("hashchange", () => {
     let p = location.hash.replace("#/", "");
-    if (p === "sms") p = "inbox";
+    if (ALIAS[p]) { if (p === "approvals") state.jobFilter = "gate"; p = ALIAS[p]; }
     if (p === "pipeline") { p = "leads"; state.leadView = "kanban"; }
     if (PAGES[p]) { state.page = p; render(); }
   });
 
   let boot = location.hash.replace("#/", "");
-  if (boot === "sms") boot = "inbox";
+  if (ALIAS[boot]) { if (boot === "approvals") state.jobFilter = "gate"; boot = ALIAS[boot]; }
   if (boot === "pipeline") { boot = "leads"; state.leadView = "kanban"; }
   if (PAGES[boot]) state.page = boot;
   render();

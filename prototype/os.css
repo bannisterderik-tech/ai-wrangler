@@ -361,6 +361,12 @@ html[data-theme="light"] .dock { background: #fff4ee; }
 .tlog .tool { padding: 6px 0; }
 .tlog .gate { color: var(--wait); }
 .tlog .done { color: var(--go); }
+pre.cmd {
+  margin: 10px 0 0; padding: 14px 16px; overflow-x: auto;
+  background: var(--inset); border: 1px solid var(--line); border-left: 2px solid var(--brand);
+  border-radius: 10px; font-family: var(--mono); font-size: 12.5px; line-height: 1.7;
+  color: var(--text); white-space: pre;
+}
 .meter { height: 6px; border-radius: 99px; background: var(--inset); overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--go); border-radius: 99px; }
 .meter i.warn { background: var(--wait); }

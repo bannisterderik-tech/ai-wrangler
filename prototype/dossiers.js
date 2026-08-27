@@ -93,25 +93,6 @@ WR.CUST_X = {
   },
 };
 
-WR.PART_X = {
-  P1: {
-    legal: "Williamson Water LLC", contact: { name: "Ken Williamson", role: "Owner", phone: "+1 970 555 0144", email: "ken@williamsonwater.com" },
-    trades: "Sends us shop *owners* who need a site and a lead system — not their customer jobs",
-    territory: "Montrose + Tehama (snowbirds)", exclusive: "Wrangler for web/tech in Red Bluff trades",
-    take: "10% of collected", w9: "on file", last: "this morning",
-    flow: [{ n: "River City Electric — needs a site", dir: "in", when: "today" }, { n: "Apex case study PDF", dir: "out", when: "last week" }],
-    next: { title: "Thank Ken and ask for one more owner this month", why: "He sends shops that buy Wrangler. Reciprocity is the contract.", do: "sms" },
-  },
-  P3: {
-    legal: "Dudley Excavating", contact: { name: "Cal Dudley", role: "Ops", phone: "+1 530 555 7701", email: "cal@dudleyexc.com" },
-    trades: "GC network — intros to owners who need sites",
-    territory: "Tehama County", exclusive: "none",
-    take: "12%", w9: "on file", last: "yesterday",
-    flow: [{ n: "Bell Brothers Roofing — Angi refugee", dir: "in", when: "yesterday" }],
-    next: { title: "Send Cal the Apex Loom to forward", why: "GCs meet owners before we do. Arm them.", do: "sms" },
-  },
-};
-
 WR.CUST_DEFAULT = {
   legal: "", crew: 6, hours: "Mon–Fri 8–5", radius: "15 miles", services: "Core trade",
   voice: "Plain speech. Local.", rules: "Balanced.",
@@ -121,8 +102,3 @@ WR.CUST_DEFAULT = {
   next: { title: "Connect Twilio DID + Zernio profile", why: "Can't dominate a market without a number and an ad account that don't leak.", do: "settings" },
 };
 
-WR.PART_DEFAULT = {
-  contact: { name: "—", role: "Owner", phone: "", email: "" },
-  trades: "Referral", territory: "local", exclusive: "none", w9: "needed", last: "—", flow: [],
-  next: { title: "Send a thank-you SMS and a W9 request", why: "Partners who intro owners keep intro'ing.", do: "sms" },
-};
