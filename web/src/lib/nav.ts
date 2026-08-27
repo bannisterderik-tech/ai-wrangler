@@ -1,7 +1,6 @@
 export const NAV = [
   { section: "FUNNEL", items: [
     { href: "/", id: "command", label: "Command" },
-    { href: "/pipeline", id: "pipeline", label: "Pipeline" },
     { href: "/leads", id: "leads", label: "Leads" },
     { href: "/prospects", id: "prospects", label: "Prospects" },
     { href: "/dialer", id: "dialer", label: "Dialer" },
@@ -32,8 +31,8 @@ export const NAV = [
 
 export const TITLES: Record<string, string> = {
   "/": "Command — dominate the market",
-  "/pipeline": "Pipeline",
-  "/leads": "Lead dossier",
+  "/pipeline": "Leads",
+  "/leads": "Leads",
   "/prospects": "Prospects — firms we want",
   "/dialer": "Twilio power dialer",
   "/sms": "Inbox — every thread",
@@ -47,7 +46,7 @@ export const TITLES: Record<string, string> = {
   "/org": "The AI team",
   "/playbooks": "Playbooks",
   "/customers": "Customer dossier",
-  "/sales": "Pipeline",
+  "/sales": "Leads",
   "/billing": "Billing & margin",
   "/marketing": "Ads",
   "/team": "Your team",

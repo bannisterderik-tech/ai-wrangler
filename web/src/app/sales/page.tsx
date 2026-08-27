@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function SalesRedirect() {
-  redirect("/pipeline");
+  redirect("/leads");
 }

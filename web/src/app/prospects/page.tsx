@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PROSPECTS, PROSPECT_STAGES, money } from "@/lib/os-demo";
-import { Dossier, Kv, Rail, RollItem, Tabs } from "@/components/os/Dossier";
+import { DeskBar, Dossier, Kv, Rail, RollItem, Tabs } from "@/components/os/Dossier";
 
 const TABS: [string, string][] = [
   ["overview", "Overview"],
@@ -17,7 +17,17 @@ export default function ProspectsPage() {
   const [rows, setRows] = useState(PROSPECTS.map((p) => ({ ...p })));
   const [id, setId] = useState(rows[0].id);
   const [tab, setTab] = useState("overview");
-  const r = rows.find((x) => x.id === id) || rows[0];
+  const [view, setView] = useState<"list" | "kanban">("list");
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState("value");
+  const shown = useMemo(() => {
+    let r = rows.slice();
+    const qq = q.toLowerCase();
+    if (qq) r = r.filter((x) => (x.name + x.city + x.trade + x.pain).toLowerCase().includes(qq));
+    r.sort((a, b) => (sort === "name" ? a.name.localeCompare(b.name) : b.value - a.value));
+    return r;
+  }, [rows, q, sort]);
+  const r = shown.find((x) => x.id === id) || shown[0] || rows[0];
 
   const body = {
     overview: <Kv rows={[["Trade", r.trade], ["Market", r.city], ["Stage", PROSPECT_STAGES[r.stage]], ["Retainer", `${money(r.value)}/mo`], ["Why now", r.pain], ["Demo", r.demo || "not booked"], ["Crew", String(r.employees)], ["Jobs / mo", String(r.jobsMo)]]} />,
@@ -28,9 +38,44 @@ export default function ProspectsPage() {
     history: <p className="text-[13px]">{r.why}</p>,
   }[tab];
 
+  const bar = (
+    <DeskBar>
+      <button className={`btn-os ${view === "list" ? "brand" : ""}`} onClick={() => setView("list")}>List</button>
+      <button className={`btn-os ${view === "kanban" ? "brand" : ""}`} onClick={() => setView("kanban")}>Kanban</button>
+      <input className="btn-os min-w-[160px]" placeholder="Search prospects…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <select className="btn-os" value={sort} onChange={(e) => setSort(e.target.value)}>
+        <option value="value">Sort: retainer</option>
+        <option value="name">Sort: name</option>
+      </select>
+    </DeskBar>
+  );
+
+  if (view === "kanban") {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        {bar}
+        <div className="grid min-h-0 flex-1 auto-cols-[minmax(200px,1fr)] grid-flow-col gap-2 overflow-auto p-3">
+          {PROSPECT_STAGES.map((name, i) => (
+            <div key={name} className="flex min-h-0 flex-col rounded-xl border p-2" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>
+              <div className="flex justify-between px-1 py-2 text-[11px] uppercase" style={{ color: "var(--text-secondary)" }}><span>{name}</span><span>{shown.filter((x) => x.stage === i).length}</span></div>
+              {shown.filter((x) => x.stage === i).map((x) => (
+                <button key={x.id} className="mb-2 rounded-xl border p-3 text-left" style={{ background: "var(--surface-inset)", borderColor: "var(--hairline)" }} onClick={() => { setId(x.id); setView("list"); }}>
+                  <b>{x.name}</b>
+                  <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{x.dm} · {money(x.value)}/mo</div>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
+    <div className="flex h-full min-h-0 flex-col">
+    {bar}
     <Dossier
-      list={rows.map((x) => (
+      list={shown.map((x) => (
         <RollItem key={x.id} on={x.id === r.id} title={x.name} meta={`${x.city} · ${PROSPECT_STAGES[x.stage]} · ${money(x.value)}/mo`} onClick={() => { setId(x.id); setTab("overview"); }} />
       ))}
       rail={<Rail title={r.stage >= 3 ? "Kick off onboarding" : `Call ${r.dm.split(" ")[0]}`} why={r.why} onDo={() => {}} />}
@@ -46,5 +91,6 @@ export default function ProspectsPage() {
       <Tabs tabs={TABS} tab={tab} onTab={setTab} />
       <div className="min-h-0 flex-1 overflow-auto p-4">{body}</div>
     </Dossier>
+    </div>
   );
 }

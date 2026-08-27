@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { DIALER_SCRIPT, LEADS, STAGES, money } from "@/lib/os-demo";
 import { useDialer } from "@/components/os/DialerDock";
-import { Dossier, Kv, Rail, RollItem, Tabs } from "@/components/os/Dossier";
+import { DeskBar, Dossier, Kv, Rail, Tabs } from "@/components/os/Dossier";
 
 const TABS: [string, string][] = [
   ["overview", "Overview"],
@@ -18,12 +18,43 @@ const TABS: [string, string][] = [
 
 export default function LeadsPage() {
   const { dial } = useDialer();
-  const rows = useMemo(() => LEADS.filter((l) => l.kind !== "partner"), []);
-  const [id, setId] = useState(rows[0].id);
+  const all = useMemo(() => LEADS.filter((l) => l.kind !== "partner").map((l) => ({ ...l })), []);
+  const [rows, setRows] = useState(all);
+  const [id, setId] = useState(all[0].id);
   const [tab, setTab] = useState("overview");
-  const l = rows.find((x) => x.id === id) || rows[0];
+  const [view, setView] = useState<"list" | "kanban">("list");
+  const [q, setQ] = useState("");
+  const [trade, setTrade] = useState("all");
+  const [stage, setStage] = useState("all");
+  const [sort, setSort] = useState("score");
+
+  const trades = useMemo(() => [...new Set(all.map((l) => l.trade))], [all]);
+  const shown = useMemo(() => {
+    let r = rows.slice();
+    if (trade !== "all") r = r.filter((l) => l.trade === trade);
+    if (stage !== "all") r = r.filter((l) => String(l.stage) === stage);
+    const qq = q.toLowerCase();
+    if (qq) r = r.filter((l) => (l.company + l.name + l.city + l.note + l.src).toLowerCase().includes(qq));
+    r.sort((a, b) => {
+      if (sort === "company") return a.company.localeCompare(b.company);
+      if (sort === "value") return b.value - a.value;
+      if (sort === "sla") return b.sla - a.sla;
+      if (sort === "stage") return a.stage - b.stage;
+      return b.score - a.score;
+    });
+    return r;
+  }, [rows, q, trade, stage, sort]);
+
+  const l = shown.find((x) => x.id === id) || shown[0] || rows[0];
   const temp = l.score > 85 ? "hot" : l.score > 70 ? "warm" : "cold";
   const script = DIALER_SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", l.company).replace("{job}", l.note);
+
+  function move(lid: string, dir: number) {
+    setRows((allRows) =>
+      allRows.map((x) => (x.id === lid ? { ...x, stage: Math.max(0, Math.min(STAGES.length - 1, x.stage + dir)) } : x)),
+    );
+    setId(lid);
+  }
 
   const body = {
     overview: (
@@ -47,18 +78,8 @@ export default function LeadsPage() {
     source: <Kv rows={[["How they found us", l.src], ["First touch", "today"]]} />,
   }[tab];
 
-  return (
-    <Dossier
-      list={rows.map((r) => (
-        <RollItem key={r.id} on={r.id === l.id} title={r.company} meta={`${r.name} · ${STAGES[r.stage]} · ${money(r.value)}/mo`} onClick={() => { setId(r.id); setTab("overview"); }} />
-      ))}
-      rail={
-        <>
-          <Rail title={`Call ${l.name.split(" ")[0]} at ${l.company}`} why={l.note} onDo={() => dial(l.id)} />
-          <div className="mt-4 rounded-r-xl border-l-[3px] p-3 text-[12.5px] leading-relaxed" style={{ borderColor: "var(--brand)", background: "var(--surface-inset)" }}>{script}</div>
-        </>
-      }
-    >
+  const dossier = (
+    <>
       <div className="border-b px-4 pt-4 pb-2" style={{ borderColor: "var(--hairline)" }}>
         <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--brand-text)" }}>{l.trade} · {temp}</div>
         <h3 className="mt-1 mb-1 text-[24px]">{l.company}</h3>
@@ -66,10 +87,109 @@ export default function LeadsPage() {
         <div className="mt-3 flex flex-wrap gap-1.5">
           <button className="btn-os brand" onClick={() => dial(l.id)}>Call</button>
           <a className="btn-os no-underline" href="/inbox">Inbox</a>
+          <button className="btn-os" onClick={() => move(l.id, 1)}>Advance</button>
         </div>
       </div>
       <Tabs tabs={TABS} tab={tab} onTab={setTab} />
       <div className="min-h-0 flex-1 overflow-auto p-4">{body}</div>
-    </Dossier>
+    </>
+  );
+
+  const bar = (
+    <DeskBar>
+      <button className={`btn-os ${view === "list" ? "brand" : ""}`} onClick={() => setView("list")}>List</button>
+      <button className={`btn-os ${view === "kanban" ? "brand" : ""}`} onClick={() => setView("kanban")}>Kanban</button>
+      <input className="btn-os min-w-[180px]" placeholder="Search companies, owners, pain…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <select className="btn-os" value={trade} onChange={(e) => setTrade(e.target.value)}>
+        <option value="all">All trades</option>
+        {trades.map((t) => <option key={t} value={t}>{t}</option>)}
+      </select>
+      <select className="btn-os" value={stage} onChange={(e) => setStage(e.target.value)}>
+        <option value="all">All stages</option>
+        {STAGES.map((n, i) => <option key={n} value={String(i)}>{n}</option>)}
+      </select>
+      <select className="btn-os" value={sort} onChange={(e) => setSort(e.target.value)}>
+        <option value="score">Sort: score</option>
+        <option value="value">Sort: retainer</option>
+        <option value="sla">Sort: SLA</option>
+        <option value="company">Sort: name</option>
+        <option value="stage">Sort: stage</option>
+      </select>
+    </DeskBar>
+  );
+
+  if (view === "kanban") {
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        {bar}
+        <div className="grid min-h-0 flex-1 auto-cols-[minmax(220px,1fr)] grid-flow-col gap-2.5 overflow-auto p-3">
+          {STAGES.map((name, i) => {
+            const cards = shown.filter((r) => r.stage === i);
+            return (
+              <div key={name} className="flex min-h-0 flex-col rounded-xl border" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>
+                <div className="flex justify-between px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                  <span>{name}</span><span>{cards.length}</span>
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2 pb-2">
+                  {cards.map((r) => (
+                    <div key={r.id} className="rounded-xl border p-3 text-left" style={{ background: "var(--surface-inset)", borderColor: r.id === l.id ? "var(--brand)" : "var(--hairline)" }}>
+                      <button className="w-full text-left" onClick={() => { setId(r.id); setTab("overview"); }}>
+                        <b className="text-[13.5px]">{r.company}</b>
+                        <div className="mt-1 text-[11.5px]" style={{ color: "var(--text-secondary)" }}>{r.name} · {money(r.value)}/mo</div>
+                        <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>{r.note}</div>
+                      </button>
+                      <div className="mt-2 flex justify-end gap-1">
+                        <button className="btn-os" onClick={() => dial(r.id)}>Call</button>
+                        {i > 0 ? <button className="btn-os" onClick={() => move(r.id, -1)}>‹</button> : null}
+                        {i < STAGES.length - 1 ? <button className="btn-os brand" onClick={() => move(r.id, 1)}>›</button> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {bar}
+      <Dossier
+        list={
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="text-left text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                {["Company", "Owner", "Trade", "Stage", "Retainer", "Score"].map((h) => (
+                  <th key={h} className="sticky top-0 border-b px-3 py-2" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r.id} onClick={() => { setId(r.id); setTab("overview"); }} className="cursor-pointer" style={{ background: r.id === l.id ? "var(--brand-dim)" : "transparent" }}>
+                  <td className="border-b px-3 py-2" style={{ borderColor: "var(--hairline)" }}><b>{r.company}</b></td>
+                  <td className="border-b px-3 py-2" style={{ borderColor: "var(--hairline)" }}>{r.name}</td>
+                  <td className="border-b px-3 py-2" style={{ borderColor: "var(--hairline)" }}>{r.trade}</td>
+                  <td className="border-b px-3 py-2" style={{ borderColor: "var(--hairline)" }}>{STAGES[r.stage]}</td>
+                  <td className="border-b px-3 py-2 font-mono" style={{ borderColor: "var(--hairline)" }}>{money(r.value)}</td>
+                  <td className="border-b px-3 py-2 font-mono" style={{ borderColor: "var(--hairline)" }}>{r.score}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        }
+        rail={
+          <>
+            <Rail title={`Call ${l.name.split(" ")[0]} at ${l.company}`} why={l.note} onDo={() => dial(l.id)} />
+            <div className="mt-4 rounded-r-xl border-l-[3px] p-3 text-[12.5px] leading-relaxed" style={{ borderColor: "var(--brand)", background: "var(--surface-inset)" }}>{script}</div>
+          </>
+        }
+      >
+        {dossier}
+      </Dossier>
+    </div>
   );
 }

@@ -328,14 +328,20 @@ html[data-theme="light"] .dock { background: #fff4ee; }
 .composer { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
 .composer textarea { flex: 1; min-height: 44px; resize: none; background: var(--inset); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 
-.statline { display: flex; gap: 18px; padding: 8px 22px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); }
+.statline { display: flex; gap: 8px; padding: 8px 14px; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); align-items: center; flex-wrap: wrap; }
+.statline input, .statline select {
+  background: var(--inset); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; color: var(--text); font-size: 12px;
+}
+.statline input { min-width: 160px; }
 .livework { display: grid; grid-template-columns: 280px 1fr; height: 100%; }
 .tlog { font-size: 13px; line-height: 1.5; }
 .tlog .think { border-left: 2px solid var(--info); padding: 4px 10px; color: var(--muted); }
 .tlog .tool { padding: 6px 0; }
 .tlog .gate { color: var(--wait); }
 
+.page > .desk, .page > .board { flex: 1; min-height: 0; }
 .desk { display: grid; grid-template-columns: 300px 1fr 280px; height: 100%; min-height: 0; }
+.desk.wide-list { grid-template-columns: minmax(380px, 1.15fr) minmax(300px, 1fr) 260px; }
 .desk.norail { grid-template-columns: 300px 1fr; }
 .desk .roll { overflow: auto; border-right: 1px solid var(--line); background: var(--raised); }
 .dossier { display: flex; flex-direction: column; min-width: 0; min-height: 0; }

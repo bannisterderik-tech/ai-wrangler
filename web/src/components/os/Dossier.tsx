@@ -71,6 +71,14 @@ export function Tabs({ tabs, tab, onTab }: { tabs: [string, string][]; tab: stri
   );
 }
 
+export function DeskBar({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2" style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}>
+      {children}
+    </div>
+  );
+}
+
 export function RollItem({ on, title, meta, onClick }: { on: boolean; title: string; meta: string; onClick: () => void }) {
   return (
     <button

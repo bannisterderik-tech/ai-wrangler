@@ -3,7 +3,6 @@
   const NAV = [
     ["FUNNEL", [
       ["command", "Command"],
-      ["pipeline", "Pipeline"],
       ["leads", "Leads"],
       ["prospects", "Prospects"],
       ["dialer", "Dialer"],
@@ -28,8 +27,7 @@
   ];
   const TITLES = {
     command: "Command — dominate the market",
-    pipeline: "Pipeline",
-    leads: "Lead dossier",
+    leads: "Leads",
     prospects: "Prospects — firms we want",
     dialer: "Twilio power dialer",
     ads: "Zernio ads",
@@ -114,6 +112,18 @@
     power: false,
     toast: null,
     filter: "all",
+    filterStage: "all",
+    leadView: "list",
+    leadSort: "score",
+    leadQ: "",
+    custSort: "mrr",
+    custQ: "",
+    custTrade: "all",
+    prospView: "list",
+    prospSort: "value",
+    prospQ: "",
+    partSort: "sent",
+    partQ: "",
     launch: false,
     chan: "all",
     tick: 0,
@@ -151,13 +161,40 @@
   };
   const go = (page) => {
     if (page === "sms") page = "inbox";
+    if (page === "pipeline") { page = "leads"; state.leadView = "kanban"; }
     state.page = page;
     state.tab = "overview";
     location.hash = "#/" + page;
     render();
   };
-  const filterLeads = () => LEADS.filter((l) => l.kind !== "partner" && (state.filter === "all" || l.trade === state.filter));
   const jobLeads = () => LEADS.filter((l) => l.kind !== "partner");
+  const filterLeads = () => {
+    let rows = jobLeads();
+    if (state.filter !== "all") rows = rows.filter((l) => l.trade === state.filter);
+    if (state.filterStage !== "all") rows = rows.filter((l) => String(l.stage) === state.filterStage);
+    const q = (state.leadQ || "").toLowerCase();
+    if (q) rows = rows.filter((l) => (l.company + " " + l.name + " " + l.city + " " + l.note + " " + l.src).toLowerCase().includes(q));
+    const s = state.leadSort || "score";
+    rows = rows.slice().sort((a, b) => {
+      if (s === "company") return (a.company || "").localeCompare(b.company || "");
+      if (s === "value") return (b.value || 0) - (a.value || 0);
+      if (s === "sla") return (b.sla || 0) - (a.sla || 0);
+      if (s === "stage") return a.stage - b.stage;
+      return b.score - a.score;
+    });
+    return rows;
+  };
+  function leadToolbar() {
+    const trades = [...new Set(jobLeads().map((l) => l.trade))];
+    return `<div class="statline">
+      <button class="btn tiny ${state.leadView === "list" ? "brand" : ""}" data-act="view" data-id="list">List</button>
+      <button class="btn tiny ${state.leadView === "kanban" ? "brand" : ""}" data-act="view" data-id="kanban">Kanban</button>
+      <input data-act="lead-q" placeholder="Search companies, owners, pain…" value="${esc(state.leadQ || "")}">
+      <select data-act="filter">${[["all", "All trades"], ...trades.map((t) => [t, t])].map(([v, n]) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+      <select data-act="filter-stage">${[["all", "All stages"], ...STAGES.map((n, i) => [String(i), n])].map(([v, n]) => `<option value="${v}" ${state.filterStage === v ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+      <select data-act="sort">${[["score", "Sort: score"], ["value", "Sort: retainer"], ["sla", "Sort: SLA"], ["company", "Sort: name"], ["stage", "Sort: stage"]].map(([v, n]) => `<option value="${v}" ${state.leadSort === v ? "selected" : ""}>${n}</option>`).join("")}</select>
+    </div>`;
+  }
   const PX = WR.PROSPECTS || [];
   const leadCo = (l) => l.company || l.trade || "";
   function ld(l) {
@@ -331,37 +368,12 @@
       </div>`;
   }
 
-  function pagePipeline() {
-    const rows = filterLeads();
-    return `
-      <div class="page">
-        <div class="statline">
-          <span>Wrangler sales board — shops who want a site and the machine</span>
-          <select data-act="filter">${[["all", "All trades"], ...[...new Set(jobLeads().map((l) => l.trade))].map((t) => [t, t])].map(([v, n]) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
-        </div>
-        <div class="board">${STAGES.map((name, i) => {
-          const cards = rows.filter((l) => l.stage === i);
-          return `<div class="col"><div class="hd"><span>${name}</span><span>${cards.length}</span></div>
-            <div class="stack">${cards.map((l) => `
-              <div class="deal">
-                <b>${esc(l.company || l.name)}</b>
-                <div class="meta"><span>${esc(l.name)} · ${esc(l.trade)}</span><span class="mono">${esc(l.phone)}</span></div>
-                <div class="meta"><span>${esc(l.src)}</span><span>score ${l.score}</span></div>
-                <div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.note)}</div>
-                <div class="acts">
-                  <button class="btn tiny" data-act="dial" data-id="${l.id}">Call</button>
-                  <button class="btn tiny" data-act="sms-open" data-id="${l.id}">SMS</button>
-                  ${i > 0 ? `<button class="btn tiny" data-act="stage" data-id="${l.id}" data-dir="-1">‹</button>` : ""}
-                  ${i < STAGES.length - 1 ? `<button class="btn tiny brand" data-act="stage" data-id="${l.id}" data-dir="1">›</button>` : ""}
-                </div>
-              </div>`).join("")}</div></div>`;
-        }).join("")}</div>
-      </div>`;
-  }
+  function pagePipeline() { state.leadView = "kanban"; return pageLeads(); }
 
   function pageLeads() {
-    const rows = jobLeads();
-    const l = lead(state.lead) && lead(state.lead).kind !== "partner" ? lead(state.lead) : rows[0];
+    const rows = filterLeads();
+    const l = (lead(state.lead) && lead(state.lead).kind !== "partner" ? lead(state.lead) : rows[0]) || jobLeads()[0];
+    if (!l) return `<div class="page pad">No leads match.</div>`;
     const x = ld(l);
     const tab = state.tab || "overview";
     const tabs = [["overview", "Overview"], ["discovery", "Discovery"], ["scope", "Scope"], ["comms", "Comms"], ["tasks", "Tasks"], ["money", "Money"], ["files", "Files"], ["source", "Source"]];
@@ -399,11 +411,7 @@
     if (tab === "money") body = kv([["Retainer", x.money.mrr ? money(x.money.mrr) + "/mo" : "not priced"], ["Term", esc(x.money.term)], ["Competing with", esc(x.money.competitor)]]);
     if (tab === "files") body = (x.files.length ? x.files.map((f) => `<div class="file"><span>${esc(f.n)}</span><span class="pill">${esc(f.k)}</span></div>`).join("") : `<div style="color:var(--muted)">No files yet. Drop the site audit and the proposal here.</div>`);
     if (tab === "source") body = kv([["How they found us", esc(x.attrib.campaign)], ["Partner", x.attrib.partner ? esc(x.attrib.partner) : "—"], ["First touch", esc(x.attrib.firstTouch)]]);
-    return `<div class="page desk">
-      <div class="roll">${rows.map((r) => `<button class="item ${r.id === l.id ? "on" : ""}" data-act="sel-lead" data-id="${r.id}">
-        <div class="t">${esc(r.company)}</div>
-        <div class="m">${esc(r.name)} · ${esc(STAGES[r.stage])} · ${money(r.value)}/mo</div>
-      </button>`).join("")}</div>
+    const dossier = `
       <div class="dossier">
         <div class="dh"><span class="pill brand">${esc(l.trade)}</span><span class="pill ${x.temp === "hot" ? "stop" : x.temp === "warm" ? "wait" : "info"}">${x.temp}</span>
           <div class="who">${esc(l.company)}</div>
@@ -419,12 +427,44 @@
         ${tabbar(tabs)}
         <div class="dbody">${body}</div>
       </div>
-      ${rail(x.next, `<h5>Talk track</h5><div class="script">${esc(talk)}</div>`)}
+      ${rail(x.next, `<h5>Talk track</h5><div class="script">${esc(talk)}</div>`)}`;
+    if (state.leadView === "kanban") {
+      return `<div class="page">${leadToolbar()}
+        <div class="board" style="flex:1;min-height:0">${STAGES.map((name, i) => {
+          const cards = rows.filter((r) => r.stage === i);
+          return `<div class="col"><div class="hd"><span>${name}</span><span>${cards.length}</span></div>
+            <div class="stack">${cards.map((r) => `
+              <button class="deal" data-act="sel-lead" data-id="${r.id}" style="cursor:pointer;text-align:left;border-color:${r.id === l.id ? "var(--brand)" : "var(--line)"}">
+                <b>${esc(r.company)}</b>
+                <div class="meta"><span>${esc(r.name)} · ${esc(r.trade)}</span><span class="mono">${money(r.value)}</span></div>
+                <div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(r.note)}</div>
+                <div class="acts">
+                  <button class="btn tiny" data-act="dial" data-id="${r.id}">Call</button>
+                  ${i > 0 ? `<button class="btn tiny" data-act="stage" data-id="${r.id}" data-dir="-1">‹</button>` : ""}
+                  ${i < STAGES.length - 1 ? `<button class="btn tiny brand" data-act="stage" data-id="${r.id}" data-dir="1">›</button>` : ""}
+                </div>
+              </button>`).join("")}</div></div>`;
+        }).join("")}</div>
+      </div>`;
+    }
+    return `<div class="page">${leadToolbar()}
+      <div class="desk wide-list">
+        <div class="roll" style="width:auto">
+          <table class="grid">
+            <thead><tr><th>Company</th><th>Owner</th><th>Trade</th><th>Stage</th><th>Retainer</th><th>Score</th></tr></thead>
+            <tbody>${rows.map((r) => `<tr data-act="sel-lead" data-id="${r.id}" style="cursor:pointer;background:${r.id === l.id ? "var(--brand-dim)" : "transparent"}">
+              <td><b>${esc(r.company)}</b></td><td>${esc(r.name)}</td><td>${esc(r.trade)}</td>
+              <td>${esc(STAGES[r.stage])}</td><td class="mono">${money(r.value)}</td><td class="mono">${r.score}</td>
+            </tr>`).join("")}</tbody>
+          </table>
+        </div>
+        ${dossier}
+      </div>
     </div>`;
   }
 
   function pageDialer() {
-    const queue = LEADS.filter((l) => l.kind === "lead" || l.kind === "prospect");
+    const queue = LEADS.filter((l) => l.kind === "lead");
     const live = state.call ? lead(state.call.id) : null;
     return `
       <div class="page livework">
@@ -528,8 +568,19 @@
     if (tab === "comarket") body = kv([["Play", "Storm list + tarp page"], ["QR / truck", "Partner wrap → Text-for-Info keyword"], ["Ads", "Co-op Zernio geo, split 50/50"]]);
     if (tab === "agreement") body = kv([["Take", esc(p.take)], ["W9", esc(x.w9 || "needed")], ["Exclusive zips", esc(x.exclusive || "none")], ["Paid how", "Monthly, after collected"]]);
     if (tab === "history") body = history([{ when: x.last || "—", who: "ping", cls: "go", text: "Last contact" }, { when: "—", who: "note", cls: "brand", text: p.name + " in the rolodex" }]);
-    return `<div class="page desk">
-      <div class="roll">${PARTNERS.map((r) => `<button class="item ${r.id === p.id ? "on" : ""}" data-act="sel-partner" data-id="${r.id}">
+    let plist = PARTNERS.slice();
+    const pq = (state.partQ || "").toLowerCase();
+    if (pq) plist = plist.filter((r) => (r.name + r.kind + r.city).toLowerCase().includes(pq));
+    if (state.partSort === "won") plist.sort((a, b) => b.won - a.won);
+    else if (state.partSort === "name") plist.sort((a, b) => a.name.localeCompare(b.name));
+    else plist.sort((a, b) => b.sent - a.sent);
+    return `<div class="page">
+      <div class="statline">
+        <input data-act="part-q" placeholder="Search partners…" value="${esc(state.partQ || "")}">
+        <select data-act="part-sort">${[["sent", "Sort: sent us"], ["won", "Sort: won"], ["name", "Sort: name"]].map(([v, n]) => `<option value="${v}" ${state.partSort === v ? "selected" : ""}>${n}</option>`).join("")}</select>
+      </div>
+      <div class="desk" style="flex:1">
+      <div class="roll">${plist.map((r) => `<button class="item ${r.id === p.id ? "on" : ""}" data-act="sel-partner" data-id="${r.id}">
         <div class="t">${esc(r.name)}</div><div class="m">${esc(r.kind)} · sent ${r.sent} · won ${r.won}</div>
       </button>`).join("")}</div>
       <div class="dossier">
@@ -545,7 +596,7 @@
         <div class="dbody">${body}</div>
       </div>
       ${rail(x.next || { title: "Ping them", why: "Partners who get paid and thanked keep sending.", do: "sms" })}
-    </div>`;
+    </div></div>`;
   }
 
   function pageProspects() {
@@ -565,8 +616,34 @@
     if (tab === "sequence") body = ["Day 0 · Loom of Apex storm page", "Day 1 · Call the owner", "Day 3 · SMS the demo hold", "Day 7 · Proposal", "Day 10 · Isolation walkthrough"].map((t, i) => `<label class="check"><input type="checkbox" ${i < r.stage ? "checked" : ""} disabled><span>${esc(t)}</span></label>`).join("");
     if (tab === "deal") body = kv([["MRR", money(r.value)], ["Onboarding", "Storm 90 + DID + Zernio profile"], ["Term", "12 mo"], ["Status", stages[r.stage]]]);
     if (tab === "history") body = history([{ when: "—", who: "gtm", cls: "brand", text: r.why }, { when: "now", who: "pain", cls: "wait", text: r.pain }]);
-    return `<div class="page desk">
-      <div class="roll">${PX.map((x) => `<button class="item ${x.id === r.id ? "on" : ""}" data-act="sel-prospect" data-id="${x.id}">
+    let prow = PX.slice();
+    const pqq = (state.prospQ || "").toLowerCase();
+    if (pqq) prow = prow.filter((x) => (x.name + x.city + x.trade + x.pain).toLowerCase().includes(pqq));
+    if (state.prospSort === "name") prow.sort((a, b) => a.name.localeCompare(b.name));
+    else prow.sort((a, b) => b.value - a.value);
+    const pboard = state.prospView === "kanban";
+    if (pboard) {
+      return `<div class="page">
+        <div class="statline">
+          <button class="btn tiny" data-act="pview" data-id="list">List</button>
+          <button class="btn tiny brand" data-act="pview" data-id="kanban">Kanban</button>
+          <input data-act="prosp-q" placeholder="Search prospects…" value="${esc(state.prospQ || "")}">
+        </div>
+        <div class="board">${stages.map((name, i) => {
+          const cards = prow.filter((x) => x.stage === i);
+          return `<div class="col"><div class="hd"><span>${name}</span><span>${cards.length}</span></div>
+            <div class="stack">${cards.map((x) => `<button class="deal" data-act="sel-prospect" data-id="${x.id}"><b>${esc(x.name)}</b><div class="meta"><span>${esc(x.dm)}</span><span>${money(x.value)}</span></div></button>`).join("")}</div></div>`;
+        }).join("")}</div></div>`;
+    }
+    return `<div class="page">
+      <div class="statline">
+        <button class="btn tiny brand" data-act="pview" data-id="list">List</button>
+        <button class="btn tiny" data-act="pview" data-id="kanban">Kanban</button>
+        <input data-act="prosp-q" placeholder="Search prospects…" value="${esc(state.prospQ || "")}">
+        <select data-act="prosp-sort">${[["value", "Sort: retainer"], ["name", "Sort: name"]].map(([v, n]) => `<option value="${v}" ${state.prospSort === v ? "selected" : ""}>${n}</option>`).join("")}</select>
+      </div>
+      <div class="desk">
+      <div class="roll">${prow.map((x) => `<button class="item ${x.id === r.id ? "on" : ""}" data-act="sel-prospect" data-id="${x.id}">
         <div class="t">${esc(x.name)}</div><div class="m">${esc(x.city)} · ${esc(stages[x.stage])} · ${money(x.value)}/mo</div>
       </button>`).join("")}</div>
       <div class="dossier">
@@ -583,7 +660,7 @@
         <div class="dbody">${body}</div>
       </div>
       ${rail({ title: r.stage >= 3 ? "Kick off onboarding — DID + Zernio + Storm 90" : "Call " + r.dm.split(" ")[0] + " about " + r.pain.split(".")[0], why: r.why, do: r.stage >= 3 ? "settings" : "dial" })}
-    </div>`;
+    </div></div>`;
   }
 
   function pageCustomers() {
@@ -616,8 +693,22 @@
       ["Zernio", `<span class="mono">${esc(x.zernio)}</span> · their pixel`],
       ["Twilio DID", `<span class="mono">${esc(x.did)}</span> · not shared`],
     ]) + `<p style="color:var(--muted);font-size:12.5px;margin-top:12px">Overlap is refused in the database. One resource, one customer.</p>`;
-    return `<div class="page desk">
-      <div class="roll">${CUST.map((r) => `<button class="item ${r.id === c.id ? "on" : ""}" data-act="sel-cust" data-id="${r.id}">
+    let clist = CUST.slice();
+    const cq = (state.custQ || "").toLowerCase();
+    if (state.custTrade !== "all") clist = clist.filter((r) => r.trade === state.custTrade);
+    if (cq) clist = clist.filter((r) => (r.name + r.city + r.trade).toLowerCase().includes(cq));
+    if (state.custSort === "rank") clist.sort((a, b) => a.rank - b.rank);
+    else if (state.custSort === "name") clist.sort((a, b) => a.name.localeCompare(b.name));
+    else clist.sort((a, b) => b.mrr - a.mrr);
+    const trades = [...new Set(CUST.map((r) => r.trade))];
+    return `<div class="page">
+      <div class="statline">
+        <input data-act="cust-q" placeholder="Search customers…" value="${esc(state.custQ || "")}">
+        <select data-act="cust-trade">${[["all", "All trades"], ...trades.map((t) => [t, t])].map(([v, n]) => `<option value="${v}" ${state.custTrade === v ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+        <select data-act="cust-sort">${[["mrr", "Sort: retainer"], ["rank", "Sort: rank"], ["name", "Sort: name"]].map(([v, n]) => `<option value="${v}" ${state.custSort === v ? "selected" : ""}>${n}</option>`).join("")}</select>
+      </div>
+      <div class="desk">
+      <div class="roll">${clist.map((r) => `<button class="item ${r.id === c.id ? "on" : ""}" data-act="sel-cust" data-id="${r.id}">
         <div class="t">${esc(r.name)}</div><div class="m">${esc(r.city)} · #${r.rank} · ${money(r.mrr)}/mo</div>
       </button>`).join("")}</div>
       <div class="dossier">
@@ -635,7 +726,7 @@
         <div class="dbody">${body}</div>
       </div>
       ${rail(x.next)}
-    </div>`;
+    </div></div>`;
   }
 
   function pageInbox() {
@@ -795,7 +886,7 @@
           <div class="brand"><div class="mark">✛</div><div><h1>AI WRANGLER</h1><small>Local domination OS</small></div></div>
           <nav class="nav">${NAV.map((g) => `<div class="nav-h ${g[0] === "BUILD" ? "build" : ""}">${g[0]}</div>${g[1].map(([id, l]) => ni(id, l)).join("")}`).join("")}</nav>
           <div class="side-foot">
-            <button class="btn brand full" data-act="nav" data-page="pipeline">＋ New lead</button>
+            <button class="btn brand full" data-act="nav" data-page="leads">＋ New lead</button>
             <button class="btn full" data-act="power">＋ Dial the board</button>
             <div style="display:flex;gap:6px">
               <button class="btn ghost full" data-act="theme">${state.theme === "dark" ? "Light" : "Dark"}</button>
@@ -945,7 +1036,9 @@
       toast("Zernio · " + a.name + " " + a.status);
       render();
     }
-    if (act === "filter-go") { state.filter = id; go("pipeline"); }
+    if (act === "filter-go") { state.filter = id; go("leads"); }
+    if (act === "view") { state.leadView = id; render(); }
+    if (act === "pview") { state.prospView = id; render(); }
     if (act === "integ") {
       state.integrations[id] = !state.integrations[id];
       toast(id + (state.integrations[id] ? " connected" : " disconnected"));
@@ -1008,18 +1101,23 @@
   });
 
   document.addEventListener("change", (e) => {
-    if (e.target.getAttribute("data-act") === "filter") {
-      state.filter = e.target.value;
-      render();
-    }
+    const act = e.target.getAttribute("data-act");
+    if (act === "filter") { state.filter = e.target.value; render(); }
+    if (act === "filter-stage") { state.filterStage = e.target.value; render(); }
+    if (act === "sort") { state.leadSort = e.target.value; render(); }
+    if (act === "cust-sort") { state.custSort = e.target.value; render(); }
+    if (act === "cust-trade") { state.custTrade = e.target.value; render(); }
+    if (act === "prosp-sort") { state.prospSort = e.target.value; render(); }
+    if (act === "part-sort") { state.partSort = e.target.value; render(); }
   });
   document.addEventListener("input", (e) => {
-    if (e.target.getAttribute("data-act") === "q") {
-      state.q = e.target.value;
-      render();
-      const inp = $('[data-act="q"]');
-      if (inp) { inp.focus(); inp.setSelectionRange(state.q.length, state.q.length); }
-    }
+    const act = e.target.getAttribute("data-act");
+    const keep = (sel, val) => { const inp = $(sel); if (inp) { inp.focus(); inp.setSelectionRange(val.length, val.length); } };
+    if (act === "q") { state.q = e.target.value; render(); keep('[data-act="q"]', state.q); }
+    if (act === "lead-q") { state.leadQ = e.target.value; render(); keep('[data-act="lead-q"]', state.leadQ); }
+    if (act === "cust-q") { state.custQ = e.target.value; render(); keep('[data-act="cust-q"]', state.custQ); }
+    if (act === "prosp-q") { state.prospQ = e.target.value; render(); keep('[data-act="prosp-q"]', state.prospQ); }
+    if (act === "part-q") { state.partQ = e.target.value; render(); keep('[data-act="part-q"]', state.partQ); }
   });
   document.addEventListener("keydown", (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); state.search = !state.search; render(); }
@@ -1029,11 +1127,13 @@
   addEventListener("hashchange", () => {
     let p = location.hash.replace("#/", "");
     if (p === "sms") p = "inbox";
+    if (p === "pipeline") { p = "leads"; state.leadView = "kanban"; }
     if (PAGES[p]) { state.page = p; render(); }
   });
 
   let boot = location.hash.replace("#/", "");
   if (boot === "sms") boot = "inbox";
+  if (boot === "pipeline") { boot = "leads"; state.leadView = "kanban"; }
   if (PAGES[boot]) state.page = boot;
   render();
   setInterval(() => {
