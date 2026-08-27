@@ -1,57 +1,75 @@
 "use client";
 
-import { useState } from "react";
-import { DIALER_SCRIPT, LEADS, customerName } from "@/lib/os-demo";
+import { useMemo, useState } from "react";
+import { DIALER_SCRIPT, LEADS, STAGES, customerName } from "@/lib/os-demo";
 import { useDialer } from "@/components/os/DialerDock";
+import { Dossier, Kv, Rail, RollItem, Tabs } from "@/components/os/Dossier";
+
+const TABS: [string, string][] = [
+  ["overview", "Overview"],
+  ["job", "Job"],
+  ["comms", "Comms"],
+  ["tasks", "Tasks"],
+  ["money", "Money"],
+  ["files", "Files"],
+  ["attrib", "Source"],
+  ["history", "History"],
+];
 
 export default function LeadsPage() {
   const { dial } = useDialer();
-  const [id, setId] = useState(LEADS[0].id);
-  const l = LEADS.find((x) => x.id === id) || LEADS[0];
+  const rows = useMemo(() => LEADS.filter((l) => l.kind !== "partner"), []);
+  const [id, setId] = useState(rows[0].id);
+  const [tab, setTab] = useState("overview");
+  const l = rows.find((x) => x.id === id) || rows[0];
+  const temp = l.score > 85 ? "hot" : l.score > 70 ? "warm" : "cold";
+  const script = DIALER_SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", customerName(l.cust)).replace("{job}", l.note);
+
+  const body = {
+    overview: (
+      <Kv rows={[
+        ["Book", <><b>{customerName(l.cust)}</b></>],
+        ["Stage", STAGES[l.stage]],
+        ["Score", `${l.score} · ${temp}`],
+        ["SLA", l.sla ? `${l.sla}s` : "ok"],
+        ["Phone", l.phone],
+        ["City", l.city],
+        ["Source", l.src],
+        ["Consent", "Call · SMS · callable"],
+      ]} />
+    ),
+    job: <Kv rows={[["Issue", l.note], ["Trade", customerName(l.cust)], ["Urgency", l.sla ? "inside the hour" : "scheduled"]]} />,
+    comms: <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap" style={{ color: "var(--text-secondary)" }}>{script}</p>,
+    tasks: <div className="text-[13px]">{["Speed-to-lead call", "SMS confirm", "Book estimate"].map((t) => <label key={t} className="mb-2 flex gap-2"><input type="checkbox" />{t}</label>)}</div>,
+    money: <Kv rows={[["Estimate", "not priced"], ["Financing", "—"], ["Competitors", "in market"]]} />,
+    files: <p style={{ color: "var(--text-secondary)" }}>Photos of the pain close claims. Drop them here when the app is live.</p>,
+    attrib: <Kv rows={[["Campaign", l.src], ["Network", l.src], ["First touch", "today"]]} />,
+    history: <p className="text-[13px]">{l.src} → {l.note}</p>,
+  }[tab];
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[1fr_380px]">
-      <div className="min-h-0 overflow-auto">
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr className="text-left text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-              {["Name", "Book", "Kind", "Source", "Score", "SLA", ""].map((h) => (
-                <th key={h} className="sticky top-0 border-b px-3 py-2.5" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {LEADS.map((x) => (
-              <tr key={x.id} onClick={() => setId(x.id)} className="cursor-pointer" style={{ background: x.id === id ? "var(--brand-dim)" : "transparent" }}>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>
-                  <b>{x.name}</b>
-                  <div className="font-mono text-[11px]" style={{ color: "var(--text-secondary)" }}>{x.phone}</div>
-                </td>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>{customerName(x.cust)}</td>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>{x.kind}</td>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>{x.src}</td>
-                <td className="border-b px-3 py-2.5 font-mono" style={{ borderColor: "var(--hairline)" }}>{x.score}</td>
-                <td className="border-b px-3 py-2.5 font-mono" style={{ borderColor: "var(--hairline)", color: x.sla > 45 ? "var(--state-failed)" : x.sla ? "var(--state-blocked)" : "var(--state-running)" }}>{x.sla ? `${x.sla}s` : "ok"}</td>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>
-                  <button className="btn-os brand" onClick={(e) => { e.stopPropagation(); dial(x.id); }}>Call</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <Dossier
+      list={rows.map((r) => (
+        <RollItem key={r.id} on={r.id === l.id} title={r.name} meta={`${customerName(r.cust)} · ${STAGES[r.stage]} · ${r.sla ? r.sla + "s" : "ok"}`} onClick={() => { setId(r.id); setTab("overview"); }} />
+      ))}
+      rail={
+        <>
+          <Rail title={`Call ${l.name.split(" ")[0]} now`} why={l.note} onDo={() => dial(l.id)} />
+          <div className="mt-4 rounded-r-xl border-l-[3px] p-3 text-[12.5px] leading-relaxed" style={{ borderColor: "var(--brand)", background: "var(--surface-inset)" }}>{script}</div>
+        </>
+      }
+    >
+      <div className="border-b px-4 pt-4 pb-2" style={{ borderColor: "var(--hairline)" }}>
+        <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--brand-text)" }}>{l.kind} · {temp}</div>
+        <h3 className="mt-1 mb-1 text-[24px]">{l.name}</h3>
+        <div className="font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{l.phone} · {l.city} · {customerName(l.cust)}</div>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <button className="btn-os brand" onClick={() => dial(l.id)}>Call</button>
+          <a className="btn-os no-underline" href="/sms">SMS</a>
+        </div>
       </div>
-      <aside className="overflow-auto border-l p-4" style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}>
-        <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--brand-text)" }}>{l.kind}</div>
-        <h3 className="mt-2 mb-1 text-[22px]">{l.name}</h3>
-        <div className="font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{l.phone} · {l.city}</div>
-        <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>{l.note}</p>
-        <div className="my-3 flex gap-2">
-          <button className="btn-os brand" onClick={() => dial(l.id)}>Twilio call</button>
-        </div>
-        <div className="rounded-r-xl border-l-[3px] p-3 text-[13.5px] leading-relaxed" style={{ background: "var(--surface-inset)", borderColor: "var(--brand)" }}>
-          {DIALER_SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", customerName(l.cust)).replace("{job}", l.note)}
-        </div>
-      </aside>
-    </div>
+      <Tabs tabs={TABS} tab={tab} onTab={setTab} />
+      <div className="min-h-0 flex-1 overflow-auto p-4">{body}</div>
+    </Dossier>
   );
 }

@@ -5,6 +5,7 @@
       ["command", "Command"],
       ["pipeline", "Pipeline"],
       ["leads", "Leads"],
+      ["prospects", "Prospects"],
       ["dialer", "Dialer"],
       ["sms", "SMS"],
       ["ads", "Ads"],
@@ -29,12 +30,13 @@
   const TITLES = {
     command: "Command — dominate the market",
     pipeline: "Pipeline",
-    leads: "Lead desk",
+    leads: "Lead dossier",
+    prospects: "Prospects — firms we want",
     dialer: "Twilio power dialer",
     sms: "SMS — every book",
     ads: "Zernio ads",
-    partners: "Partners & trade referrals",
-    customers: "Customers",
+    partners: "Partner dossier",
+    customers: "Customer dossier",
     inbox: "Inbox",
     billing: "Billing & margin",
     work: "Live work",
@@ -110,6 +112,10 @@
     search: false,
     lead: "L1",
     sms: "L1",
+    tab: "overview",
+    custId: "apex",
+    prospect: "R1",
+    partner: "P1",
     call: null,
     muted: false,
     power: false,
@@ -151,10 +157,58 @@
   };
   const go = (page) => {
     state.page = page;
+    state.tab = "overview";
     location.hash = "#/" + page;
     render();
   };
   const filterLeads = () => LEADS.filter((l) => state.filter === "all" || l.cust === state.filter);
+  const jobLeads = () => LEADS.filter((l) => l.kind !== "partner");
+  const PX = WR.PROSPECTS || [];
+  function ld(l) {
+    return Object.assign({
+      email: (l.name.split(" ")[0].toLowerCase()) + "@gmail.com",
+      addr: l.city + ", CA", year: "—",
+      temp: l.score > 85 ? "hot" : l.score > 70 ? "warm" : "cold",
+      assigned: "Board", opt: { call: true, sms: true, email: false }, dnc: false,
+      people: [{ name: l.name, role: "Contact", phone: l.phone }],
+      job: { trade: cust(l.cust).trade, issue: l.note, squares: "—", material: "—", insurance: "—", tarp: "—", access: "—", photos: 0 },
+      money: { estimate: 0, deposit: 0, financed: "—", competitor: "—" },
+      attrib: { campaign: l.src, network: l.src, keyword: "—", landing: "/", partner: null, firstTouch: "—" },
+      appts: [], tasks: [{ t: "Speed-to-lead call", done: false }, { t: "SMS confirm", done: false }], files: [],
+      next: { title: "Call " + l.name.split(" ")[0], why: l.note, do: "dial" },
+    }, (WR.LEAD_X && WR.LEAD_X[l.id]) || {});
+  }
+  function cd(id) {
+    const base = (WR.CUST_X && WR.CUST_X[id]) || {};
+    const d = WR.CUST_DEFAULT || {};
+    const c = cust(id);
+    return Object.assign({
+      legal: c.name, owner: { name: "Owner", role: "Owner", phone: "", email: "" },
+    }, d, base);
+  }
+  function pd(id) {
+    return Object.assign({}, WR.PART_DEFAULT || {}, (WR.PART_X && WR.PART_X[id]) || {});
+  }
+  function kv(rows) {
+    return `<div class="kv">${rows.map(([k, v]) => `<div class="k">${esc(k)}</div><div class="v">${v}</div>`).join("")}</div>`;
+  }
+  function tabbar(items) {
+    return `<div class="ptabs">${items.map(([id, l]) => `<button class="ptab ${state.tab === id ? "on" : ""}" data-act="tab" data-id="${id}">${esc(l)}</button>`).join("")}</div>`;
+  }
+  function rail(next, extra) {
+    return `<aside class="rail"><h5>Next move</h5>
+      <div class="next-box"><b>${esc(next.title)}</b>
+      <div style="color:var(--muted);font-size:12.5px;line-height:1.45;margin:6px 0 12px">${esc(next.why)}</div>
+      <button class="btn brand full" data-act="next" data-do="${esc(next.do)}">Do it</button></div>${extra || ""}</aside>`;
+  }
+  function peopleList(people, dialId) {
+    if (!people || !people.length) return `<div style="color:var(--muted)">No people yet.</div>`;
+    return people.map((p) => `<div class="person"><div><b>${esc(p.name)}</b><div style="color:var(--muted);font-size:12px">${esc(p.role)} · ${esc(p.phone || "")} ${esc(p.email || "")}</div></div>
+      <div style="display:flex;gap:4px">${p.phone ? `<button class="btn tiny brand" data-act="dial" data-id="${dialId}">Call</button>` : ""}${p.phone ? `<button class="btn tiny" data-act="sms-open" data-id="${dialId}">SMS</button>` : ""}</div></div>`).join("");
+  }
+  function history(events) {
+    return `<div class="tl">${events.map((e) => `<div class="ev"><div class="when">${esc(e.when)}</div><div><span class="pill ${e.cls || "info"}">${esc(e.who)}</span> ${esc(e.text)}</div></div>`).join("")}</div>`;
+  }
 
   function kpi(label, n, sub, cls) {
     return `<div class="kpi"><div class="l">${esc(label)}</div><div class="n">${n}</div><div class="s ${cls || ""}">${esc(sub)}</div></div>`;
@@ -265,41 +319,69 @@
   }
 
   function pageLeads() {
-    const l = lead(state.lead) || LEADS[0];
+    const rows = jobLeads();
+    const l = lead(state.lead) && lead(state.lead).kind !== "partner" ? lead(state.lead) : rows[0];
+    const x = ld(l);
     const c = cust(l.cust);
-    return `
-      <div class="page split lead">
-        <div class="canvas">
-          <table class="grid">
-            <thead><tr><th>Name</th><th>Book</th><th>Kind</th><th>Source</th><th>Score</th><th>SLA</th><th></th></tr></thead>
-            <tbody>${LEADS.map((x) => `
-              <tr data-act="sel-lead" data-id="${x.id}" style="cursor:pointer;background:${x.id === l.id ? "var(--brand-dim)" : "transparent"}">
-                <td><b>${esc(x.name)}</b><div class="mono" style="color:var(--muted);font-size:11px">${esc(x.phone)}</div></td>
-                <td>${esc(cust(x.cust).name)}</td>
-                <td><span class="pill">${esc(x.kind)}</span></td>
-                <td>${esc(x.src)}</td>
-                <td class="mono">${x.score}</td>
-                <td class="mono" style="color:${x.sla > 45 ? "var(--stop)" : x.sla ? "var(--wait)" : "var(--go)"}">${x.sla ? x.sla + "s" : "ok"}</td>
-                <td><button class="btn tiny brand" data-act="dial" data-id="${x.id}">Call</button></td>
-              </tr>`).join("")}</tbody>
-          </table>
+    const tab = state.tab || "overview";
+    const tabs = [["overview", "Overview"], ["job", "Job"], ["comms", "Comms"], ["tasks", "Tasks"], ["money", "Money"], ["files", "Files"], ["attrib", "Source"], ["history", "History"]];
+    const opt = `${x.opt.call ? "Call" : "no-call"} · ${x.opt.sms ? "SMS" : "no-SMS"} · ${x.dnc ? "DNC" : "callable"}`;
+    let body = "";
+    if (tab === "overview") body = `${kv([
+      ["Book", `<b>${esc(c.name)}</b> · ${esc(c.trade)}`],
+      ["Stage", STAGES[l.stage]],
+      ["Score", `<span class="temp-${x.temp}">${l.score} · ${x.temp}</span>`],
+      ["SLA", l.sla ? l.sla + "s" : "ok"],
+      ["Phone", `<span class="mono">${esc(l.phone)}</span>`],
+      ["Email", esc(x.email)],
+      ["Address", esc(x.addr)],
+      ["Year built", esc(x.year)],
+      ["Assigned", esc(x.assigned)],
+      ["Consent", opt],
+      ["Source", esc(l.src)],
+    ])}<div class="sec" style="margin-top:18px"><h5>People on this job</h5>${peopleList(x.people, l.id)}</div>`;
+    if (tab === "job") body = kv([
+      ["Trade", esc(x.job.trade)], ["Issue", esc(x.job.issue)], ["Size", esc(x.job.squares)],
+      ["Material / unit", esc(x.job.material)], ["Insurance", esc(x.job.insurance)],
+      ["Tarp / urgency", esc(x.job.tarp)], ["Access", esc(x.job.access)], ["Photos", x.job.photos],
+    ]) + (x.appts.length ? `<div class="sec" style="margin-top:16px"><h5>Appointments</h5>${x.appts.map((a) => `<div class="person"><div><b>${esc(a.kind)}</b><div style="color:var(--muted);font-size:12px">${esc(a.when)} · ${esc(a.who)}</div></div></div>`).join("")}</div>` : "");
+    if (tab === "comms") {
+      const msgs = state.convos[l.id] || [];
+      body = `<div class="msgs" style="min-height:180px">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.dir}">${esc(m.text)}</div>`).join("") : `<div style="color:var(--muted)">No thread yet. First shop that texts wins.</div>`}</div>
+        <div style="display:flex;gap:6px;margin-top:10px"><button class="btn brand" data-act="dial" data-id="${l.id}">Call</button><button class="btn" data-act="sms-open" data-id="${l.id}">Open SMS desk</button></div>
+        <div class="script" style="margin-top:14px">${esc(SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", c.name).replace("{job}", l.note))}</div>`;
+    }
+    if (tab === "tasks") body = x.tasks.map((t, i) => `<label class="check"><input type="checkbox" ${t.done ? "checked" : ""} data-act="task" data-id="${l.id}" data-i="${i}"><span>${esc(t.t)}</span></label>`).join("");
+    if (tab === "money") body = kv([["Estimate", x.money.estimate ? money(x.money.estimate) : "not priced"], ["Deposit", money(x.money.deposit)], ["Financing", esc(x.money.financed)], ["Competitors", esc(x.money.competitor)]]);
+    if (tab === "files") body = (x.files.length ? x.files.map((f) => `<div class="file"><span>${esc(f.n)}</span><span class="pill">${esc(f.k)}</span></div>`).join("") : `<div style="color:var(--muted)">No files. Photos of the pain close claims.</div>`);
+    if (tab === "attrib") body = kv([["Campaign", esc(x.attrib.campaign)], ["Network", esc(x.attrib.network)], ["Keyword", esc(x.attrib.keyword)], ["Landing", esc(x.attrib.landing)], ["Partner", x.attrib.partner ? esc(x.attrib.partner) : "—"], ["First touch", esc(x.attrib.firstTouch)]]);
+    if (tab === "history") body = history([
+      { when: "now", who: "SLA", cls: l.sla > 45 ? "stop" : "wait", text: l.sla ? `Unworked ${l.sla}s` : "Inside SLA" },
+      { when: "8:14a", who: x.attrib.network || "src", cls: "info", text: `In via ${l.src}` },
+      { when: "—", who: "note", cls: "brand", text: l.note },
+    ]);
+    return `<div class="page desk">
+      <div class="roll">${rows.map((r) => `<button class="item ${r.id === l.id ? "on" : ""}" data-act="sel-lead" data-id="${r.id}">
+        <div class="t">${esc(r.name)}</div>
+        <div class="m">${esc(cust(r.cust).name)} · ${esc(STAGES[r.stage])} · ${r.sla ? r.sla + "s" : "ok"}</div>
+      </button>`).join("")}</div>
+      <div class="dossier">
+        <div class="dh"><span class="pill brand">${esc(l.kind)}</span><span class="pill ${x.temp === "hot" ? "stop" : x.temp === "warm" ? "wait" : "info"}">${x.temp}</span>
+          <div class="who">${esc(l.name)}</div>
+          <div class="sub">${esc(l.phone)} · ${esc(x.addr)} · book: ${esc(c.name)}</div>
+          <div class="pills"><span class="pill">${esc(STAGES[l.stage])}</span><span class="pill">score ${l.score}</span><span class="pill">${esc(l.src)}</span></div>
         </div>
-        <aside class="list" style="border-right:0;border-left:1px solid var(--line)">
-          <div style="padding:16px">
-            <div class="pill brand">${esc(l.kind)}</div>
-            <h3 style="font-family:var(--display);margin:8px 0 4px">${esc(l.name)}</h3>
-            <div class="mono" style="color:var(--muted)">${esc(l.phone)} · ${esc(l.city)}</div>
-            <p style="color:var(--muted);font-size:13px">${esc(l.note)}</p>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0">
-              <button class="btn brand" data-act="dial" data-id="${l.id}">Twilio call</button>
-              <button class="btn" data-act="sms-open" data-id="${l.id}">SMS</button>
-              <button class="btn" data-act="stage" data-id="${l.id}" data-dir="1">Advance</button>
-            </div>
-            <div class="script">${esc(SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", c.name).replace("{job}", l.note))}</div>
-            <div style="margin-top:14px;font-size:12.5px;color:var(--muted)">Customer: <b style="color:var(--text)">${esc(c.name)}</b> · ${esc(c.trade)} · ${esc(c.city)}</div>
-          </div>
-        </aside>
-      </div>`;
+        <div class="acts">
+          <button class="btn tiny brand" data-act="dial" data-id="${l.id}">Call</button>
+          <button class="btn tiny" data-act="sms-open" data-id="${l.id}">SMS</button>
+          <button class="btn tiny" data-act="stage" data-id="${l.id}" data-dir="1">Advance</button>
+          <button class="btn tiny" data-act="stage" data-id="${l.id}" data-dir="-1">Back</button>
+        </div>
+        ${tabbar(tabs)}
+        <div class="dbody">${body}</div>
+      </div>
+      ${rail(x.next, `<h5>Talk track</h5><div class="script">${esc(SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", c.name).replace("{job}", l.note))}</div>`)}
+    </div>`;
   }
 
   function pageDialer() {
@@ -416,38 +498,129 @@
   }
 
   function pagePartners() {
-    return `
-      <div class="page">
-        <div class="hero"><div><h3>Partners. The quiet compounding machine.</h3><p>GCs, plumbers, gyms, water guys — anyone who can hand a roofer a job. Twilio ping when they send one. SMS when we send one back.</p></div>
-        <button class="btn brand" data-act="sms-open" data-id="L8">Text Ken</button></div>
-        <div class="canvas" style="padding:0 22px 22px">
-          <table class="grid">
-            <thead><tr><th>Partner</th><th>Kind</th><th>Market</th><th>Sent us</th><th>Won</th><th>Take</th><th></th></tr></thead>
-            <tbody>${PARTNERS.map((p) => `<tr>
-              <td><b>${esc(p.name)}</b></td><td>${esc(p.kind)}</td><td>${esc(p.city)}</td>
-              <td class="mono">${p.sent}</td><td class="mono">${p.won}</td><td>${esc(p.take)}</td>
-              <td><button class="btn tiny" data-act="sms-open" data-id="L8">SMS</button></td>
-            </tr>`).join("")}</tbody>
-          </table>
+    const p = PARTNERS.find((x) => x.id === state.partner) || PARTNERS[0];
+    const x = pd(p.id);
+    const tab = state.tab || "overview";
+    const tabs = [["overview", "Overview"], ["people", "People"], ["flow", "Flow"], ["comarket", "Co-market"], ["agreement", "Agreement"], ["history", "History"]];
+    const who = x.contact || { name: p.name, role: p.kind, phone: "", email: "" };
+    let body = "";
+    if (tab === "overview") body = kv([
+      ["Kind", esc(p.kind)], ["Market", esc(p.city)], ["Trades", esc(x.trades || p.kind)],
+      ["Territory", esc(x.territory || p.city)], ["Exclusive", esc(x.exclusive || "none")],
+      ["Sent us", p.sent], ["Won", p.won], ["Take", esc(p.take)], ["Last ping", esc(x.last || "—")],
+    ]);
+    if (tab === "people") body = peopleList([who], "L8");
+    if (tab === "flow") body = (x.flow && x.flow.length ? x.flow.map((f) => `<div class="file"><span>${esc(f.n)}</span><span class="pill ${f.dir === "in" ? "go" : "info"}">${f.dir === "in" ? "they sent" : "we sent"} · ${esc(f.when)}</span></div>`).join("") : `<div style="color:var(--muted)">No jobs moved yet. Reciprocity is the contract.</div>`);
+    if (tab === "comarket") body = kv([["Play", "Storm list + tarp page"], ["QR / truck", "Partner wrap → Text-for-Info keyword"], ["Ads", "Co-op Zernio geo, split 50/50"]]);
+    if (tab === "agreement") body = kv([["Take", esc(p.take)], ["W9", esc(x.w9 || "needed")], ["Exclusive zips", esc(x.exclusive || "none")], ["Paid how", "Monthly, after collected"]]);
+    if (tab === "history") body = history([{ when: x.last || "—", who: "ping", cls: "go", text: "Last contact" }, { when: "—", who: "note", cls: "brand", text: p.name + " in the rolodex" }]);
+    return `<div class="page desk">
+      <div class="roll">${PARTNERS.map((r) => `<button class="item ${r.id === p.id ? "on" : ""}" data-act="sel-partner" data-id="${r.id}">
+        <div class="t">${esc(r.name)}</div><div class="m">${esc(r.kind)} · sent ${r.sent} · won ${r.won}</div>
+      </button>`).join("")}</div>
+      <div class="dossier">
+        <div class="dh"><span class="pill brand">${esc(p.kind)}</span>
+          <div class="who">${esc(p.name)}</div>
+          <div class="sub">${esc(p.city)} · take ${esc(p.take)} · ${esc(who.name)}</div>
         </div>
-      </div>`;
+        <div class="acts">
+          <button class="btn tiny brand" data-act="sms-open" data-id="L8">SMS</button>
+          <button class="btn tiny" data-act="dial" data-id="L8">Call</button>
+        </div>
+        ${tabbar(tabs)}
+        <div class="dbody">${body}</div>
+      </div>
+      ${rail(x.next || { title: "Ping them", why: "Partners who get paid and thanked keep sending.", do: "sms" })}
+    </div>`;
+  }
+
+  function pageProspects() {
+    const r = PX.find((x) => x.id === state.prospect) || PX[0];
+    if (!r) return `<div class="page pad">No prospects.</div>`;
+    const tab = state.tab || "overview";
+    const stages = WR.PROSPECT_STAGES || ["New", "Talking", "Proposal", "Won"];
+    const tabs = [["overview", "Overview"], ["people", "People"], ["discovery", "Discovery"], ["sequence", "Sequence"], ["deal", "Deal"], ["history", "History"]];
+    let body = "";
+    if (tab === "overview") body = kv([
+      ["Trade", esc(r.trade)], ["Market", esc(r.city)], ["Stage", stages[r.stage]],
+      ["Retainer", money(r.value) + "/mo"], ["Why now", esc(r.pain)],
+      ["Demo", esc(r.demo || "not booked")], ["Crew", r.employees], ["Jobs / mo", r.jobsMo],
+    ]);
+    if (tab === "people") body = peopleList([{ name: r.dm, role: r.role, phone: r.phone, email: r.email }], r.id);
+    if (tab === "discovery") body = kv([["Pain", esc(r.pain)], ["Stack today", esc(r.stack)], ["Why us", esc(r.why)], ["Close if", "Speed-to-lead + isolation + ads they don't have to run"]]);
+    if (tab === "sequence") body = ["Day 0 · Loom of Apex storm page", "Day 1 · Call the owner", "Day 3 · SMS the demo hold", "Day 7 · Proposal", "Day 10 · Isolation walkthrough"].map((t, i) => `<label class="check"><input type="checkbox" ${i < r.stage ? "checked" : ""} disabled><span>${esc(t)}</span></label>`).join("");
+    if (tab === "deal") body = kv([["MRR", money(r.value)], ["Onboarding", "Storm 90 + DID + Zernio profile"], ["Term", "12 mo"], ["Status", stages[r.stage]]]);
+    if (tab === "history") body = history([{ when: "—", who: "gtm", cls: "brand", text: r.why }, { when: "now", who: "pain", cls: "wait", text: r.pain }]);
+    return `<div class="page desk">
+      <div class="roll">${PX.map((x) => `<button class="item ${x.id === r.id ? "on" : ""}" data-act="sel-prospect" data-id="${x.id}">
+        <div class="t">${esc(x.name)}</div><div class="m">${esc(x.city)} · ${esc(stages[x.stage])} · ${money(x.value)}/mo</div>
+      </button>`).join("")}</div>
+      <div class="dossier">
+        <div class="dh"><span class="pill brand">${esc(r.trade)}</span>
+          <div class="who">${esc(r.name)}</div>
+          <div class="sub">${esc(r.dm)} · ${esc(r.phone)} · ${esc(r.city)}</div>
+          <div class="pills"><span class="pill">${esc(stages[r.stage])}</span><span class="pill">${money(r.value)}/mo</span></div>
+        </div>
+        <div class="acts">
+          <button class="btn tiny brand" data-act="dial" data-id="${r.id}">Call ${esc(r.dm.split(" ")[0])}</button>
+          <button class="btn tiny" data-act="pstage" data-id="${r.id}" data-dir="1">Advance</button>
+        </div>
+        ${tabbar(tabs)}
+        <div class="dbody">${body}</div>
+      </div>
+      ${rail({ title: r.stage >= 3 ? "Kick off onboarding — DID + Zernio + Storm 90" : "Call " + r.dm.split(" ")[0] + " about " + r.pain.split(".")[0], why: r.why, do: r.stage >= 3 ? "settings" : "dial" })}
+    </div>`;
   }
 
   function pageCustomers() {
-    return `
-      <div class="page">
-        <div class="hero"><div><h3>Five customers. Five walls.</h3><p>Each book has its own Twilio number, Zernio profile, GitHub repo, and Vercel project. Overlap is refused.</p></div></div>
-        <div class="kpis">${CUST.map((c) => kpi(c.trade, c.name.split(" ")[0], c.city + " · $" + (c.mrr / 1000).toFixed(1) + "k/mo")).join("")}<div class="kpi"><div class="l">Agency</div><div class="n">${money(CUST.reduce((a, c) => a + c.mrr, 0))}</div><div class="s">retained / mo</div></div></div>
-        <div class="canvas" style="padding:0 22px 22px">
-          <table class="grid"><thead><tr><th>Customer</th><th>Trade</th><th>Market</th><th>Rank</th><th>Share</th><th>Leads in play</th><th></th></tr></thead>
-          <tbody>${CUST.map((c) => `<tr>
-            <td><b>${esc(c.name)}</b></td><td>${esc(c.trade)}</td><td>${esc(c.city)}</td>
-            <td class="mono">#${c.rank}</td><td class="mono">${c.share}</td>
-            <td class="mono">${LEADS.filter((l) => l.cust === c.id && l.stage < 4).length}</td>
-            <td><button class="btn tiny" data-act="filter-go" data-id="${c.id}">Open pipeline</button></td>
-          </tr>`).join("")}</tbody></table>
+    const c = cust(state.custId) || CUST[0];
+    const x = cd(c.id);
+    const tab = state.tab || "overview";
+    const tabs = [["overview", "Overview"], ["people", "People"], ["funnel", "Funnel"], ["build", "Build"], ["dominate", "Dominate"], ["phone", "Phone"], ["money", "Money"], ["memory", "Memory"], ["walls", "Walls"]];
+    const inPlay = LEADS.filter((l) => l.cust === c.id && l.stage < 4).length;
+    const ads = ADS.filter((a) => a.cust === c.id);
+    let body = "";
+    if (tab === "overview") body = kv([
+      ["Legal", esc(x.legal || c.name)], ["Trade", esc(c.trade)], ["Market", esc(c.city)],
+      ["Rank / share", `#${c.rank} · ${c.share}`], ["Crew", x.crew || "—"], ["Hours", esc(x.hours || "—")],
+      ["Radius", esc(x.radius || "—")], ["Services", esc(x.services || c.trade)],
+      ["GBP", esc(x.gbp || "—")],
+    ]) + `<div class="sec" style="margin-top:16px"><h5>Health</h5>${(x.health || []).map((h) => `<div class="file"><span>${esc(h.l)}</span><span class="pill ${h.ok ? "go" : "wait"}">${esc(h.v)}</span></div>`).join("")}</div>`;
+    if (tab === "people") body = peopleList(x.people && x.people.length ? x.people : [x.owner], "L1");
+    if (tab === "funnel") body = `<div class="sec"><h5>${inPlay} leads in play</h5>${LEADS.filter((l) => l.cust === c.id).map((l) => `<div class="file"><span>${esc(l.name)} · ${esc(l.note)}</span><span class="pill">${esc(STAGES[l.stage])}</span></div>`).join("")}</div>
+      <button class="btn tiny brand" data-act="filter-go" data-id="${c.id}">Open their pipeline</button>`;
+    if (tab === "build") body = kv([["GitHub", `<span class="mono">${esc(x.github)}</span>`], ["Vercel", `<span class="mono">${esc(x.vercel)}</span>`], ["Jobs", JOBS.filter((j) => j.cust === c.id).map((j) => j.title).join(" · ") || "idle"]]) +
+      JOBS.filter((j) => j.cust === c.id).map((j) => `<div class="file"><span>${esc(j.title)}</span><span class="pill">${esc(j.status)}</span></div>`).join("");
+    if (tab === "dominate") body = ads.map((a) => `<div class="file"><span>${esc(a.name)}</span><span class="mono">${esc(a.platform)} · ${money(a.spend)} · ${a.leads} leads</span></div>`).join("") || `<div style="color:var(--muted)">No ads yet.</div>`;
+    if (tab === "phone") body = kv([["DID", `<span class="mono">${esc(x.did)}</span>`], ["A2P", esc(x.a2p)], ["After hours", esc(x.hours)], ["Missed call", "SMS in 20s → dialer queue"]]);
+    if (tab === "money") body = kv([["Retainer", money(c.mrr) + "/mo"], ["Ad spend 30d", money(ads.reduce((a, z) => a + z.spend, 0))], ["Twilio", "metered, isolated"], ["AI jobs", "capped per job"]]);
+    if (tab === "memory") body = kv([["Voice", esc(x.voice)], ["House rules", esc(x.rules)], ["Busy season", esc(x.hours)]]);
+    if (tab === "walls") body = kv([
+      ["Repo", `<span class="mono">${esc(x.github)}</span> · unique`],
+      ["Vercel", `<span class="mono">${esc(x.vercel)}</span> · their token`],
+      ["Zernio", `<span class="mono">${esc(x.zernio)}</span> · their pixel`],
+      ["Twilio DID", `<span class="mono">${esc(x.did)}</span> · not shared`],
+    ]) + `<p style="color:var(--muted);font-size:12.5px;margin-top:12px">Overlap is refused in the database. One resource, one customer.</p>`;
+    return `<div class="page desk">
+      <div class="roll">${CUST.map((r) => `<button class="item ${r.id === c.id ? "on" : ""}" data-act="sel-cust" data-id="${r.id}">
+        <div class="t">${esc(r.name)}</div><div class="m">${esc(r.city)} · #${r.rank} · ${money(r.mrr)}/mo</div>
+      </button>`).join("")}</div>
+      <div class="dossier">
+        <div class="dh"><span class="pill brand">${esc(c.trade)}</span>
+          <div class="who">${esc(c.name)}</div>
+          <div class="sub">${esc(c.city)} · rank #${c.rank} · ${esc(c.share)} share · ${money(c.mrr)}/mo</div>
+          <div class="pills"><span class="pill">${inPlay} live leads</span><span class="pill">${ads.length} campaigns</span><span class="pill">isolated</span></div>
         </div>
-      </div>`;
+        <div class="acts">
+          <button class="btn tiny brand" data-act="filter-go" data-id="${c.id}">Pipeline</button>
+          <button class="btn tiny" data-act="nav" data-page="ads">Ads</button>
+          <button class="btn tiny" data-act="nav" data-page="work">Build</button>
+        </div>
+        ${tabbar(tabs)}
+        <div class="dbody">${body}</div>
+      </div>
+      ${rail(x.next)}
+    </div>`;
   }
 
   function pageInbox() {
@@ -522,7 +695,7 @@
   }
 
   const PAGES = {
-    command: pageCommand, pipeline: pagePipeline, leads: pageLeads, dialer: pageDialer,
+    command: pageCommand, pipeline: pagePipeline, leads: pageLeads, prospects: pageProspects, dialer: pageDialer,
     sms: pageSms, ads: pageAds, partners: pagePartners, customers: pageCustomers,
     inbox: pageInbox, billing: pageBilling, work: pageWork, wrangler: pageWrangler,
     approvals: pageApprovals, changes: pageChanges, playbooks: pagePlaybooks, settings: pageSettings,
@@ -535,10 +708,10 @@
   }
 
   function dock() {
-    const live = state.call ? lead(state.call.id) : null;
+    const live = state.call ? party(state.call.id) : null;
     return `
       <div class="call-id">${live
-        ? `<div class="who">${esc(live.name)}</div><div class="ph">${esc(live.phone)} · ${esc(cust(live.cust).name)} · ${dur()}</div>`
+        ? `<div class="who">${esc(live.name)}</div><div class="ph">${esc(live.phone)} · ${esc(live.book)} · ${dur()}</div>`
         : `<div class="who">Twilio idle</div><div class="ph">4 lines · A2P ready · click any Call</div>`}</div>
       <div class="wave">${state.call ? Array.from({ length: 18 }, () => "<span></span>").join("") : `<span style="color:var(--muted);font-size:12px">Ready</span>`}</div>
       <div class="dialpad">
@@ -593,19 +766,32 @@
   function hits() {
     const q = (state.q || "").toLowerCase();
     const out = [];
-    LEADS.forEach((l) => out.push({ label: l.name, kind: l.kind, page: "leads", id: l.id }));
-    CUST.forEach((c) => out.push({ label: c.name, kind: "customer", page: "customers" }));
+    LEADS.forEach((l) => out.push({ label: l.name, kind: l.kind, page: l.kind === "partner" ? "partners" : "leads", id: l.id }));
+    CUST.forEach((c) => out.push({ label: c.name, kind: "customer", page: "customers", id: c.id }));
+    PX.forEach((p) => out.push({ label: p.name, kind: "prospect", page: "prospects", id: p.id }));
+    PARTNERS.forEach((p) => out.push({ label: p.name, kind: "partner", page: "partners", id: p.id }));
     ADS.forEach((a) => out.push({ label: a.name, kind: "ad", page: "ads" }));
     return out.filter((h) => !q || h.label.toLowerCase().includes(q)).slice(0, 8);
   }
 
-  function dial(id) {
+  function party(id) {
     const l = lead(id);
-    if (!l) return;
+    if (l) return { name: l.name, phone: l.phone, book: cust(l.cust).name };
+    const r = PX.find((x) => x.id === id);
+    if (r) return { name: r.dm, phone: r.phone, book: r.name };
+    const p = PARTNERS.find((x) => x.id === id);
+    if (p) {
+      const c = pd(p.id).contact || {};
+      return { name: c.name || p.name, phone: c.phone || "", book: p.name };
+    }
+    return null;
+  }
+  function dial(id) {
+    const p = party(id);
+    if (!p || !p.phone) return;
     state.call = { id, t0: Date.now() };
     state.muted = false;
-    state.page = "dialer";
-    toast("Twilio · ringing " + l.phone);
+    toast("Twilio · ringing " + p.phone);
     render();
   }
   function hang() {
@@ -636,7 +822,38 @@
     if (act === "mute") { state.muted = !state.muted; render(); }
     if (act === "sms-open") { state.sms = id; go("sms"); }
     if (act === "sms-sel") { state.sms = id; render(); }
-    if (act === "sel-lead") { state.lead = id; render(); }
+    if (act === "sel-lead") { state.lead = id; state.tab = "overview"; render(); }
+    if (act === "sel-cust") { state.custId = id; state.tab = "overview"; render(); }
+    if (act === "sel-prospect") { state.prospect = id; state.tab = "overview"; render(); }
+    if (act === "sel-partner") { state.partner = id; state.tab = "overview"; render(); }
+    if (act === "tab") { state.tab = id; render(); }
+    if (act === "next") {
+      const d = n.getAttribute("data-do");
+      if (d === "dial") dial(state.page === "prospects" ? state.prospect : state.lead);
+      else if (d === "sms") { state.sms = state.page === "partners" ? "L8" : state.lead; go("sms"); }
+      else if (d === "ads") go("ads");
+      else if (d === "approvals") go("approvals");
+      else if (d === "settings") go("settings");
+      else if (d === "job") { state.tab = "job"; render(); }
+      else toast("Queued");
+    }
+    if (act === "pstage") {
+      const r = PX.find((x) => x.id === id);
+      if (r) {
+        r.stage = Math.max(0, Math.min(3, r.stage + Number(n.getAttribute("data-dir"))));
+        toast(r.name + " → " + (WR.PROSPECT_STAGES || [])[r.stage]);
+        render();
+      }
+    }
+    if (act === "task") {
+      const l = lead(id);
+      const dx = ld(l);
+      const i = Number(n.getAttribute("data-i"));
+      if (dx.tasks[i]) dx.tasks[i].done = !dx.tasks[i].done;
+      if (!WR.LEAD_X[id]) WR.LEAD_X[id] = dx;
+      else WR.LEAD_X[id].tasks = dx.tasks;
+      render();
+    }
     if (act === "stage") {
       const l = lead(id);
       l.stage = Math.max(0, Math.min(STAGES.length - 1, l.stage + Number(n.getAttribute("data-dir"))));
@@ -666,9 +883,13 @@
     }
     if (act === "approve") toast("Approved · Twilio will send the blast");
     if (act === "hit") {
-      if (id) { state.lead = id; state.sms = id; }
+      const page = n.getAttribute("data-page");
+      if (page === "customers") state.custId = id;
+      else if (page === "prospects") state.prospect = id;
+      else if (page === "partners") state.partner = id;
+      else if (id) { state.lead = id; state.sms = id; }
       state.search = false;
-      go(n.getAttribute("data-page"));
+      go(page);
     }
     if (act === "tpl") {
       const t = TEMPLATES.find((x) => x.id === id);
@@ -741,8 +962,8 @@
     document.querySelectorAll("[data-dur]").forEach((el) => { el.textContent = dur(); });
     const ph = document.querySelector(".dock .ph");
     if (ph && state.call) {
-      const l = lead(state.call.id);
-      ph.textContent = `${l.phone} · ${cust(l.cust).name} · ${dur()}`;
+      const p = party(state.call.id);
+      if (p) ph.textContent = `${p.phone} · ${p.book} · ${dur()}`;
     }
   }, 1000);
 })();

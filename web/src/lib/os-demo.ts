@@ -70,3 +70,16 @@ export const DIALER_SCRIPT =
 export function customerName(id: string) {
   return CUSTOMERS.find((c) => c.id === id)?.name || id;
 }
+
+export const PROSPECT_STAGES = ["New", "Talking", "Proposal", "Won"] as const;
+
+export const PROSPECTS = [
+  { id: "R1", name: "Summit Roofing", trade: "Roofing", city: "Redding, CA", value: 4500, stage: 1, phone: "+1 530 555 4401", email: "jake@summitroofing.net", dm: "Jake Summit", role: "Owner", pain: "Buying Angi leads at $92. Close rate 11%. After-hours goes to voicemail.", stack: "Angi · Jobber · in-house Google ads", why: "Saw Apex's storm page rank #1 in Red Bluff.", demo: "Thu 2:00p", employees: 9, jobsMo: 22 },
+  { id: "R2", name: "North Valley HVAC", trade: "HVAC", city: "Chico, CA", value: 3800, stage: 2, phone: "+1 530 555 4418", email: "lisa@nvhvac.com", dm: "Lisa Park", role: "COO", pain: "CSR drowned. Speed-to-lead is 14 minutes.", stack: "ServiceTitan · Facebook ads", why: "Lost 3 after-hours replacements last week.", demo: "Proposal sent Mon", employees: 14, jobsMo: 40 },
+  { id: "R3", name: "River City Electric", trade: "Electrical", city: "Red Bluff, CA", value: 2800, stage: 0, phone: "+1 530 555 4470", email: "owen@rcelectric.co", dm: "Owen Diaz", role: "Owner-operator", pain: "No site. GBP photos from 2019. EV panel demand, zero capture.", stack: "Pencil and a van", why: "Ken Williamson intro.", demo: null as string | null, employees: 4, jobsMo: 12 },
+  { id: "R4", name: "Tehama Air & Heat", trade: "HVAC", city: "Corning, CA", value: 3200, stage: 3, phone: "+1 530 555 4422", email: "sam@tehamaair.com", dm: "Sam Ruiz", role: "Founder", pain: "Wants to stop being the cheap guy.", stack: "Housecall Pro", why: "Won — contract in DocuSign.", demo: "Won", employees: 7, jobsMo: 18 },
+];
+
+export function money(n: number) {
+  return "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+}

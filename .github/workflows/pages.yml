@@ -25,7 +25,7 @@ jobs:
       - name: Stage static frontend
         run: |
           mkdir -p _site
-          cp prototype/index.html prototype/os.css prototype/os.js prototype/favicon.svg prototype/connect.html _site/
+          cp prototype/index.html prototype/os.css prototype/os.js prototype/dossiers.js prototype/favicon.svg prototype/connect.html _site/
           touch _site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
