@@ -1,9 +1,28 @@
 import { NextResponse } from "next/server";
+import { sql } from "drizzle-orm";
 import { authConfigured, githubLoginConfigured, operatorAllowlist, passwordLoginConfigured } from "@/lib/auth";
+import { db } from "@/lib/db";
+
+/**
+ * Public, and it stays that way, so it says nothing about customers — only
+ * whether this deploy is wired up. Booleans, never a connection string.
+ */
+async function databaseReachable() {
+  if (!process.env.DATABASE_URL) return { configured: false, reachable: false };
+  try {
+    await db.execute(sql`select 1`);
+    return { configured: true, reachable: true };
+  } catch {
+    return { configured: true, reachable: false };
+  }
+}
 
 export async function GET() {
+  const database = await databaseReachable();
   return NextResponse.json({
-    ok: true,
+    ok: database.reachable,
+    database,
+    vault: { configured: /^[0-9a-fA-F]{64}$/.test((process.env.TOKEN_ENCRYPTION_KEY || "").trim()) },
     integration: Boolean(process.env.VERCEL_INTEGRATION_CLIENT_ID && process.env.VERCEL_INTEGRATION_SLUG),
     login: {
       configured: authConfigured(),

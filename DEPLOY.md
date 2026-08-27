@@ -109,11 +109,19 @@ Vercel builds the **repo root** by default, and there is no app there — the ro
 starts. Three things to set:
 
 1. **Root Directory → `web`** in Project Settings. Without this nothing else matters.
-2. **Environment variables**, at build time as well as runtime:
-   `DATABASE_URL`, `AUTH_SECRET`, `TOKEN_ENCRYPTION_KEY` (exactly 64 hex chars —
-   `openssl rand -hex 32`), `OPERATOR_PASSWORD`. `src/lib/db.ts` throws at module
-   load without a database, and `src/lib/crypto.ts` now refuses to boot in
-   production on a malformed vault key. Both are deliberate.
+2. **Environment variables** — runtime, not build time. The build no longer needs
+   a database (the connection is opened on first use), so a misconfigured deploy
+   *builds and boots*; it just cannot serve a page that queries. Set:
+
+   | Variable | Why |
+   |---|---|
+   | `DATABASE_URL` | Postgres. Without it every data route 500s. |
+   | `AUTH_SECRET` | Signs the operator session cookie. |
+   | `TOKEN_ENCRYPTION_KEY` | Exactly 64 hex chars — `openssl rand -hex 32`. Production refuses to encrypt with anything else. |
+   | `OPERATOR_PASSWORD` | Or GitHub OAuth. With neither, the OS seals itself shut. |
+
+   `GET /api/health` reports which of these are wired, in booleans, without
+   leaking a value. Hit it first when a deploy looks wrong.
 3. Expect the OS to work and the long-running side not to. `next.config.ts` sets
    `output: "standalone"` because the job runner wants a box, not a function.
 
