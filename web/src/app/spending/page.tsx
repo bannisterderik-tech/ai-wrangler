@@ -2,9 +2,14 @@ import { db } from "@/lib/db";
 import { customers, jobs } from "@/lib/schema";
 import { money } from "@/lib/ui";
 
-export default function SpendingPage() {
-  const clientRows = db.select().from(customers).all();
-  const allJobs = db.select().from(jobs).all();
+/** Live control plane: never prerender a customer’s numbers at build time. */
+export const dynamic = "force-dynamic";
+
+export default async function SpendingPage() {
+  const [clientRows, allJobs] = await Promise.all([
+    db.select().from(customers),
+    db.select().from(jobs),
+  ]);
   const total = allJobs.reduce((a, j) => a + j.spentCents, 0);
   const per = clientRows.map((c) => ({
     name: c.name,

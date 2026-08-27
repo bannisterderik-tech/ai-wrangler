@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  // Self-contained server bundle: runs anywhere Node runs (Railway, Fly, a VPS).
+  output: "standalone",
   turbopack: {
     root: process.cwd(),
   },

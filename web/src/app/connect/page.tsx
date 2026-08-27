@@ -14,9 +14,7 @@ export default function ConnectPage() {
   const [token, setToken] = useState("");
   const [teamId, setTeamId] = useState("");
   const [selected, setSelected] = useState("");
-  const [error, setError] = useState(
-    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("error") || "" : "",
-  );
+  const [error, setError] = useState("");
   const [health, setHealth] = useState<{ integration?: boolean }>({});
 
   async function refresh() {
@@ -28,6 +26,8 @@ export default function ConnectPage() {
   }
 
   useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("error");
+    if (fromUrl) setError(fromUrl);
     refresh().catch((e) => setError(String(e.message || e)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

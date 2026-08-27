@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { guard } from "@/lib/api";
 import { customers, inbox } from "@/lib/schema";
 
 export async function GET() {
-  const rows = db.select().from(inbox).all();
-  const names = Object.fromEntries(db.select().from(customers).all().map((c) => [c.id, c.name]));
+  const denied = await guard();
+  if (denied) return denied;
+  const [rows, names] = await Promise.all([db.select().from(inbox), db.select().from(customers)]);
+  const byId = Object.fromEntries(names.map((c) => [c.id, c.name]));
   return NextResponse.json({
-    items: rows.map((i) => ({ ...i, customerName: names[i.customerId] || i.customerId })),
+    items: rows.map((i) => ({ ...i, customerName: byId[i.customerId] || i.customerId })),
   });
 }

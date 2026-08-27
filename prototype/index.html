@@ -72,7 +72,7 @@ button{font-family:inherit;}
     <div style="display:flex;flex-direction:column;gap:5px;padding:10px;border-top:1px solid var(--hairline);">
       <button onClick="{{ openWizard }}" style="background:var(--brand);border:none;color:#FFFFFF;border-radius:8px;padding:7px 0;font-size:12px;font-weight:600;cursor:pointer;">＋ New customer</button>
       <button onClick="{{ openTask }}" style="background:var(--btn);border:1px solid var(--hairline);color:var(--text-primary);border-radius:8px;padding:7px 0;font-size:12px;cursor:pointer;">＋ Give the AI a task</button>
-      <a href="/connect.html" style="text-align:center;background:var(--btn);border:1px solid var(--hairline);color:var(--text-primary);border-radius:8px;padding:7px 0;font-size:12px;text-decoration:none;">Connect Vercel</a>
+      <a href="./connect.html" style="text-align:center;background:var(--btn);border:1px solid var(--hairline);color:var(--text-primary);border-radius:8px;padding:7px 0;font-size:12px;text-decoration:none;">Connect Vercel</a>
       <div style="display:flex;gap:6px;">
         <button onClick="{{ toggleTheme }}" style="flex:1;background:none;border:1px solid var(--hairline);color:var(--text-secondary);border-radius:8px;padding:5px 0;font-size:11px;cursor:pointer;">{{ themeLabel }} mode</button>
         <span style="flex:1;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-secondary);font-variant-numeric:tabular-nums;">{{ clock }}</span>
@@ -1851,7 +1851,7 @@ class Component extends DCLogic {
           btnLabel: ig.on ? 'Disconnect' : 'Connect', btnBg: ig.on ? 'transparent' : 'var(--brand)', btnBorder: ig.on ? 'var(--hairline)' : 'var(--brand)', btnColor: ig.on ? 'var(--text-secondary)' : '#FFFFFF',
           rotate: () => { this.toast('New deploy keys issued for every customer', 'var(--state-running)', false); this.aud('you', 'rotated deploy keys', 'all customers'); },
           toggle: () => {
-            if (k === 'vercel') { window.location.href = '/connect.html'; return; }
+            if (k === 'vercel') { window.location.href = './connect.html'; return; }
             if (ig.on) { ig.on = false; this.aud('you', 'disconnected', ig.name); this.toast(ig.name + ' disconnected — its token is revoked', 'var(--state-blocked)', false); this.forceUpdate(); }
             else { this.toast('Opening ' + ig.name + ' sign-in… (simulated)', 'var(--state-thinking)', false); this.jobs.push({ at: this.t + 14, fn: () => { ig.on = true; this.aud('you', 'connected via OAuth', ig.name); this.toast(ig.name + ' connected — limited token issued', 'var(--state-running)', true); } }); }
           } };
@@ -2043,7 +2043,7 @@ class Component extends DCLogic {
               fetch('/api/customers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, name: name }) }).catch(function () {});
               const conns = wiz.conns.slice(); conns[i] = true;
               this.setState({ wiz: Object.assign({}, wiz, { conns }) });
-              window.open('/connect.html?customer=' + encodeURIComponent(id), '_blank');
+              window.open('./connect.html?customer=' + encodeURIComponent(id), '_blank');
               return;
             }
             const conns = wiz.conns.slice(); conns[i] = true; this.setState({ wiz: Object.assign({}, wiz, { conns }) });

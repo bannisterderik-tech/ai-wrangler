@@ -1,102 +1,82 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { audit, boundResources } from "@/lib/schema";
-import { ensureCustomer, newId } from "@/lib/customers";
-import { IsolationError, assertBound } from "@/lib/isolation";
+import { fail, guard, operator } from "@/lib/api";
+import { boundResources } from "@/lib/schema";
+import { ensureCustomer } from "@/lib/customers";
+import { IsolationError } from "@/lib/isolation";
+import { bindResources } from "@/lib/binding";
 import { createAgencyRepo, listAgencyRepos } from "@/lib/github";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/customers/[id]/github">) {
+  const denied = await guard();
+  if (denied) return denied;
   const { id } = await ctx.params;
-  const bound = db
+  const bound = await db
     .select()
     .from(boundResources)
-    .where(and(eq(boundResources.customerId, id), eq(boundResources.provider, "github")))
-    .all();
+    .where(and(eq(boundResources.customerId, id), eq(boundResources.provider, "github")));
   return NextResponse.json({
-    repos: bound.map((b) => ({ fullName: b.resourceId, name: b.name, meta: b.metaJson ? JSON.parse(b.metaJson) : {} })),
+    repos: bound.map((b) => ({
+      fullName: b.resourceId,
+      name: b.name,
+      meta: b.metaJson ? JSON.parse(b.metaJson) : {},
+    })),
   });
 }
 
 export async function POST(req: Request, ctx: RouteContext<"/api/customers/[id]/github">) {
+  const denied = await guard();
+  if (denied) return denied;
   const { id } = await ctx.params;
   const body = await req.json().catch(() => ({}));
-  const customer = ensureCustomer(id);
+  const actor = (await operator())?.name || "you";
 
   try {
+    const customer = await ensureCustomer(id);
+
     if (body.create) {
       const slugName = String(body.name || customer.id).replace(/[^a-zA-Z0-9._-]/g, "-");
       const repo = await createAgencyRepo(slugName, `Wrangler workspace for ${customer.name}`);
-      return bind(customer.id, [repo.full_name]);
+      const bound = await bindResources(
+        customer.id,
+        "github",
+        [
+          {
+            resourceId: repo.full_name,
+            name: repo.full_name,
+            meta: { htmlUrl: repo.html_url, defaultBranch: repo.default_branch, ghId: repo.id },
+          },
+        ],
+        { actor },
+      );
+      return NextResponse.json({ ok: true, repos: bound });
     }
 
     const names: string[] = body.repos || body.repoFullNames || [];
     if (!names.length) return NextResponse.json({ error: "repos required" }, { status: 400 });
-    return bind(customer.id, names);
-  } catch (e) {
-    const err = e as IsolationError;
-    return NextResponse.json({ error: err.message }, { status: err.status || 500 });
-  }
-}
 
-async function bind(customerId: string, fullNames: string[]) {
-  const ours = await listAgencyRepos();
-  const allowed = new Set(ours.map((r) => r.full_name));
-  const taken = db
-    .select()
-    .from(boundResources)
-    .where(eq(boundResources.provider, "github"))
-    .all();
-
-  for (const name of fullNames) {
-    if (!allowed.has(name)) {
-      throw new IsolationError(`${name} is not in this agency’s GitHub — we only bind repos we own`, 403);
-    }
-    const other = taken.find((t) => t.resourceId === name && t.customerId !== customerId);
-    if (other) {
-      throw new IsolationError(
-        `${name} is already bound to customer ${other.customerId}. no overlap.`,
-        403,
-      );
-    }
-  }
-
-  db.delete(boundResources)
-    .where(and(eq(boundResources.customerId, customerId), eq(boundResources.provider, "github")))
-    .run();
-
-  for (const name of fullNames) {
-    const repo = ours.find((r) => r.full_name === name)!;
-    db.insert(boundResources)
-      .values({
-        id: newId(),
-        customerId,
-        provider: "github",
+    // Only repos this agency actually owns. We never bind someone else's repo.
+    const ours = await listAgencyRepos();
+    const byName = new Map(ours.map((r) => [r.full_name, r]));
+    const items = names.map((name) => {
+      const repo = byName.get(name);
+      if (!repo) {
+        throw new IsolationError(
+          `${name} is not in this agency’s GitHub — we only bind repos we own`,
+          403,
+        );
+      }
+      return {
         resourceId: name,
         name,
-        metaJson: JSON.stringify({ htmlUrl: repo.html_url, defaultBranch: repo.default_branch, ghId: repo.id }),
-      })
-      .run();
+        meta: { htmlUrl: repo.html_url, defaultBranch: repo.default_branch, ghId: repo.id },
+      };
+    });
+
+    const bound = await bindResources(customer.id, "github", items, { actor });
+    return NextResponse.json({ ok: true, repos: bound });
+  } catch (e) {
+    return fail(e);
   }
-
-  // sanity: bound list must equal what we just wrote
-  const bound = db
-    .select()
-    .from(boundResources)
-    .where(and(eq(boundResources.customerId, customerId), eq(boundResources.provider, "github")))
-    .all()
-    .map((b) => b.resourceId);
-  for (const name of fullNames) assertBound(customerId, "github", name, bound);
-
-  db.insert(audit)
-    .values({
-      customerId,
-      actor: "you",
-      action: "bound agency github repos",
-      target: fullNames.join(", "),
-      at: new Date(),
-    })
-    .run();
-
-  return NextResponse.json({ ok: true, repos: bound });
 }

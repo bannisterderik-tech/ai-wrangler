@@ -3,31 +3,34 @@ import { and, eq } from "drizzle-orm";
 import { encrypt } from "@/lib/crypto";
 import { ensureCustomer, newId } from "@/lib/customers";
 import { db } from "@/lib/db";
+import { fail, guard } from "@/lib/api";
 import { audit, connections } from "@/lib/schema";
 
 export async function POST(req: Request, ctx: RouteContext<"/api/customers/[id]/vercel/token">) {
+  const denied = await guard();
+  if (denied) return denied;
   const { id } = await ctx.params;
   const body = await req.json().catch(() => ({}));
   const token = String(body.token || "").trim();
   if (token.length < 12) {
     return NextResponse.json({ error: "a Vercel access token is required" }, { status: 400 });
   }
-  const customer = ensureCustomer(id, body.name);
-  const res = await fetch("https://api.vercel.com/v2/user", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const user = await res.json();
-  if (!res.ok) {
-    return NextResponse.json(
-      { error: user.error?.message || "token was rejected by Vercel" },
-      { status: 401 },
-    );
-  }
-  db.delete(connections)
-    .where(and(eq(connections.customerId, customer.id), eq(connections.provider, "vercel")))
-    .run();
-  db.insert(connections)
-    .values({
+  try {
+    const customer = await ensureCustomer(id, body.name);
+    const res = await fetch("https://api.vercel.com/v2/user", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const user = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: user.error?.message || "token was rejected by Vercel" },
+        { status: 401 },
+      );
+    }
+    await db
+      .delete(connections)
+      .where(and(eq(connections.customerId, customer.id), eq(connections.provider, "vercel")));
+    await db.insert(connections).values({
       id: newId(),
       customerId: customer.id,
       provider: "vercel",
@@ -42,16 +45,16 @@ export async function POST(req: Request, ctx: RouteContext<"/api/customers/[id]/
       }),
       tokenPrefix: token.slice(0, 6),
       connectedAt: new Date(),
-    })
-    .run();
-  db.insert(audit)
-    .values({
+    });
+    await db.insert(audit).values({
       customerId: customer.id,
       actor: user.user?.username || "pat",
       action: "connected vercel via project-scoped token",
       target: body.teamId || "token-scope",
       at: new Date(),
-    })
-    .run();
-  return NextResponse.json({ ok: true, customerId: customer.id });
+    });
+    return NextResponse.json({ ok: true, customerId: customer.id });
+  } catch (e) {
+    return fail(e);
+  }
 }

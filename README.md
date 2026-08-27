@@ -2,13 +2,22 @@
 
 Agency OS for running AI builds across many client sites **without mixing them**.
 
-- **Product:** [`web/`](web/) — Next.js 16 app. **This is what you deploy.**
-- **Design sim:** [`prototype/`](prototype/) — Claude Design `.dc.html`. Visual source of truth. Do not deploy.
-- **Plan:** [`PLAN.md`](PLAN.md)
-- **Handoff for Claude:** [`HANDOFF.md`](HANDOFF.md)
+**Frontend preview (no database):** [bannisterderik-tech.github.io/ai-wrangler](https://bannisterderik-tech.github.io/ai-wrangler/)
+
+GitHub Pages serves the clickable OS sim so you can walk the UI before Postgres and Vercel are wired. It is noindex. The live product is still `web/`.
+
+- **Product:** [`web/`](web/) — Next.js 16 app on Postgres. **This is what you deploy** (Railway / later Vercel).
+- **Design sim:** [`prototype/`](prototype/) — Claude Design `.dc.html`. Visual source of truth. Previewed on Pages; not the production app.
+- **Plan:** [`PLAN.md`](PLAN.md) · **Handoff:** [`HANDOFF.md`](HANDOFF.md) · **Deploy:** [`DEPLOY.md`](DEPLOY.md)
 
 ```bash
-cd web && npm install && npm run dev
+createdb wrangler_dev
+cd web && npm install && cp ../.env.example .env.local   # fill it in
+npm run db:migrate && npm run dev
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000 — you land on the operator login, because there is no public side.
+
+```bash
+cd web && npm test   # the isolation suite: the door, the routes, and the database walls
+```

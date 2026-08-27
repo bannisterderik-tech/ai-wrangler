@@ -1,148 +1,64 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import * as schema from "./schema";
-import { seedIfEmpty } from "./seed";
 
+/**
+ * AI Wrangler runs on Postgres. SQLite is gone — it cannot survive a serverless
+ * filesystem, and isolation has to live in the database, not in a file.
+ */
 if (process.env.VERCEL && !process.env.DATABASE_URL) {
   throw new Error(
     "AI Wrangler: SQLite cannot run on Vercel. Set DATABASE_URL to Postgres before deploying. See HANDOFF.md.",
   );
 }
 
-const file = process.env.DATABASE_PATH || join(process.cwd(), "..", "data", "wrangler.db");
-mkdirSync(dirname(file), { recursive: true });
-
-const sqlite = new Database(file);
-sqlite.pragma("journal_mode = WAL");
-sqlite.pragma("foreign_keys = ON");
-
-sqlite.exec(`
-CREATE TABLE IF NOT EXISTS customers (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS connections (
-  id TEXT PRIMARY KEY,
-  customer_id TEXT NOT NULL REFERENCES customers(id),
-  provider TEXT NOT NULL,
-  mode TEXT NOT NULL,
-  encrypted_access TEXT NOT NULL,
-  encrypted_refresh TEXT,
-  team_id TEXT,
-  team_name TEXT,
-  installation_id TEXT,
-  user_json TEXT,
-  token_prefix TEXT,
-  connected_at INTEGER NOT NULL,
-  expires_at INTEGER
-);
-CREATE UNIQUE INDEX IF NOT EXISTS conn_customer_provider ON connections(customer_id, provider);
-CREATE TABLE IF NOT EXISTS bound_resources (
-  id TEXT PRIMARY KEY,
-  customer_id TEXT NOT NULL REFERENCES customers(id),
-  provider TEXT NOT NULL,
-  resource_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  meta_json TEXT
-);
-CREATE UNIQUE INDEX IF NOT EXISTS bound_unique ON bound_resources(customer_id, provider, resource_id);
-CREATE TABLE IF NOT EXISTS jobs (
-  id TEXT PRIMARY KEY,
-  customer_id TEXT NOT NULL REFERENCES customers(id),
-  title TEXT NOT NULL,
-  status TEXT NOT NULL,
-  harness TEXT NOT NULL DEFAULT 'claude-code-mcp',
-  spent_cents INTEGER NOT NULL DEFAULT 0,
-  budget_cents INTEGER NOT NULL DEFAULT 1000,
-  transcript_json TEXT,
-  created_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS approvals (
-  id TEXT PRIMARY KEY,
-  customer_id TEXT NOT NULL REFERENCES customers(id),
-  job_id TEXT REFERENCES jobs(id),
-  title TEXT NOT NULL,
-  why TEXT,
-  payload TEXT,
-  irreversible INTEGER NOT NULL DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'pending',
-  created_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS audit (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  customer_id TEXT,
-  actor TEXT NOT NULL,
-  action TEXT NOT NULL,
-  target TEXT,
-  at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS memories (
-  id TEXT PRIMARY KEY,
-  customer_id TEXT NOT NULL REFERENCES customers(id),
-  text TEXT NOT NULL,
-  created_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS inbox (
-  id TEXT PRIMARY KEY,
-  customer_id TEXT NOT NULL REFERENCES customers(id),
-  from_name TEXT NOT NULL,
-  via TEXT NOT NULL,
-  at TEXT NOT NULL,
-  text TEXT NOT NULL,
-  task TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'new'
-);
-CREATE TABLE IF NOT EXISTS changes (
-  id TEXT PRIMARY KEY,
-  customer_id TEXT NOT NULL REFERENCES customers(id),
-  title TEXT NOT NULL,
-  repo TEXT,
-  branch TEXT,
-  files INTEGER NOT NULL DEFAULT 1,
-  status TEXT NOT NULL,
-  diff TEXT,
-  expl TEXT,
-  created_at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS orch_log (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  customer_id TEXT,
-  tag TEXT NOT NULL,
-  text TEXT NOT NULL,
-  at INTEGER NOT NULL
-);
-CREATE TABLE IF NOT EXISTS deals (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  value TEXT NOT NULL,
-  note TEXT,
-  stage INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS agency_connections (
-  provider TEXT PRIMARY KEY,
-  mode TEXT NOT NULL,
-  encrypted_access TEXT NOT NULL,
-  login TEXT,
-  org TEXT,
-  user_json TEXT,
-  connected_at INTEGER NOT NULL
-);
-`);
-
-function col(table: string, name: string, def: string) {
-  try {
-    sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${def}`);
-  } catch {
-    /* already exists */
-  }
+const url = process.env.DATABASE_URL;
+if (!url) {
+  throw new Error(
+    "AI Wrangler: DATABASE_URL is required (Postgres). Local: postgres://localhost:5432/wrangler_dev — see web/README.md.",
+  );
 }
-col("customers", "profile_json", "TEXT");
-col("jobs", "tier", "TEXT DEFAULT 'Medium brain'");
-col("jobs", "cache", "INTEGER DEFAULT 60");
 
-export const db = drizzle(sqlite, { schema });
-seedIfEmpty(db);
+/** The role customer-scoped work runs as. It is not the owner, so RLS applies to it. */
+export const TENANT_ROLE = "wrangler_tenant";
+
+type Cache = { client?: postgres.Sql; db?: PostgresJsDatabase<typeof schema> };
+const cache = globalThis as unknown as { __wrangler?: Cache };
+cache.__wrangler ||= {};
+
+export const client =
+  cache.__wrangler.client ??
+  postgres(url, {
+    max: process.env.VERCEL ? 3 : 8,
+    idle_timeout: 20,
+    connect_timeout: 15,
+    // Supabase's transaction pooler cannot do prepared statements.
+    prepare: false,
+  });
+
+export const db = cache.__wrangler.db ?? drizzle(client, { schema });
+
+if (process.env.NODE_ENV !== "production") {
+  cache.__wrangler.client = client;
+  cache.__wrangler.db = db;
+}
+
+export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Run queries as the tenant role with app.customer_id pinned for the transaction.
+ * Row level security does the rest: a query written wrong still cannot read
+ * another customer's rows. Isolation is enforced by Postgres, not by our care.
+ */
+export async function withCustomer<T>(customerId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  if (!customerId) throw new Error("withCustomer requires a customerId");
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.customer_id', ${customerId}, true)`);
+    await tx.execute(sql.raw(`set local role ${TENANT_ROLE}`));
+    return fn(tx);
+  });
+}
+
 export { schema };

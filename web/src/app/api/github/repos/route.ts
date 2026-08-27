@@ -1,15 +1,26 @@
 import { NextResponse } from "next/server";
-import { IsolationError } from "@/lib/isolation";
+import { fail, guard } from "@/lib/api";
 import { listAgencyRepos } from "@/lib/github";
 import { db } from "@/lib/db";
+import { eq } from "drizzle-orm";
 import { boundResources, customers } from "@/lib/schema";
 
 export async function GET() {
+  const denied = await guard();
+  if (denied) return denied;
   try {
-    const repos = await listAgencyRepos();
-    const bound = db.select().from(boundResources).all().filter((b) => b.provider === "github");
-    const names = Object.fromEntries(db.select().from(customers).all().map((c) => [c.id, c.name]));
-    const byRepo = new Map(bound.map((b) => [b.resourceId, { customerId: b.customerId, customerName: names[b.customerId] || b.customerId }]));
+    const [repos, bound, names] = await Promise.all([
+      listAgencyRepos(),
+      db.select().from(boundResources).where(eq(boundResources.provider, "github")),
+      db.select().from(customers),
+    ]);
+    const nameById = Object.fromEntries(names.map((c) => [c.id, c.name]));
+    const byRepo = new Map(
+      bound.map((b) => [
+        b.resourceId,
+        { customerId: b.customerId, customerName: nameById[b.customerId] || b.customerId },
+      ]),
+    );
     return NextResponse.json({
       repos: repos.map((r) => ({
         id: r.id,
@@ -22,7 +33,6 @@ export async function GET() {
       })),
     });
   } catch (e) {
-    const err = e as IsolationError;
-    return NextResponse.json({ error: err.message }, { status: err.status || 500 });
+    return fail(e);
   }
 }

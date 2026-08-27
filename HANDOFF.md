@@ -1,4 +1,4 @@
-# Handoff — deploy AI Wrangler
+# Handoff — AI Wrangler
 
 Read this before changing or deploying anything.
 
@@ -7,66 +7,64 @@ Read this before changing or deploying anything.
 An **agency control plane**, not a coding agent.
 
 - **Our GitHub** — one agency account. Bind `owner/repo` → customer. No overlap.
-- **Their Vercel** — each customer’s token + bound project IDs.
-- Isolation is the product: a job for customer A cannot see customer B’s repo or Vercel project.
+- **Their Vercel** — each customer's own token and their own bound project ids. Never one shared token.
+- Isolation is the product: a job for customer A cannot see customer B's repo or Vercel project.
 
-Claude Code on the operator’s laptop is the Head Wrangler (MCP). Cloud agents are later.
+Claude Code on the operator's laptop is the Head Wrangler (MCP). Cloud agents are later.
 
 ## Deploy this, not that
 
 | Deploy | Ignore |
 |---|---|
-| `web/` (Next.js 16 App Router) | `prototype/` (design sim) |
-| | Root `server/` (moved under prototype) |
-| | SQLite file DB |
+| `web/` (Next.js 16 App Router, Postgres) | `prototype/` (design sim) |
 
-Vercel root directory: **`web`**.
+Railway, root directory **`web`**, Dockerfile build, migrations at boot. Steps in
+[DEPLOY.md](DEPLOY.md). Vercel still works for the OS, but the job runner cannot live there —
+which is why the deploy target is a box, not a function.
 
-## Do not ship until
+## The four walls (do not weaken)
 
-1. **Postgres, not SQLite.** `web/src/lib/db.ts` uses `better-sqlite3`. That **cannot run on Vercel serverless**. Swap to Supabase/Postgres (`DATABASE_URL`) with `customer_id` on every table and RLS. The file throws if `VERCEL` is set and `DATABASE_URL` is missing.
-2. **Operator auth.** All `/api/*` routes are currently unauthenticated. Do not expose a public URL until there is at least one login (password, magic link, or GitHub).
-3. **Secrets in Vercel env**, never in git:
-   - `TOKEN_ENCRYPTION_KEY` (32-byte hex, **new** for prod — do not reuse local)
-   - `DATABASE_URL`
-   - `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` (callback `https://<domain>/api/auth/github/callback`)
-   - Vercel integration ids if using OAuth (callback route in Next is still incomplete — `/api/auth/vercel/start` exists, **callback does not**)
-4. **Isolation tests** before public: bind repo A to customer 1 → request as customer 2 → 403.
+1. **The door.** `web/src/middleware.ts`. No operator session → no page, no API. Only `/api/health`
+   and the login routes are public. With no login method configured the OS seals itself rather
+   than falling open.
+2. **The route.** A job may only name a repo or Vercel project bound to its own customer
+   (`assertBoundToCustomer`). Someone else's → 403. Nothing bound yet → 409.
+3. **The database.** RLS on every tenant table. Customer-scoped work runs through `withCustomer()`
+   as the `wrangler_tenant` role with `app.customer_id` pinned for the transaction. The owner role
+   (`DATABASE_URL`) is the agency view and sees everything, by design; Supabase's `anon` /
+   `authenticated` roles see nothing.
+4. **The index.** `bound_resources (provider, resource_id)` is unique — one repo, one customer,
+   even under a race.
 
-## Product rules (do not “improve” away)
+`cd web && npm test` proves all four (14 tests: the door, the refusals, the RLS walls). Keep it green.
+
+## Product rules (do not "improve" away)
 
 - Keep the NeXT UI (CSS variables in `web/src/app/globals.css`). Do not restyle as Linear.
-- Do not put all clients on one Vercel project.
-- Do not use a shared Vercel token across customers.
-- Production deploys stay two-click / approval-gated.
-- Do not build HubSpot. Inbox/playbooks/billing are later.
+- Do not put all clients on one Vercel project. Do not share a Vercel token across customers.
+- Production deploys stay approval-gated / two-click for anything irreversible.
+- Do not build HubSpot. Inbox ingest, playbooks-as-code, client portal, billing are later.
 
-## What’s already real
+## What's real now
 
-- OS shell + screens in `web/src/app`
-- Per-customer Vercel PAT vault (encrypted)
-- Agency GitHub connect (OAuth / PAT / explicit gh import) — **not** auto `bannisterderik-tech`
-- Repo binding with overlap refusal
-- Jobs / approvals / inbox as SQLite rows (not live agents)
+- Postgres + Drizzle, migrations in `web/drizzle/*.sql`, applied by `npm run db:migrate`
+- Operator auth: password and/or GitHub OAuth with an allowlist, signed session cookie, sign-out
+- Per-customer encrypted Vercel vault: PAT **and** the Vercel Integration OAuth callback
+- Vercel project binding per customer (`/api/customers/[id]/vercel/projects`)
+- Agency GitHub connect (OAuth / PAT / explicit gh import — never auto-picked)
+- Repo binding with overlap refusal, in code and in the schema
+- OS shell and screens, jobs / approvals / inbox / changes as rows
 
-## What’s fake / stub
+## What's still fake
 
-- Jobs do not open Git branches or call Vercel deploy
-- Morning briefing seed data
-- Marketing page
-- Vercel Integration OAuth callback
-- Client portal
+- Jobs do not open Git branches or call Vercel deploy — they are rows a human or the MCP session acts on
+- Morning briefing seed data (`web/drizzle/0003_seed.sql`)
+- Marketing page, playbooks, client portal
 
-## First PR on deploy
-
-1. Postgres + Drizzle
-2. Auth gate on the OS
-3. Finish Vercel OAuth callback **or** keep PAT-only for v1
-4. Isolation test
-5. Deploy `web/` to Vercel
-
-Local:
+## Local
 
 ```bash
-cd web && npm i && npm run dev
+createdb wrangler_dev
+cd web && npm i && cp ../.env.example .env.local   # fill in DATABASE_URL, TOKEN_ENCRYPTION_KEY, OPERATOR_PASSWORD
+npm run db:migrate && npm run dev
 ```

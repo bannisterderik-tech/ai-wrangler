@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { db } from "@/lib/db";
+import { guard } from "@/lib/api";
 import { approvals, customers } from "@/lib/schema";
 
 export async function GET() {
-  const rows = db.select().from(approvals).orderBy(desc(approvals.createdAt)).all();
-  const names = Object.fromEntries(db.select().from(customers).all().map((c) => [c.id, c.name]));
+  const denied = await guard();
+  if (denied) return denied;
+  const [rows, names] = await Promise.all([
+    db.select().from(approvals).orderBy(desc(approvals.createdAt)),
+    db.select().from(customers),
+  ]);
+  const byId = Object.fromEntries(names.map((c) => [c.id, c.name]));
   return NextResponse.json({
-    approvals: rows.map((a) => ({ ...a, customerName: names[a.customerId] || a.customerId })),
+    approvals: rows.map((a) => ({ ...a, customerName: byId[a.customerId] || a.customerId })),
   });
 }

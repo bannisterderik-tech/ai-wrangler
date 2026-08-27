@@ -28,9 +28,8 @@ export default function GithubPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
-  const [error, setError] = useState(
-    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("error") || "" : "",
-  );
+  const [error, setError] = useState("");
+  const [origin, setOrigin] = useState("");
   const [creating, setCreating] = useState("");
   const [pat, setPat] = useState("");
 
@@ -52,6 +51,10 @@ export default function GithubPage() {
   }
 
   useEffect(() => {
+    // Read the URL after mount so the server and client render the same first pass.
+    setOrigin(window.location.origin);
+    const fromUrl = new URLSearchParams(window.location.search).get("error");
+    if (fromUrl) setError(fromUrl);
     load().catch((e) => setError(String(e.message || e)));
   }, []);
 
@@ -228,7 +231,7 @@ export default function GithubPage() {
               Sign in with GitHub
             </a>
             <div className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-              GitHub will ask which account. Pick the main agency account. (Needs an OAuth App: github.com/settings/developers → callback {typeof window !== "undefined" ? window.location.origin : ""}/api/auth/github/callback, then GITHUB_OAUTH_CLIENT_ID / SECRET in web/.env.local.)
+              GitHub will ask which account. Pick the main agency account. (Needs an OAuth App: github.com/settings/developers → callback {origin}/api/auth/github/callback, then GITHUB_OAUTH_CLIENT_ID / SECRET in web/.env.local.)
             </div>
             {status.cli?.present ? (
               <button

@@ -1,9 +1,14 @@
 import { db } from "@/lib/db";
 import { customers, jobs } from "@/lib/schema";
 
-export default function BillingPage() {
-  const names = db.select().from(customers).all();
-  const allJobs = db.select().from(jobs).all();
+/** Live control plane: never prerender a customer’s numbers at build time. */
+export const dynamic = "force-dynamic";
+
+export default async function BillingPage() {
+  const [names, allJobs] = await Promise.all([
+    db.select().from(customers),
+    db.select().from(jobs),
+  ]);
   const retainers: Record<string, [number, number]> = {
     brightline: [4500, 1800],
     "harbor-and-co": [3200, 1400],

@@ -101,7 +101,7 @@
       <div id="deploys" class="mono"></div>
     </div>
 
-    <p class="muted"><a href="/">← Back to the OS</a></p>
+    <p class="muted"><a href="./">← Back to the OS</a></p>
   </div>
   <script>
     const q = new URLSearchParams(location.search);
@@ -231,7 +231,10 @@
       } catch (e) { errBox.hidden = false; errBox.textContent = e.message; }
     }
 
-    loadCustomers().catch(e => { errBox.hidden = false; errBox.textContent = e.message; });
+    loadCustomers().catch(e => {
+      errBox.hidden = false;
+      errBox.textContent = 'Connect Vercel needs the live app (Postgres). The rest of the OS preview is clickable from the briefing.';
+    });
   </script>
 </body>
 </html>

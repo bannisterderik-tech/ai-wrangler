@@ -10,6 +10,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [clock, setClock] = useState("");
   const [needs, setNeeds] = useState(0);
+  const [me, setMe] = useState<{ name: string; via: string } | null>(null);
+  const bare = path === "/login";
 
   useEffect(() => {
     const stored = localStorage.getItem("wrangler-theme") as "dark" | "light" | null;
@@ -33,6 +35,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (bare) return;
+    fetch("/api/auth/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => (d?.signedIn ? setMe({ name: d.name, via: d.via }) : setMe(null)))
+      .catch(() => {});
+  }, [bare]);
+
+  useEffect(() => {
+    if (bare) return;
     const load = () =>
       fetch("/api/approvals")
         .then((r) => r.json())
@@ -41,13 +52,26 @@ export function Shell({ children }: { children: React.ReactNode }) {
     load();
     const id = setInterval(load, 5000);
     return () => clearInterval(id);
-  }, []);
+  }, [bare]);
+
+  async function signOut() {
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    window.location.href = "/login";
+  }
 
   function toggleTheme() {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
     document.documentElement.setAttribute("data-theme", next);
     localStorage.setItem("wrangler-theme", next);
+  }
+
+  if (bare) {
+    return (
+      <div className="fixed inset-0" style={{ background: "var(--surface-void)" }}>
+        {children}
+      </div>
+    );
   }
 
   return (
@@ -186,6 +210,18 @@ export function Shell({ children }: { children: React.ReactNode }) {
             >
               Agency view ▾
             </span>
+            <button
+              onClick={signOut}
+              title={me ? `Signed in as ${me.name} (${me.via})` : "Sign out"}
+              className="cursor-pointer rounded-lg border px-3 py-1.5 text-xs"
+              style={{
+                background: "var(--btn)",
+                borderColor: "var(--hairline)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {me ? `${me.name} · Sign out` : "Sign out"}
+            </button>
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>

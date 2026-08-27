@@ -30,12 +30,17 @@ function ghCliToken() {
   }
 }
 
-export function getAgencyGithub() {
-  return db.select().from(agencyConnections).where(eq(agencyConnections.provider, "github")).get() || null;
+export async function getAgencyGithub() {
+  const [row] = await db
+    .select()
+    .from(agencyConnections)
+    .where(eq(agencyConnections.provider, "github"))
+    .limit(1);
+  return row || null;
 }
 
-export function token() {
-  const row = getAgencyGithub();
+export async function token() {
+  const row = await getAgencyGithub();
   if (row?.encryptedAccess) return decrypt(row.encryptedAccess);
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
   throw new IsolationError(
@@ -44,12 +49,12 @@ export function token() {
   );
 }
 
-export function githubConfigured() {
-  return Boolean(getAgencyGithub() || process.env.GITHUB_TOKEN);
+export async function githubConfigured() {
+  return Boolean((await getAgencyGithub()) || process.env.GITHUB_TOKEN);
 }
 
-export function githubOrg() {
-  return getAgencyGithub()?.org || process.env.GITHUB_ORG || "";
+export async function githubOrg() {
+  return (await getAgencyGithub())?.org || process.env.GITHUB_ORG || "";
 }
 
 export async function saveAgencyGithub(opts: {
@@ -59,8 +64,8 @@ export async function saveAgencyGithub(opts: {
 }) {
   const user = await githubUser(opts.accessToken);
   const orgs = await githubOrgs(opts.accessToken);
-  db.delete(agencyConnections).where(eq(agencyConnections.provider, "github")).run();
-  db.insert(agencyConnections)
+  await db.delete(agencyConnections).where(eq(agencyConnections.provider, "github"));
+  await db.insert(agencyConnections)
     .values({
       provider: "github",
       mode: opts.mode,
@@ -74,22 +79,21 @@ export async function saveAgencyGithub(opts: {
         orgs: orgs.map((o) => o.login),
       }),
       connectedAt: new Date(),
-    })
-    .run();
+    });
   return { login: user.login as string, name: (user.name as string) || user.login, orgs: orgs.map((o) => o.login) };
 }
 
-export function disconnectAgencyGithub() {
-  db.delete(agencyConnections).where(eq(agencyConnections.provider, "github")).run();
+export async function disconnectAgencyGithub() {
+  await db.delete(agencyConnections).where(eq(agencyConnections.provider, "github"));
 }
 
-export function setAgencyOrg(org: string | null) {
-  const row = getAgencyGithub();
+export async function setAgencyOrg(org: string | null) {
+  const row = await getAgencyGithub();
   if (!row) throw new IsolationError("connect GitHub first", 409);
-  db.update(agencyConnections)
+  await db
+    .update(agencyConnections)
     .set({ org: org || null })
-    .where(eq(agencyConnections.provider, "github"))
-    .run();
+    .where(eq(agencyConnections.provider, "github"));
 }
 
 async function githubUser(accessToken: string) {
@@ -121,7 +125,7 @@ async function gh(path: string, init: RequestInit = {}) {
   const res = await fetch(`${API}${path}`, {
     ...init,
     headers: {
-      Authorization: `Bearer ${token()}`,
+      Authorization: `Bearer ${await token()}`,
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
       ...(init.body ? { "Content-Type": "application/json" } : {}),
@@ -147,9 +151,9 @@ export type GhRepo = {
 
 export async function githubStatus() {
   const cli = peekGhCli();
-  const stored = getAgencyGithub();
+  const stored = await getAgencyGithub();
   const envTok = Boolean(process.env.GITHUB_TOKEN);
-  if (!githubConfigured()) {
+  if (!(await githubConfigured())) {
     return {
       connected: false as const,
       oauthReady: oauthReady(),
@@ -163,7 +167,7 @@ export async function githubStatus() {
     connected: true as const,
     login: user.login as string,
     name: (user.name as string) || (user.login as string),
-    org: githubOrg() || null,
+    org: (await githubOrg()) || null,
     orgs: (orgs as { login: string }[]).map((o) => o.login),
     mode: stored?.mode || (envTok ? "env" : "unknown"),
     oauthReady: oauthReady(),
@@ -172,7 +176,7 @@ export async function githubStatus() {
 }
 
 export async function listAgencyRepos(): Promise<GhRepo[]> {
-  const org = githubOrg();
+  const org = await githubOrg();
   if (org) {
     return (await gh(`/orgs/${encodeURIComponent(org)}/repos?per_page=100&sort=updated`)) as GhRepo[];
   }
@@ -180,7 +184,7 @@ export async function listAgencyRepos(): Promise<GhRepo[]> {
 }
 
 export async function createAgencyRepo(name: string, description?: string): Promise<GhRepo> {
-  const org = githubOrg();
+  const org = await githubOrg();
   const body = {
     name,
     private: true,

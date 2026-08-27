@@ -1,0 +1,78 @@
+#!/usr/bin/env node
+// Builds the app, rebuilds a scratch Postgres, starts the server, runs the
+// isolation suite against it, then puts everything away.
+import { spawn, spawnSync } from "node:child_process";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const web = join(here, "..");
+
+const user = process.env.PGUSER || process.env.USER || "postgres";
+const env = {
+  ...process.env,
+  NODE_ENV: "production",
+  DATABASE_URL:
+    process.env.TEST_DATABASE_URL || `postgres://${user}@localhost:5432/wrangler_test`,
+  OPERATOR_PASSWORD: "test-operator-password",
+  AUTH_SECRET: "test-auth-secret-not-for-production",
+  TOKEN_ENCRYPTION_KEY: "0".repeat(64),
+  OPERATOR_GITHUB_LOGINS: "",
+  PORT: process.env.TEST_PORT || "3111",
+};
+const base = `http://localhost:${env.PORT}`;
+env.TEST_BASE_URL = base;
+
+step("resetting the test database", [join(here, "reset.mjs")]);
+step("building", [join(web, "node_modules", "next", "dist", "bin", "next"), "build"]);
+
+const server = spawn(
+  process.execPath,
+  [join(web, "node_modules", "next", "dist", "bin", "next"), "start", "-p", env.PORT],
+  { cwd: web, env, stdio: ["ignore", "pipe", "pipe"] },
+);
+let serverLog = "";
+server.stdout.on("data", (d) => (serverLog += d));
+server.stderr.on("data", (d) => (serverLog += d));
+
+let code = 1;
+try {
+  await waitForHealth();
+  const run = spawnSync(process.execPath, ["--test", join(web, "tests", "*.test.mjs")], {
+    cwd: web,
+    env,
+    stdio: "inherit",
+  });
+  code = run.status ?? 1;
+} catch (err) {
+  console.error(err.message);
+  console.error(serverLog.slice(-2000));
+} finally {
+  server.kill("SIGTERM");
+}
+process.exit(code);
+
+function step(label, args) {
+  console.log(`\n— ${label}`);
+  const run = spawnSync(process.execPath, args, { cwd: web, env, stdio: "inherit" });
+  if (run.status !== 0) {
+    console.error(`${label} failed`);
+    process.exit(run.status ?? 1);
+  }
+}
+
+async function waitForHealth() {
+  for (let i = 0; i < 60; i++) {
+    try {
+      const res = await fetch(`${base}/api/health`);
+      if (res.ok) {
+        console.log(`\n— server up on ${base}\n`);
+        return;
+      }
+    } catch {
+      /* not yet */
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`server never became healthy on ${base}`);
+}

@@ -5,10 +5,15 @@ import { approvals, customers, jobs } from "@/lib/schema";
 import { Card } from "@/lib/ui";
 import { money } from "@/lib/ui";
 
-export default function BriefingPage() {
-  const clientRows = db.select().from(customers).all();
-  const pending = db.select().from(approvals).where(eq(approvals.status, "pending")).all();
-  const allJobs = db.select().from(jobs).all();
+/** Live control plane: never prerender a customer’s numbers at build time. */
+export const dynamic = "force-dynamic";
+
+export default async function BriefingPage() {
+  const [clientRows, pending, allJobs] = await Promise.all([
+    db.select().from(customers),
+    db.select().from(approvals).where(eq(approvals.status, "pending")),
+    db.select().from(jobs),
+  ]);
   const running = allJobs.filter((j) => j.status === "thinking" || j.status === "working");
   const spent = allJobs.reduce((a, j) => a + (j.spentCents || 0), 0);
   const names = Object.fromEntries(clientRows.map((c) => [c.id, c.name]));
