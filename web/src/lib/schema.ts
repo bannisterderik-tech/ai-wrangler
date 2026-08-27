@@ -4,6 +4,7 @@ import {
   index,
   integer,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -85,6 +86,14 @@ export const jobs = pgTable("jobs", {
   budgetCents: integer("budget_cents").notNull().default(1000),
   cache: integer("cache").notNull().default(60),
   transcriptJson: text("transcript_json"),
+  ownerId: text("owner_id"),
+  agent: text("agent"),
+  branch: text("branch"),
+  previewUrl: text("preview_url"),
+  goal: text("goal"),
+  scopeNote: text("scope_note"),
+  risk: text("risk"),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -99,6 +108,12 @@ export const approvals = pgTable("approvals", {
   payload: text("payload"),
   irreversible: boolean("irreversible").notNull().default(false),
   status: text("status").notNull().default("pending"),
+  askedBy: text("asked_by"),
+  blast: text("blast"),
+  cost: text("cost"),
+  guard: text("guard"),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decidedBy: text("decided_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -163,3 +178,73 @@ export const deals = pgTable("deals", {
   note: text("note"),
   stage: integer("stage").notNull().default(0),
 });
+
+/**
+ * The floor. People bring their own Claude Code over MCP; a job has one owner
+ * and one transcript. Agency-level tables — no customer_id, no tenant policy.
+ */
+export const people = pgTable(
+  "people",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    handle: text("handle").notNull(),
+    role: text("role").notNull().default("Build wrangler"),
+    approver: boolean("approver").notNull().default(false),
+    machine: text("machine"),
+    status: text("status").notNull().default("invited"),
+    clientVersion: text("client_version"),
+    /** SHA-256 of the session token. The plaintext is shown once and never stored. */
+    tokenHash: text("token_hash"),
+    tokenPrefix: text("token_prefix"),
+    connectedAt: timestamp("connected_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("people_handle").on(t.handle)],
+);
+
+/** Which customers a person's session may mount. Enforced in every MCP tool. */
+export const personScopes = pgTable(
+  "person_scopes",
+  {
+    personId: text("person_id")
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade" }),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.personId, t.customerId] })],
+);
+
+/** Which MCP tools a person's session is handed. Absent means the call is refused. */
+export const personTools = pgTable(
+  "person_tools",
+  {
+    personId: text("person_id")
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade" }),
+    tool: text("tool").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.personId, t.tool] })],
+);
+
+/** One row per thing an agent did. Appended by post_step over MCP. */
+export const jobSteps = pgTable(
+  "job_steps",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    jobId: text("job_id")
+      .notNull()
+      .references(() => jobs.id, { onDelete: "cascade" }),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    text: text("text").notNull(),
+    actor: text("actor").notNull().default("agent"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("job_steps_job").on(t.jobId, t.id)],
+);

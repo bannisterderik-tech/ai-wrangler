@@ -10,7 +10,8 @@ An **agency control plane**, not a coding agent.
 - **Their Vercel** — each customer's own token and their own bound project ids. Never one shared token.
 - Isolation is the product: a job for customer A cannot see customer B's repo or Vercel project.
 
-Claude Code on the operator's laptop is the Head Wrangler (MCP). Cloud agents are later.
+Every teammate connects **their own Claude Code** over MCP — their own token, their own
+customer scope, their own audit trail. Nobody shares a login. Cloud agents are later.
 
 ## Deploy this, not that
 
@@ -35,8 +36,13 @@ which is why the deploy target is a box, not a function.
    `authenticated` roles see nothing.
 4. **The index.** `bound_resources (provider, resource_id)` is unique — one repo, one customer,
    even under a race.
+5. **The session.** `web/src/app/api/mcp/route.ts`. A teammate's Claude Code authenticates with a
+   Bearer token whose SHA-256 is all we store. Every tool call checks two things before it does
+   anything: the session was granted that tool, and the job belongs to a customer in that session's
+   scope. Agents do not write to `main`; they open a branch and call `request_approval`.
 
-`cd web && npm test` proves all four (14 tests: the door, the refusals, the RLS walls). Keep it green.
+`cd web && npm test` proves all five (24 tests: the door, the refusals, the RLS walls, the MCP
+walls). Keep it green.
 
 ## Product rules (do not "improve" away)
 
@@ -53,11 +59,18 @@ which is why the deploy target is a box, not a function.
 - Vercel project binding per customer (`/api/customers/[id]/vercel/projects`)
 - Agency GitHub connect (OAuth / PAT / explicit gh import — never auto-picked)
 - Repo binding with overlap refusal, in code and in the schema
-- OS shell and screens, jobs / approvals / inbox / changes as rows
+- OS shell and screens; the floor (`/work`) and Sessions (`/sessions`) run on live Postgres
+- **The MCP server** (`/api/mcp`) — streamable HTTP, Bearer auth, seven tools:
+  `list_jobs`, `claim_job`, `release_job`, `read_bound_repo`, `open_branch`, `post_step`,
+  `request_approval`. Connect with:
+  `claude mcp add wrangler --transport http <host>/api/mcp --header "Authorization: Bearer <token>"`
+- Session tokens stored as SHA-256 with a display prefix; shown once, rotatable, revocable
+- Per-session customer scope and per-session tool grants, enforced in the server
 
 ## What's still fake
 
-- Jobs do not open Git branches or call Vercel deploy — they are rows a human or the MCP session acts on
+- `open_branch` records the branch and the diff; it does not yet push to GitHub or call Vercel deploy
+- Twilio still sends from one `TWILIO_CALLER_ID` — per-customer DIDs are not built
 - Morning briefing seed data (`web/drizzle/0003_seed.sql`)
 - Marketing page, playbooks, client portal
 

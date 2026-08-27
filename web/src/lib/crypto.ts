@@ -1,10 +1,30 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto";
 
+/**
+ * The vault key. A malformed TOKEN_ENCRYPTION_KEY used to fall back silently to a
+ * key derived from a literal string in this public repo, which meant one typo
+ * downgraded every customer's stored token to plaintext-equivalent while the UI
+ * kept saying "encrypted". In production that is now a refusal to boot.
+ */
 function key(): Buffer {
-  const raw = process.env.TOKEN_ENCRYPTION_KEY || "";
+  const raw = (process.env.TOKEN_ENCRYPTION_KEY || "").trim();
   if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, "hex");
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "TOKEN_ENCRYPTION_KEY must be 64 hex characters. Generate one with: openssl rand -hex 32",
+    );
+  }
+  if (!warned) {
+    warned = true;
+    console.warn(
+      "[wrangler] TOKEN_ENCRYPTION_KEY is missing or malformed — using the DEV vault key. " +
+        "Anything encrypted now is NOT protected. Set a real key before storing a customer token.",
+    );
+  }
   return scryptSync("ai-wrangler-dev-only", "vault", 32);
 }
+
+let warned = false;
 
 export function encrypt(plaintext: string) {
   const iv = randomBytes(12);

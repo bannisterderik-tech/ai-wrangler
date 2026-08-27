@@ -132,7 +132,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
                       }}
                     >
                       <span>{item.label}</span>
-                      {item.id === "approvals" && needs > 0 ? (
+                      {item.id === "work" && needs > 0 ? (
                         <span
                           className="rounded-lg px-1.5 text-[10px] font-semibold tabular-nums"
                           style={{ background: "var(--state-blocked)", color: "#0B0C0E" }}

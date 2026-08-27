@@ -1,281 +1,285 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { money, statusDot, statusLabel } from "@/lib/ui";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
 
-type Line = { kind: string; text?: string; label?: string };
+type Step = { kind: string; text: string; actor: string; at: string };
+type Gate = {
+  id: string; title: string; what: string | null; blast: string | null; cost: string | null;
+  guard: string | null; askedBy: string | null; irreversible: boolean; status: string;
+};
 type Job = {
-  id: string;
-  title: string;
-  customerId: string;
-  customerName: string;
-  status: string;
-  tier: string;
-  spentCents: number;
-  budgetCents: number;
-  cache: number;
-  transcript: Line[];
+  id: string; title: string; status: string; customerId: string; customer: string;
+  owner: { id: string; handle: string; name: string } | null;
+  agent: string | null; repo: string | null; branch: string | null; previewUrl: string | null;
+  goal: string | null; scope: string | null; risk: string | null; spent: number; budget: number;
+  steps: Step[]; gate: Gate | null;
+  change: { id: string; title: string; repo: string | null; branch: string | null; status: string; diff: string | null } | null;
+};
+type Floor = { jobs: Job[]; people: { id: string; handle: string; name: string; status: string }[] };
+
+const WORD: Record<string, string> = {
+  working: "working", blocked: "waiting on a human", thinking: "reading",
+  queued: "queued", done: "shipped", rolled_back: "rolled back",
+};
+const TONE: Record<string, string> = {
+  working: "var(--state-running)", blocked: "var(--state-stop)", thinking: "var(--state-thinking)",
+  done: "var(--state-go)", queued: "var(--text-secondary)",
 };
 
-export default function WorkPage() {
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [sel, setSel] = useState("");
-  const [taskOpen, setTaskOpen] = useState(false);
+/**
+ * The floor. Live work, Needs you and Changes were three views of one object,
+ * so a job carries its own gate and its own diff and this is one screen.
+ */
+export default function FloorPage() {
+  const [floor, setFloor] = useState<Floor | null>(null);
+  const [sel, setSel] = useState<string | null>(null);
+  const [filter, setFilter] = useState<string | null>(null);
+  const [tab, setTab] = useState("transcript");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
 
-  async function load() {
-    const data = await fetch("/api/jobs").then((r) => r.json());
-    setJobs(data.jobs || []);
-    setSel((s) => s || data.jobs?.[0]?.id || "");
-  }
+  const load = useCallback(async () => {
+    const res = await fetch("/api/floor", { cache: "no-store" });
+    if (res.ok) setFloor(await res.json());
+  }, []);
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 4000);
-    return () => clearInterval(id);
-  }, []);
+    // The floor moves while you are looking at it — sessions post steps over MCP.
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [load]);
 
-  const current = jobs.find((j) => j.id === sel) || jobs[0];
-  const left = current ? Math.max(0, current.budgetCents - current.spentCents) : 0;
-  const pct = current ? Math.max(0, Math.round((left / current.budgetCents) * 100)) : 0;
+  const jobs = useMemo(() => floor?.jobs ?? [], [floor]);
+  const gated = jobs.filter((j) => j.gate?.status === "pending");
+  const me = floor?.people.find((p) => p.handle === "derik") ?? floor?.people[0];
+
+  const buckets: [string, string, Job[]][] = [
+    ["gate", "Needs you", gated],
+    ["mine", "Mine", jobs.filter((j) => j.owner?.id === me?.id)],
+    ["running", "Running", jobs.filter((j) => j.status === "working" || j.status === "thinking")],
+    ["free", "Unclaimed", jobs.filter((j) => !j.owner)],
+    ["done", "Shipped", jobs.filter((j) => j.status === "done")],
+    ["all", "Everything", jobs],
+  ];
+  const active = filter ?? (gated.length ? "gate" : "all");
+  const rows = buckets.find((b) => b[0] === active)?.[2] ?? jobs;
+  const job = rows.find((j) => j.id === sel) ?? rows[0] ?? null;
+
+  async function act(action: string, extra: Record<string, unknown> = {}) {
+    if (!job) return;
+    setBusy(true);
+    setNote("");
+    const res = await fetch(`/api/floor/${encodeURIComponent(job.id)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...extra }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setNote(res.ok ? "" : body.error || "that did not work");
+    setBusy(false);
+    await load();
+  }
+
+  if (!floor) return <div className="p-5 text-[13px]" style={{ color: "var(--text-secondary)" }}>Reading the floor…</div>;
+
+  const gate = job?.gate?.status === "pending" ? job.gate : null;
+  const tabs: [string, string][] = [["transcript", "Transcript"]];
+  if (job?.gate) tabs.push(["gate", gate ? "Needs you ●" : "Decision"]);
+  tabs.push(["diff", "Diff"], ["scope", "Scope"], ["walls", "Walls"]);
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[230px_1fr] overflow-hidden">
-      <div className="flex flex-col gap-1.5 overflow-y-auto p-2.5" style={{ borderRight: "1px solid var(--hairline)" }}>
-        {jobs.map((j) => (
-          <button
+    <div className="flex h-full min-h-0 flex-col">
+      <DeskBar>
+        {buckets
+          .filter(([id, , list]) => list.length || id === "all")
+          .map(([id, label, list]) => (
+            <button
+              key={id}
+              className={`btn-os ${active === id ? "brand" : ""}`}
+              onClick={() => { setFilter(id); setSel(null); }}
+            >
+              {label} <span className="tabular-nums opacity-70">{list.length}</span>
+            </button>
+          ))}
+        <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+          ${jobs.reduce((a, j) => a + j.spent, 0).toFixed(2)} today
+        </span>
+      </DeskBar>
+
+      <Dossier
+        list={rows.map((j) => (
+          <RollItem
             key={j.id}
-            onClick={() => setSel(j.id)}
-            className="cursor-pointer rounded-lg border px-2.5 py-2 text-left"
-            style={{
-              background: current?.id === j.id ? "var(--surface-inset)" : "transparent",
-              borderColor: current?.id === j.id ? "var(--brand)" : "var(--hairline)",
-            }}
-          >
-            <span className="flex items-center gap-1.5 text-[12.5px] font-medium">
-              <span
-                className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{
-                  background: statusDot(j.status),
-                  animation: j.status === "working" || j.status === "thinking" ? "pulse 2.4s ease-in-out infinite" : "none",
-                }}
-              />
-              {j.title}
-            </span>
-            <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
-              {j.customerName} · {statusLabel(j.status)}
-            </span>
-          </button>
+            on={j.id === job?.id}
+            title={`${j.gate?.status === "pending" ? "● " : ""}${j.title}`}
+            meta={`${j.customer} · ${WORD[j.status] ?? j.status} · ${j.owner?.handle ?? "unclaimed"}`}
+            onClick={() => { setSel(j.id); setTab("transcript"); }}
+          />
         ))}
-        <button
-          onClick={() => setTaskOpen(true)}
-          className="mt-2 cursor-pointer rounded-lg border py-2 text-xs"
-          style={{ background: "var(--btn)", borderColor: "var(--hairline)" }}
-        >
-          ＋ Give the AI a task
-        </button>
-      </div>
-      {current ? (
-        <div className="flex min-h-0 flex-col">
-          <div className="px-[18px] py-3" style={{ borderBottom: "1px solid var(--hairline)" }}>
-            <div className="text-[15px] font-semibold">{current.title}</div>
-            <div className="mt-0.5 text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
-              {current.customerName} · {current.tier} · {statusLabel(current.status)}
-            </div>
-          </div>
-          <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-[18px] py-3.5">
-            {current.transcript.length === 0 ? (
-              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                Waiting to start — Claude Code on this laptop will pick it up.
+        rail={
+          job ? (
+            <div className="flex flex-col gap-3">
+              <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                Budget
               </div>
-            ) : null}
-            {current.transcript.map((m, i) => (
-              <TranscriptLine key={i} m={m} />
-            ))}
-          </div>
-          <div
-            className="flex flex-wrap items-center gap-5 px-[18px] py-2.5"
-            style={{ borderTop: "1px solid var(--hairline)" }}
-          >
-            <Stat k="Spent so far" v={money(current.spentCents)} />
-            <Stat k="Reused context" v={`${current.cache}% reused`} />
-            <div className="min-w-[150px] flex-1">
-              <div className="flex justify-between text-[10px]" style={{ color: "var(--text-secondary)" }}>
-                <span>Budget left</span>
-                <span className="tabular-nums">
-                  {money(left)} of {money(current.budgetCents)}
-                </span>
+              <div className="text-[12.5px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+                ${job.spent.toFixed(2)} of ${job.budget.toFixed(2)}
               </div>
-              <div className="mt-1 h-[5px] overflow-hidden rounded-sm" style={{ background: "var(--surface-inset)" }}>
+              <div className="h-1.5 overflow-hidden rounded-full" style={{ background: "var(--surface-inset)" }}>
                 <div
-                  className="h-full rounded-sm"
+                  className="h-full rounded-full"
                   style={{
-                    width: `${pct}%`,
-                    background: pct < 25 ? "var(--state-failed)" : "var(--state-running)",
+                    width: `${Math.min(100, (job.spent / Math.max(job.budget, 0.01)) * 100)}%`,
+                    background: job.spent / Math.max(job.budget, 0.01) > 0.8 ? "var(--state-stop)" : "var(--state-go)",
                   }}
                 />
               </div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                Session
+              </div>
+              <p className="text-[12.5px] leading-snug" style={{ color: "var(--text-secondary)" }}>
+                {job.owner
+                  ? `${job.owner.name} is holding this. Their Claude Code posts every step here over MCP.`
+                  : "Nobody owns this. It sits on the board until a session claims it."}
+              </p>
             </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex items-center justify-center text-xs" style={{ color: "var(--text-secondary)" }}>
-          No runs yet.
-        </div>
-      )}
-      {taskOpen ? <TaskModal onClose={() => setTaskOpen(false)} onCreated={() => { setTaskOpen(false); load(); }} /> : null}
-    </div>
-  );
-}
+          ) : null
+        }
+      >
+        {!job ? (
+          <div className="p-5 text-[13px]" style={{ color: "var(--text-secondary)" }}>Nothing on the floor in that filter.</div>
+        ) : (
+          <>
+            <div className="border-b px-4 pt-4 pb-2.5" style={{ borderColor: "var(--hairline)" }}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: TONE[job.status] ?? "var(--text-secondary)" }}>
+                  {WORD[job.status] ?? job.status}
+                </span>
+                {gate ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--state-stop)" }}>needs you</span>
+                ) : null}
+              </div>
+              <h3 className="mt-1 mb-1 text-[24px] leading-tight">{job.title}</h3>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                {job.customer} · {job.agent ?? "no agent"} · {job.owner ? `claimed by ${job.owner.handle}` : "unclaimed"}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {gate ? <button className="btn-os brand" disabled={busy} onClick={() => setTab("gate")}>Decide it</button> : null}
+                {job.owner ? (
+                  <button className="btn-os" disabled={busy} onClick={() => act("release")}>Release</button>
+                ) : (
+                  <button className="btn-os brand" disabled={busy} onClick={() => act("claim", { personId: me?.id })}>Claim</button>
+                )}
+                {job.status === "working" || job.status === "thinking" ? (
+                  <button className="btn-os" disabled={busy} onClick={() => act("stop")}>Stop</button>
+                ) : null}
+              </div>
+              {note ? <p className="mt-2 text-[12px]" style={{ color: "var(--state-stop)" }}>{note}</p> : null}
+            </div>
 
-function Stat({ k, v }: { k: string; v: string }) {
-  return (
-    <div>
-      <div className="whitespace-nowrap text-[10px]" style={{ color: "var(--text-secondary)" }}>
-        {k}
-      </div>
-      <div className="whitespace-nowrap text-sm font-semibold tabular-nums">{v}</div>
-    </div>
-  );
-}
+            <Tabs tabs={tabs} tab={tab} onTab={setTab} />
 
-function TranscriptLine({ m }: { m: Line }) {
-  if (m.kind === "think") {
-    return (
-      <div className="border-l-2 py-1 pl-2.5 text-xs leading-relaxed" style={{ borderColor: "var(--state-thinking)", color: "var(--text-secondary)" }}>
-        {m.text}
-      </div>
-    );
-  }
-  if (m.kind === "tool") {
-    return (
-      <div className="rounded-lg border p-2" style={{ background: "var(--surface-inset)", borderColor: "var(--hairline)", borderLeft: "2px solid var(--state-running)" }}>
-        <div className="text-[11px] font-semibold" style={{ color: "var(--state-running)" }}>{m.label}</div>
-        <div className="font-mono mt-1 text-[11px] leading-relaxed">{m.text}</div>
-      </div>
-    );
-  }
-  if (m.kind === "gate") {
-    return (
-      <div className="rounded-lg border p-2 text-xs font-medium" style={{ background: "var(--surface-inset)", borderColor: "var(--state-blocked)", color: "var(--state-blocked)" }}>
-        {m.text}
-      </div>
-    );
-  }
-  if (m.kind === "you") {
-    return (
-      <div className="border-l-2 py-1 pl-2.5 text-xs font-medium" style={{ borderColor: "var(--state-blocked)" }}>
-        {m.text}
-      </div>
-    );
-  }
-  if (m.kind === "fail") {
-    return (
-      <div className="rounded-lg border p-2" style={{ background: "var(--surface-inset)", borderColor: "var(--state-failed)", borderLeft: "2px solid var(--state-failed)" }}>
-        <div className="text-[11px] font-semibold" style={{ color: "var(--state-failed)" }}>{m.label || "Failed"}</div>
-        <div className="font-mono mt-1 text-[11px]">{m.text}</div>
-      </div>
-    );
-  }
-  return (
-    <div className="py-0.5 text-center text-[11px]" style={{ color: "var(--text-secondary)" }}>
-      {m.text}
-    </div>
-  );
-}
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+              {tab === "transcript" ? (
+                <div className="text-[13px] leading-relaxed">
+                  {job.steps.length ? (
+                    job.steps.map((s, i) => (
+                      <div
+                        key={i}
+                        className="mb-1.5 border-l-2 py-1 pl-2.5"
+                        style={{
+                          borderColor:
+                            s.kind === "gate" ? "var(--state-stop)" : s.kind === "done" ? "var(--state-go)" : "var(--hairline)",
+                          color: s.kind === "think" ? "var(--text-secondary)" : "inherit",
+                        }}
+                      >
+                        <span className="mr-2 text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                          {s.actor}
+                        </span>
+                        {s.text}
+                      </div>
+                    ))
+                  ) : (
+                    <span style={{ color: "var(--text-secondary)" }}>No steps yet.</span>
+                  )}
+                </div>
+              ) : null}
 
-function TaskModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
-  const [customerId, setCustomerId] = useState("");
-  const [title, setTitle] = useState("");
-  const [tier, setTier] = useState("Medium brain");
+              {tab === "gate" && job.gate ? (
+                <div className="text-[13px]">
+                  <p className="mb-3 leading-relaxed">{job.gate.what}</p>
+                  <Kv
+                    rows={[
+                      ["Blast radius", job.gate.blast ?? "—"],
+                      ["Cost", job.gate.cost ?? "$0"],
+                      ["Reversible", job.gate.irreversible ? <b style={{ color: "var(--state-stop)" }}>No</b> : "Yes"],
+                      ["Asked by", job.gate.askedBy ?? "—"],
+                      ["The wall", job.gate.guard ?? "—"],
+                    ]}
+                  />
+                  {gate ? (
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      <button className="btn-os brand" disabled={busy} onClick={() => act("approve", { gateId: gate.id })}>
+                        Approve{gate.irreversible ? " — I understand it sends" : ""}
+                      </button>
+                      <button className="btn-os" disabled={busy} onClick={() => act("reject", { gateId: gate.id })}>Reject</button>
+                    </div>
+                  ) : (
+                    <p className="mt-5 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
+                      Decided: {job.gate.status}.
+                    </p>
+                  )}
+                </div>
+              ) : null}
 
-  useEffect(() => {
-    fetch("/api/customers")
-      .then((r) => r.json())
-      .then((d) => {
-        setCustomers(d.customers || []);
-        setCustomerId(d.customers?.[0]?.id || "");
-      });
-  }, []);
+              {tab === "diff" ? (
+                job.change ? (
+                  <div className="text-[13px]">
+                    <Kv rows={[["Repo", <span key="r" className="font-mono">{job.change.repo}</span>], ["Branch", <span key="b" className="font-mono">{job.change.branch}</span>], ["State", job.change.status]]} />
+                    <pre className="mt-3 overflow-x-auto rounded-lg p-3 font-mono text-[12px]" style={{ background: "var(--surface-inset)" }}>
+                      {job.change.diff || "no files recorded"}
+                    </pre>
+                  </div>
+                ) : (
+                  <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>
+                    Nothing written yet. A session opens a branch with <span className="font-mono">open_branch</span>.
+                  </p>
+                )
+              ) : null}
 
-  const tiers = useMemo(
-    () => [
-      ["Small brain", "chores · $3 cap"],
-      ["Medium brain", "building · $10 cap"],
-      ["Big brain", "hard stuff · $20 cap"],
-    ],
-    [],
-  );
+              {tab === "scope" ? (
+                <Kv
+                  rows={[
+                    ["Goal", job.goal ?? "—"],
+                    ["Scope", job.scope ?? "—"],
+                    ["Risk", job.risk ?? "—"],
+                    ["Agent", <span key="a" className="font-mono">{job.agent ?? "—"}</span>],
+                  ]}
+                />
+              ) : null}
 
-  async function start() {
-    if (!title.trim() || !customerId) return;
-    await fetch("/api/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, customerId, tier }),
-    });
-    onCreated();
-  }
-
-  return (
-    <div className="fixed inset-0 z-[9900] flex items-center justify-center" style={{ background: "var(--scrim)" }}>
-      <div className="flex w-[480px] flex-col gap-3.5 rounded-[14px] p-[18px]" style={{ background: "var(--surface-raised)", border: "1px solid var(--hairline)" }}>
-        <div>
-          <div className="text-[15px] font-semibold">Give the AI a task</div>
-          <div className="mt-1 text-xs leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-            Describe it in plain words. It stays on a safe copy until you approve anything sensitive.
-          </div>
-        </div>
-        <div>
-          <div className="mb-1.5 text-[10px] uppercase tracking-[0.6px]" style={{ color: "var(--text-secondary)" }}>For which customer</div>
-          <div className="flex flex-wrap gap-1.5">
-            {customers.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setCustomerId(c.id)}
-                className="cursor-pointer rounded-lg border px-2.5 py-1.5 text-xs"
-                style={{
-                  background: customerId === c.id ? "var(--surface-inset)" : "transparent",
-                  borderColor: customerId === c.id ? "var(--brand)" : "var(--hairline)",
-                }}
-              >
-                {c.name}
-              </button>
-            ))}
-          </div>
-        </div>
-        <textarea
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="e.g. Add a dark mode to the customer dashboard"
-          className="h-[70px] resize-none rounded-lg border p-2.5 text-[13px] outline-none"
-          style={{ background: "var(--surface-inset)", borderColor: "var(--hairline)" }}
-        />
-        <div className="flex gap-1.5">
-          {tiers.map(([label, sub]) => (
-            <button
-              key={label}
-              onClick={() => setTier(label)}
-              className="flex flex-1 cursor-pointer flex-col items-center rounded-lg border py-2 text-xs"
-              style={{
-                background: tier === label ? "var(--surface-inset)" : "transparent",
-                borderColor: tier === label ? "var(--brand)" : "var(--hairline)",
-              }}
-            >
-              <span className="font-semibold">{label}</span>
-              <span className="text-[10.5px]" style={{ color: "var(--text-secondary)" }}>{sub}</span>
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <button onClick={start} className="flex-1 cursor-pointer rounded-lg py-2.5 text-[13px] font-semibold" style={{ background: "var(--state-running)", color: "#0B0C0E" }}>
-            Start the work
-          </button>
-          <button onClick={onClose} className="cursor-pointer rounded-lg border px-4 py-2.5 text-[13px]" style={{ background: "var(--btn)", borderColor: "var(--hairline)" }}>
-            Cancel
-          </button>
-        </div>
-      </div>
+              {tab === "walls" ? (
+                <>
+                  <Kv
+                    rows={[
+                      ["Customer", job.customer],
+                      ["Repo", <span key="r" className="font-mono">{job.repo ?? "none bound"}</span>],
+                      ["Branch", <span key="b" className="font-mono">{job.branch ?? "—"}</span>],
+                      ["Deploy", job.previewUrl ?? "no deploy yet"],
+                    ]}
+                  />
+                  <p className="mt-3 text-[12.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    A session that names another customer&apos;s repo gets a 403, not a merge — and so does the human
+                    holding the token.
+                  </p>
+                </>
+              ) : null}
+            </div>
+          </>
+        )}
+      </Dossier>
     </div>
   );
 }

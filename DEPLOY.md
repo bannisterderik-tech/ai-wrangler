@@ -101,3 +101,20 @@ it is a second service in the same project, off the same image, sharing the same
 
 Live Git branches, real Vercel deploys from jobs, cloud agent runtime (Head Wrangler is
 Claude Code on the operator's laptop over MCP), HubSpot, client portal, inbox ingest.
+
+## Vercel
+
+Vercel builds the **repo root** by default, and there is no app there — the root
+`package.json` has no dependencies and no lockfile, so the build fails before it
+starts. Three things to set:
+
+1. **Root Directory → `web`** in Project Settings. Without this nothing else matters.
+2. **Environment variables**, at build time as well as runtime:
+   `DATABASE_URL`, `AUTH_SECRET`, `TOKEN_ENCRYPTION_KEY` (exactly 64 hex chars —
+   `openssl rand -hex 32`), `OPERATOR_PASSWORD`. `src/lib/db.ts` throws at module
+   load without a database, and `src/lib/crypto.ts` now refuses to boot in
+   production on a malformed vault key. Both are deliberate.
+3. Expect the OS to work and the long-running side not to. `next.config.ts` sets
+   `output: "standalone"` because the job runner wants a box, not a function.
+
+Railway stays the target for the container.

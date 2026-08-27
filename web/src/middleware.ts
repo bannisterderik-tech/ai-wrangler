@@ -5,6 +5,7 @@ import { SESSION_COOKIE, authConfigured, readSession } from "@/lib/auth";
 const PUBLIC = [
   "/login",
   "/api/health",
+  "/api/mcp",
   "/api/auth/operator/password",
   "/api/auth/operator/github/start",
   "/api/auth/operator/github/callback",
@@ -18,7 +19,7 @@ export async function middleware(req: NextRequest) {
 
   if (!authConfigured()) {
     // No way to sign in means no way in. Never fall open.
-    if (isApi && !pathname.startsWith("/api/auth/") && pathname !== "/api/health") {
+    if (isApi && !isPublic) {
       return NextResponse.json(
         { error: "AI Wrangler has no login configured. Set OPERATOR_PASSWORD or GitHub OAuth." },
         { status: 503 },

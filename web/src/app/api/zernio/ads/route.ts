@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { guard } from "@/lib/api";
 import { createAd, listAds, setAdStatus } from "@/lib/zernio";
 
 export async function GET() {
+  const denied = await guard();
+  if (denied) return denied;
   try {
     return NextResponse.json(await listAds());
   } catch (e) {
@@ -10,6 +13,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = await guard();
+  if (denied) return denied;
   const body = await req.json();
   try {
     return NextResponse.json(
@@ -28,6 +33,8 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
+  const denied = await guard();
+  if (denied) return denied;
   const { id, status } = await req.json();
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
   try {
