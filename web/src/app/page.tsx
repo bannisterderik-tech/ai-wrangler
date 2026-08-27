@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ADS, CUSTOMERS, LEADS, customerName } from "@/lib/os-demo";
+import { ADS, CUSTOMERS, LEADS } from "@/lib/os-demo";
 import { useDialer } from "@/components/os/DialerDock";
 
 function Kpi({ l, n, s }: { l: string; n: string; s: string }) {
@@ -16,7 +16,7 @@ function Kpi({ l, n, s }: { l: string; n: string; s: string }) {
 
 export default function CommandPage() {
   const { dial } = useDialer();
-  const hot = LEADS.filter((l) => l.stage <= 1).slice(0, 6);
+  const hot = LEADS.filter((l) => l.kind !== "partner" && l.stage <= 1).slice(0, 6);
   const spend = ADS.reduce((a, x) => a + x.spend, 0);
   const leadsN = ADS.reduce((a, x) => a + x.leads, 0);
 
@@ -26,8 +26,7 @@ export default function CommandPage() {
         <div>
           <h3 className="m-0 text-[34px] leading-none tracking-tight">Good morning. Five trades. One war room.</h3>
           <p className="mt-2 max-w-[640px] text-[13.5px]" style={{ color: "var(--text-secondary)" }}>
-            Speed-to-lead is 47s. The AI is already texting storm leads, dialing the board, and spinning Zernio ads.
-            Isolation is on — Apex never sees Cascade&apos;s book.
+            Speed-to-lead is 47s. Inbound shops who want a site and the machine get a call before they bounce to a web guy on Facebook. Signed customers stay isolated.
           </p>
         </div>
         <div className="flex gap-2">
@@ -40,7 +39,7 @@ export default function CommandPage() {
         <Kpi l="Calls today" n="38" s="Twilio · 4 lines" />
         <Kpi l="SMS sent" n="126" s="A2P 10DLC live" />
         <Kpi l="Ad spend" n={`$${spend.toLocaleString()}`} s={`${leadsN} leads · Zernio`} />
-        <Kpi l="Booked estimates" n="14" s="+3 vs yesterday" />
+        <Kpi l="Demos booked" n="4" s="+2 vs yesterday" />
         <Kpi l="AI jobs live" n="2" s="Head Wrangler on box" />
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-3 gap-3 overflow-hidden px-5 pb-5">
@@ -52,7 +51,7 @@ export default function CommandPage() {
             {hot.map((l) => (
               <div key={l.id} className="flex items-start justify-between gap-2 border-b px-1 py-2.5" style={{ borderColor: "var(--hairline)" }}>
                 <div>
-                  <div className="text-[13px] font-semibold">{l.name} · {customerName(l.cust)}</div>
+                  <div className="text-[13px] font-semibold">{l.company} · {l.name}</div>
                   <div className="mt-1 text-xs" style={{ color: "var(--text-secondary)" }}>{l.note}</div>
                 </div>
                 <div className="flex shrink-0 gap-1">

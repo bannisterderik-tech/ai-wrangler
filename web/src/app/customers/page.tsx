@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ADS, CUSTOMERS, LEADS, customerName, money } from "@/lib/os-demo";
+import { ADS, CUSTOMERS, money } from "@/lib/os-demo";
 import { Dossier, Kv, Rail, RollItem, Tabs } from "@/components/os/Dossier";
 
 const TABS: [string, string][] = [
@@ -22,13 +22,11 @@ export default function CustomersPage() {
   const [tab, setTab] = useState("overview");
   const c = CUSTOMERS.find((x) => x.id === id) || CUSTOMERS[0];
   const ads = ADS.filter((a) => a.cust === c.id);
-  const leads = LEADS.filter((l) => l.cust === c.id);
-  const inPlay = leads.filter((l) => l.stage < 4).length;
 
   const body = {
-    overview: <Kv rows={[["Trade", c.trade], ["Market", c.city], ["Rank", `#${c.rank} · ${c.share}`], ["Retainer", `${money(c.mrr)}/mo`], ["Live leads", String(inPlay)]]} />,
-    people: <p className="text-[13px]">Owner, CSR, estimator live on this book. Call/SMS from the lead desk, isolated to this customer.</p>,
-    funnel: <div>{leads.map((l) => <div key={l.id} className="flex justify-between border-b py-2 text-[13px]" style={{ borderColor: "var(--hairline)" }}><span>{l.name}</span><span style={{ color: "var(--text-secondary)" }}>{l.note}</span></div>)}</div>,
+    overview: <Kv rows={[["Trade", c.trade], ["Market", c.city], ["Rank", `#${c.rank} · ${c.share}`], ["Retainer", `${money(c.mrr)}/mo`], ["What we sell them", "Site · ads · Twilio · AI — not their roof calls"]]} />,
+    people: <p className="text-[13px]">Owner, CSR, estimator at the shop. Call/SMS from Inbox. Isolated to this customer.</p>,
+    funnel: <p className="text-[13px]" style={{ color: "var(--text-secondary)" }}>Their homeowner jobs are not Wrangler leads. We run the site, the ads, the number. Storm calls stay in their world.</p>,
     build: <Kv rows={[["GitHub", `${c.id}/site`], ["Vercel", `${c.id}.vercel.app`], ["Jobs", "isolated worktree"]]} />,
     dominate: <div>{ads.map((a) => <div key={a.id} className="flex justify-between border-b py-2 text-[13px]" style={{ borderColor: "var(--hairline)" }}><span>{a.name}</span><span className="font-mono">{a.platform} · {money(a.spend)}</span></div>)}</div>,
     phone: <Kv rows={[["DID", "one number, this book only"], ["A2P", "10DLC per brand"], ["Missed call", "SMS in 20s"]]} />,
@@ -42,7 +40,7 @@ export default function CustomersPage() {
       list={CUSTOMERS.map((r) => (
         <RollItem key={r.id} on={r.id === c.id} title={r.name} meta={`${r.city} · #${r.rank} · ${money(r.mrr)}/mo`} onClick={() => { setId(r.id); setTab("overview"); }} />
       ))}
-      rail={<Rail title="Open their pipeline" why={`${inPlay} leads in play for ${customerName(c.id)}. Isolation is on.`} onDo={() => { window.location.href = "/pipeline"; }} />}
+      rail={<Rail title="Open live work" why={`Jobs we run for ${c.name} stay behind their wall.`} onDo={() => { window.location.href = "/work"; }} />}
     >
       <div className="border-b px-4 pt-4 pb-2" style={{ borderColor: "var(--hairline)" }}>
         <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--brand-text)" }}>{c.trade}</div>

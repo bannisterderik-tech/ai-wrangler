@@ -1,6 +1,6 @@
 /** Frontend seed for the domination OS. Live Twilio/Zernio replace this when keys exist. */
 
-export const STAGES = ["New", "Speed-to-lead", "Estimate", "Won", "Customer"] as const;
+export const STAGES = ["New", "Talking", "Proposal", "Won", "Customer"] as const;
 
 export const CUSTOMERS = [
   { id: "apex", name: "Apex Roofing", city: "Red Bluff, CA", trade: "Roofing", mrr: 4500, rank: 2, share: "18%" },
@@ -10,35 +10,33 @@ export const CUSTOMERS = [
   { id: "valley", name: "Valley Pest", city: "Tehama County", trade: "Pest", mrr: 2200, rank: 1, share: "22%" },
 ] as const;
 
-export type LeadKind = "lead" | "prospect" | "customer" | "partner";
+export type LeadKind = "lead" | "partner";
 
 export type Lead = {
   id: string;
   name: string;
+  company: string;
+  trade: string;
   phone: string;
   kind: LeadKind;
-  cust: string;
   src: string;
   score: number;
   stage: number;
   city: string;
   note: string;
   sla: number;
+  value: number;
 };
 
 export const LEADS: Lead[] = [
-  { id: "L1", name: "Maria Delgado", phone: "+1 530 555 0142", kind: "lead", cust: "apex", src: "Google LSA", score: 94, stage: 0, city: "Red Bluff", note: "Storm leak over garage. Wants tarp today.", sla: 38 },
-  { id: "L2", name: "James Whitaker", phone: "+1 530 555 0199", kind: "lead", cust: "apex", src: "Meta lead ad", score: 81, stage: 1, city: "Los Molinos", note: "Asphalt shingle, 22sq, insurance claim.", sla: 12 },
-  { id: "L3", name: "Priya Shah", phone: "+1 530 555 0114", kind: "prospect", cust: "cascade", src: "LSA", score: 88, stage: 2, city: "Redding", note: "Furnace out. Elderly. After-hours.", sla: 4 },
-  { id: "L4", name: "Tom Nguyen", phone: "+1 530 555 0177", kind: "lead", cust: "ironclad", src: "Angi", score: 72, stage: 0, city: "Chico", note: "Slab leak suspected. Two baths down.", sla: 51 },
-  { id: "L5", name: "Helen Brooks", phone: "+1 530 555 0108", kind: "customer", cust: "apex", src: "Referral", score: 99, stage: 4, city: "Red Bluff", note: "Full reroof 2025. Review outstanding.", sla: 0 },
-  { id: "L6", name: "Derek Holt", phone: "+1 530 555 0160", kind: "lead", cust: "ridge", src: "TikTok", score: 76, stage: 1, city: "Corning", note: "Panel upgrade for EV charger.", sla: 22 },
-  { id: "L7", name: "Sofia Alvarez", phone: "+1 530 555 0125", kind: "prospect", cust: "valley", src: "Nextdoor", score: 85, stage: 2, city: "Tehama", note: "Termite swarm. Inspection booked Thu.", sla: 0 },
-  { id: "L8", name: "Ken Williamson", phone: "+1 970 555 0144", kind: "partner", cust: "apex", src: "Trade", score: 90, stage: 4, city: "Montrose", note: "Sends 4–6 roofing jobs / month.", sla: 0 },
-  { id: "L9", name: "Anita Cole", phone: "+1 530 555 0182", kind: "lead", cust: "cascade", src: "Google", score: 69, stage: 0, city: "Anderson", note: "AC quote vs two competitors.", sla: 63 },
-  { id: "L10", name: "Luis Ortega", phone: "+1 530 555 0133", kind: "lead", cust: "apex", src: "Storm list", score: 91, stage: 2, city: "Red Bluff", note: "Hail 1.25\". Adjuster on site Friday.", sla: 0 },
-  { id: "L11", name: "Megan Fitch", phone: "+1 530 555 0155", kind: "prospect", cust: "ironclad", src: "SMS blast", score: 64, stage: 1, city: "Durham", note: "Water heater 14yrs. Financing ask.", sla: 19 },
-  { id: "L12", name: "Chris Patel", phone: "+1 530 555 0190", kind: "customer", cust: "cascade", src: "Won", score: 86, stage: 4, city: "Redding", note: "Maintenance plan. Upsell UV light.", sla: 0 },
+  { id: "L1", name: "Jake Summit", company: "Summit Roofing", trade: "Roofing", phone: "+1 530 555 4401", kind: "lead", src: "Apex case study", score: 94, stage: 0, city: "Redding, CA", note: "Wants the Apex machine: site + LSA + 60s SMS.", sla: 38, value: 4500 },
+  { id: "L2", name: "Lisa Park", company: "North Valley HVAC", trade: "HVAC", phone: "+1 530 555 4418", kind: "lead", src: "Inbound form", score: 88, stage: 1, city: "Chico, CA", note: "CSR drowned. Needs after-hours AI + new site.", sla: 12, value: 3800 },
+  { id: "L3", name: "Owen Diaz", company: "River City Electric", trade: "Electrical", phone: "+1 530 555 4470", kind: "lead", src: "Ken Williamson", score: 81, stage: 0, city: "Red Bluff, CA", note: "No website. GBP from 2019. EV-panel demand, zero capture.", sla: 51, value: 2800 },
+  { id: "L4", name: "Sam Ruiz", company: "Tehama Air & Heat", trade: "HVAC", phone: "+1 530 555 4422", kind: "lead", src: "Demo", score: 91, stage: 2, city: "Corning, CA", note: "Proposal out: site rebuild + reviews + LSA.", sla: 0, value: 3200 },
+  { id: "L5", name: "Gina Holt", company: "Holt Plumbing Co", trade: "Plumbing", phone: "+1 530 555 4430", kind: "lead", src: "Google", score: 76, stage: 1, city: "Red Bluff, CA", note: "Jobber + a Wix page. Wants isolation + ads.", sla: 22, value: 3000 },
+  { id: "L6", name: "Marcus Bell", company: "Bell Brothers Roofing", trade: "Roofing", phone: "+1 530 555 4441", kind: "lead", src: "Partner ping", score: 72, stage: 0, city: "Redding, CA", note: "Buying Angi. Close rate 9%. Asked for a teardown.", sla: 63, value: 4200 },
+  { id: "L7", name: "Priya Shah", company: "Shah Pest Control", trade: "Pest", phone: "+1 530 555 4455", kind: "lead", src: "Referral", score: 85, stage: 3, city: "Tehama, CA", note: "Won — DocuSign. Kickoff: GBP + click-to-call site.", sla: 0, value: 2200 },
+  { id: "L8", name: "Ken Williamson", company: "Williamson Water", trade: "Water", phone: "+1 970 555 0144", kind: "partner", src: "Trade", score: 90, stage: 4, city: "Montrose, CO", note: "Sends roofing/HVAC owners our way.", sla: 0, value: 0 },
 ];
 
 export const ADS = [
@@ -58,17 +56,21 @@ export const PARTNERS = [
 ];
 
 export const SMS_TEMPLATES = [
-  { id: "T1", name: "60s speed-to-lead", body: "Hey {name} — this is {company}. Got your request about {job}. Can you take a 2-min call so we can get you on today's board?" },
-  { id: "T2", name: "Estimate confirm", body: "{name}, you're on the board for Thursday 7:30a. Reply 1 to confirm, 2 to move it. — {company}" },
-  { id: "T3", name: "Review ask", body: "{name} — glad we got you taken care of. Mind a 20-second Google review? It helps the crew." },
-  { id: "T4", name: "Partner ping", body: "Hey {name} — sending you a warm one in {city}. You free to take it this week?" },
+  { id: "T1", name: "Book the teardown", body: "Hey {name} — Wrangler here. Got your note about {job}. Got 20 min this week for a teardown of the current site + ads?" },
+  { id: "T2", name: "Apex proof", body: "{name} — this is the storm page we shipped for Apex in Red Bluff. Same machine, your market." },
+  { id: "T3", name: "Proposal nudge", body: "{name} — proposal's in your inbox. Site + LSA + Twilio 60s SLA. Reply 1 and we kick off Monday." },
+  { id: "T4", name: "Partner ping", body: "Hey {name} — sending you a warm owner in {city} who needs a site. You free to intro?" },
 ];
 
 export const DIALER_SCRIPT =
-  "Hey {name}, this is Wrangler on the line for {company} — you just requested help with {job}.\n\n1. Confirm the address and the pain.\n2. Ask: is anyone home in the next 90 minutes?\n3. Book the estimate. Don't quote a number on the first call.\n4. If insurance: get carrier + claim #.\n5. Text the calendar hold before you hang up.";
+  "Hey {name}, this is Wrangler — you asked about a site and the lead machine for {company}.\n\n1. Confirm trade + market. Don't pitch yet.\n2. What's broken: website, GBP, ads, after-hours, reviews.\n3. Book a 20-min teardown. Don't quote a retainer on this call.\n4. Send the Apex case study after you hang up.";
 
 export function customerName(id: string) {
   return CUSTOMERS.find((c) => c.id === id)?.name || id;
+}
+
+export function leadCompany(l: { company?: string; name: string }) {
+  return l.company || l.name;
 }
 
 export const PROSPECT_STAGES = ["New", "Talking", "Proposal", "Won"] as const;

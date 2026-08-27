@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LEADS, SMS_TEMPLATES, customerName } from "@/lib/os-demo";
+import { LEADS, SMS_TEMPLATES } from "@/lib/os-demo";
 import { useDialer } from "@/components/os/DialerDock";
 
 type Msg = { dir: "in" | "out"; t: string; ch?: string };
@@ -21,15 +21,15 @@ type Thread = {
 };
 
 const SEED: Record<string, Msg[]> = {
-  L1: [{ dir: "in", t: "Roof leaking over the garage since last night." }, { dir: "out", t: "On it. Can you take a 2-min call?" }],
-  L3: [{ dir: "out", t: "Furnace crew is 40 min out. Stay warm." }],
-  L8: [{ dir: "out", t: "Sending you the Red Bluff reroof that came in at 8:14." }, { dir: "in", t: "Got it. I'll take it." }],
+  L1: [{ dir: "in", t: "Saw what you did for Apex. Can you do the site + ads for us?" }, { dir: "out", t: "Yes. 20 min teardown this week." }],
+  L2: [{ dir: "in", t: "Our CSR is drowning and nights go to voicemail." }],
+  L8: [{ dir: "out", t: "Sending you a Redding roofer who needs a site." }, { dir: "in", t: "Got it. I'll intro." }],
 };
 
 const OPS: Thread[] = [
   { id: "I1", name: "Maya @ Apex", phone: "", kind: "client", via: "sms", book: "Apex Roofing", preview: "Can the AI text storm leads in under a minute?", unread: true, sla: 0, wrangle: true, task: "Turn on 60s SMS SLA" },
   { id: "I2", name: "Dev @ Cascade", phone: "", kind: "client", via: "email", book: "Cascade HVAC", preview: "We're losing after-hours calls to the big guys.", unread: true, sla: 0, wrangle: true, task: "Night receptionist + Twilio overflow" },
-  { id: "VM1", name: "Missed · 530-555-0199", phone: "+1 530 555 0199", kind: "lead", via: "vm", book: "Apex Roofing", preview: "Voicemail 0:18 — garage is leaking, please call", unread: true, sla: 92, wrangle: false },
+  { id: "VM1", name: "Missed · 530-555-4401", phone: "+1 530 555 4401", kind: "lead", via: "vm", book: "Summit Roofing", preview: "Voicemail 0:18 — need a website like Apex, please call", unread: true, sla: 92, wrangle: false },
 ];
 
 const CHANS: [string, string][] = [
@@ -58,9 +58,9 @@ export default function InboxPage() {
         id: l.id,
         name: l.name,
         phone: l.phone,
-        kind: l.kind === "partner" ? "partner" : l.kind === "customer" ? "homeowner" : "lead",
+        kind: l.kind === "partner" ? "partner" : "lead",
         via: "sms",
-        book: customerName(l.cust),
+        book: l.company,
         preview: last?.t || l.note,
         unread: msgs.length === 0 || last?.dir === "in",
         sla: l.sla,
@@ -90,7 +90,7 @@ export default function InboxPage() {
 
   const fill = (tpl: string) => {
     if (!l) return tpl;
-    return tpl.replace("{name}", l.name.split(" ")[0]).replace("{company}", customerName(l.cust)).replace("{job}", l.note).replace("{city}", l.city);
+    return tpl.replace("{name}", l.name.split(" ")[0]).replace("{company}", l.company).replace("{job}", l.note).replace("{city}", l.city);
   };
 
   async function send(e: React.FormEvent) {
@@ -171,7 +171,7 @@ export default function InboxPage() {
         {l ? (
           <div className="mt-4 rounded-xl border p-3" style={{ borderColor: "var(--hairline)" }}>
             <b>{l.name}</b>
-            <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>{customerName(l.cust)} · {l.note}</p>
+            <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>{l.company} · {l.note}</p>
             <button className="btn-os brand mt-2" onClick={() => router.push("/leads")}>Open dossier</button>
           </div>
         ) : null}

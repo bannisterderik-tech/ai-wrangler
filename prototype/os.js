@@ -44,7 +44,7 @@
     playbooks: "Playbooks",
     settings: "Settings",
   };
-  const STAGES = ["New", "Speed-to-lead", "Estimate", "Won", "Customer"];
+  const STAGES = ["New", "Talking", "Proposal", "Won", "Customer"];
   const CUST = [
     { id: "apex", name: "Apex Roofing", city: "Red Bluff, CA", trade: "Roofing", mrr: 4500, rank: 2, share: "18%" },
     { id: "cascade", name: "Cascade HVAC", city: "Redding, CA", trade: "HVAC", mrr: 3800, rank: 4, share: "11%" },
@@ -53,18 +53,14 @@
     { id: "valley", name: "Valley Pest", city: "Tehama County", trade: "Pest", mrr: 2200, rank: 1, share: "22%" },
   ];
   const LEADS = [
-    { id: "L1", name: "Maria Delgado", phone: "+1 530 555 0142", kind: "lead", cust: "apex", src: "Google LSA", score: 94, stage: 0, city: "Red Bluff", note: "Storm leak over garage. Wants tarp today.", sla: 38 },
-    { id: "L2", name: "James Whitaker", phone: "+1 530 555 0199", kind: "lead", cust: "apex", src: "Meta lead ad", score: 81, stage: 1, city: "Los Molinos", note: "Asphalt shingle, 22sq, insurance claim.", sla: 12 },
-    { id: "L3", name: "Priya Shah", phone: "+1 530 555 0114", kind: "prospect", cust: "cascade", src: "LSA", score: 88, stage: 2, city: "Redding", note: "Furnace out. Elderly. After-hours.", sla: 4 },
-    { id: "L4", name: "Tom Nguyen", phone: "+1 530 555 0177", kind: "lead", cust: "ironclad", src: "Angi", score: 72, stage: 0, city: "Chico", note: "Slab leak suspected. Two baths down.", sla: 51 },
-    { id: "L5", name: "Helen Brooks", phone: "+1 530 555 0108", kind: "customer", cust: "apex", src: "Referral", score: 99, stage: 4, city: "Red Bluff", note: "Full reroof 2025. Review outstanding.", sla: 0 },
-    { id: "L6", name: "Derek Holt", phone: "+1 530 555 0160", kind: "lead", cust: "ridge", src: "TikTok", score: 76, stage: 1, city: "Corning", note: "Panel upgrade for EV charger.", sla: 22 },
-    { id: "L7", name: "Sofia Alvarez", phone: "+1 530 555 0125", kind: "prospect", cust: "valley", src: "Nextdoor", score: 85, stage: 2, city: "Tehama", note: "Termite swarm. Inspection booked Thu.", sla: 0 },
-    { id: "L8", name: "Ken Williamson", phone: "+1 970 555 0144", kind: "partner", cust: "apex", src: "Trade", score: 90, stage: 4, city: "Montrose", note: "Sends 4–6 roofing jobs / month.", sla: 0 },
-    { id: "L9", name: "Anita Cole", phone: "+1 530 555 0182", kind: "lead", cust: "cascade", src: "Google", score: 69, stage: 0, city: "Anderson", note: "AC quote vs two competitors.", sla: 63 },
-    { id: "L10", name: "Luis Ortega", phone: "+1 530 555 0133", kind: "lead", cust: "apex", src: "Storm list", score: 91, stage: 2, city: "Red Bluff", note: "Hail 1.25\". Adjuster on site Friday.", sla: 0 },
-    { id: "L11", name: "Megan Fitch", phone: "+1 530 555 0155", kind: "prospect", cust: "ironclad", src: "SMS blast", score: 64, stage: 1, city: "Durham", note: "Water heater 14yrs. Financing ask.", sla: 19 },
-    { id: "L12", name: "Chris Patel", phone: "+1 530 555 0190", kind: "customer", cust: "cascade", src: "Won", score: 86, stage: 4, city: "Redding", note: "Maintenance plan. Upsell UV light.", sla: 0 },
+    { id: "L1", name: "Jake Summit", company: "Summit Roofing", trade: "Roofing", phone: "+1 530 555 4401", kind: "lead", src: "Apex case study", score: 94, stage: 0, city: "Redding, CA", note: "Wants the Apex machine: site + LSA + 60s SMS.", sla: 38, value: 4500 },
+    { id: "L2", name: "Lisa Park", company: "North Valley HVAC", trade: "HVAC", phone: "+1 530 555 4418", kind: "lead", src: "Inbound form", score: 88, stage: 1, city: "Chico, CA", note: "CSR drowned. Needs after-hours AI + new site.", sla: 12, value: 3800 },
+    { id: "L3", name: "Owen Diaz", company: "River City Electric", trade: "Electrical", phone: "+1 530 555 4470", kind: "lead", src: "Ken Williamson", score: 81, stage: 0, city: "Red Bluff, CA", note: "No website. GBP from 2019. EV-panel demand, zero capture.", sla: 51, value: 2800 },
+    { id: "L4", name: "Sam Ruiz", company: "Tehama Air & Heat", trade: "HVAC", phone: "+1 530 555 4422", kind: "lead", src: "Demo", score: 91, stage: 2, city: "Corning, CA", note: "Proposal out: site rebuild + reviews + LSA.", sla: 0, value: 3200 },
+    { id: "L5", name: "Gina Holt", company: "Holt Plumbing Co", trade: "Plumbing", phone: "+1 530 555 4430", kind: "lead", src: "Google", score: 76, stage: 1, city: "Red Bluff, CA", note: "Jobber + a Wix page. Wants isolation + ads.", sla: 22, value: 3000 },
+    { id: "L6", name: "Marcus Bell", company: "Bell Brothers Roofing", trade: "Roofing", phone: "+1 530 555 4441", kind: "lead", src: "Partner ping", score: 72, stage: 0, city: "Redding, CA", note: "Buying Angi. Close rate 9%. Asked for a teardown.", sla: 63, value: 4200 },
+    { id: "L7", name: "Priya Shah", company: "Shah Pest Control", trade: "Pest", phone: "+1 530 555 4455", kind: "lead", src: "Referral", score: 85, stage: 3, city: "Tehama, CA", note: "Won — DocuSign. Kickoff: GBP + click-to-call site.", sla: 0, value: 2200 },
+    { id: "L8", name: "Ken Williamson", company: "Williamson Water", trade: "Water", phone: "+1 970 555 0144", kind: "partner", src: "Trade", score: 90, stage: 4, city: "Montrose, CO", note: "Sends roofing/HVAC owners our way.", sla: 0, value: 0 },
   ];
   const ADS = [
     { id: "A1", cust: "apex", platform: "google", name: "Roof replacement — Red Bluff 20mi", status: "active", spend: 1840, leads: 41, cpl: 44.88, roas: 6.2, goal: "leads" },
@@ -90,18 +86,17 @@
     { id: "I2", from: "Dev @ Cascade", via: "email", text: "We're losing after-hours calls to the big guys.", task: "Night receptionist + Twilio overflow" },
   ];
   const TEMPLATES = [
-    { id: "T1", name: "60s speed-to-lead", body: "Hey {name} — this is {company}. Got your request about {job}. Can you take a 2-min call so we can get you on today's board?" },
-    { id: "T2", name: "Estimate confirm", body: "{name}, you're on the board for {when}. Reply 1 to confirm, 2 to move it. — {company}" },
-    { id: "T3", name: "Review ask", body: "{name} — glad we got you taken care of. Mind a 20-second Google review? It helps the crew. {link}" },
-    { id: "T4", name: "Partner ping", body: "Hey {name} — sending you a warm one in {city}. You free to take it this week?" },
+    { id: "T1", name: "Book the teardown", body: "Hey {name} — Wrangler here. Got your note about {job}. Got 20 min this week for a teardown of the current site + ads?" },
+    { id: "T2", name: "Apex proof", body: "{name} — this is the storm page we shipped for Apex in Red Bluff. Same machine, your market. {link}" },
+    { id: "T3", name: "Proposal nudge", body: "{name} — proposal's in your inbox. Site + LSA + Twilio 60s SLA. Reply 1 and we kick off Monday." },
+    { id: "T4", name: "Partner ping", body: "Hey {name} — sending you a warm owner in {city} who needs a site. You free to intro?" },
   ];
-  const SCRIPT = `Hey {name}, this is Wrangler on the line for {company} — you just requested help with {job}.
+  const SCRIPT = `Hey {name}, this is Wrangler — you asked about a site and the lead machine for {company}.
 
-1. Confirm the address and the pain (leak / no heat / no power).
-2. Ask: is anyone home in the next 90 minutes?
-3. Book the estimate. Don't quote a number on the first call.
-4. If insurance: get carrier + claim #.
-5. Text the calendar hold before you hang up.`;
+1. Confirm trade + market. Don't pitch yet.
+2. What's broken: website, GBP, ads, after-hours, reviews.
+3. Book a 20-min teardown. Don't quote a retainer on this call.
+4. Send the Apex case study after you hang up.`;
 
   const state = {
     page: "command",
@@ -123,9 +118,9 @@
     chan: "all",
     tick: 0,
     convos: {
-      L1: [{ dir: "in", t: "Roof leaking over the garage since last night." }, { dir: "out", t: "On it. Can you take a 2-min call?" }],
-      L3: [{ dir: "out", t: "Furnace crew is 40 min out. Stay warm — extra blankets on us if needed." }],
-      L8: [{ dir: "out", t: "Sending you the Red Bluff reroof that came in at 8:14." }, { dir: "in", t: "Got it. I'll take it." }],
+      L1: [{ dir: "in", t: "Saw what you did for Apex. Can you do the site + ads for us?" }, { dir: "out", t: "Yes. 20 min teardown this week — I'll show the machine, not a deck." }],
+      L2: [{ dir: "in", t: "Our CSR is drowning and nights go to voicemail." }],
+      L8: [{ dir: "out", t: "Sending you a Redding roofer who needs a site." }, { dir: "in", t: "Got it. I'll intro." }],
     },
     audit: [],
     integrations: {
@@ -161,21 +156,25 @@
     location.hash = "#/" + page;
     render();
   };
-  const filterLeads = () => LEADS.filter((l) => state.filter === "all" || l.cust === state.filter);
+  const filterLeads = () => LEADS.filter((l) => l.kind !== "partner" && (state.filter === "all" || l.trade === state.filter));
   const jobLeads = () => LEADS.filter((l) => l.kind !== "partner");
   const PX = WR.PROSPECTS || [];
+  const leadCo = (l) => l.company || l.trade || "";
   function ld(l) {
     return Object.assign({
-      email: (l.name.split(" ")[0].toLowerCase()) + "@gmail.com",
-      addr: l.city + ", CA", year: "—",
+      email: (l.name.split(" ")[0].toLowerCase()) + "@" + (l.company || "shop").toLowerCase().replace(/[^a-z0-9]+/g, "") + ".com",
       temp: l.score > 85 ? "hot" : l.score > 70 ? "warm" : "cold",
-      assigned: "Board", opt: { call: true, sms: true, email: false }, dnc: false,
-      people: [{ name: l.name, role: "Contact", phone: l.phone }],
-      job: { trade: cust(l.cust).trade, issue: l.note, squares: "—", material: "—", insurance: "—", tarp: "—", access: "—", photos: 0 },
-      money: { estimate: 0, deposit: 0, financed: "—", competitor: "—" },
-      attrib: { campaign: l.src, network: l.src, keyword: "—", landing: "/", partner: null, firstTouch: "—" },
-      appts: [], tasks: [{ t: "Speed-to-lead call", done: false }, { t: "SMS confirm", done: false }], files: [],
-      next: { title: "Call " + l.name.split(" ")[0], why: l.note, do: "dial" },
+      assigned: "You",
+      website: "none / dying",
+      stack: "unknown",
+      pain: l.note,
+      scope: "Site · GBP · LSA · Twilio 60s SLA",
+      people: [{ name: l.name, role: "Owner", phone: l.phone }],
+      money: { mrr: l.value || 0, term: "12 mo", competitor: "Angi / DIY ads" },
+      attrib: { campaign: l.src, network: l.src, partner: null, firstTouch: "—" },
+      tasks: [{ t: "Call the owner", done: false }, { t: "Book 20-min teardown", done: false }, { t: "Send Apex case study", done: false }],
+      files: [],
+      next: { title: "Call " + l.name.split(" ")[0] + " at " + (l.company || "the shop"), why: l.note, do: "dial" },
     }, (WR.LEAD_X && WR.LEAD_X[l.id]) || {});
   }
   function cd(id) {
@@ -216,8 +215,8 @@
       const last = msgs[msgs.length - 1];
       out.push({
         id: l.id, name: l.name, phone: l.phone,
-        kind: l.kind === "partner" ? "partner" : l.kind === "customer" ? "homeowner" : "lead",
-        via: "sms", book: cust(l.cust).name,
+        kind: l.kind === "partner" ? "partner" : "lead",
+        via: "sms", book: leadCo(l),
         preview: last ? last.t : l.note,
         unread: msgs.length === 0 || last?.dir === "in",
         sla: l.sla, wrangle: false,
@@ -238,7 +237,7 @@
     out.push({
       id: "VM1", name: "Missed · 530-555-0199", phone: "+1 530 555 0199",
       kind: "lead", via: "vm", book: "Apex Roofing",
-      preview: "Voicemail 0:18 — “garage is leaking, please call”",
+      preview: "Voicemail 0:18 — “need a website like Apex, please call”",
       unread: !(state.convos.VM1 && state.convos.VM1.length), sla: 92, wrangle: false,
     });
     const chan = state.chan || "all";
@@ -268,13 +267,13 @@
     const sms = 126;
     const spend = ADS.reduce((a, x) => a + x.spend, 0);
     const leadsN = ADS.reduce((a, x) => a + x.leads, 0);
-    const hot = LEADS.filter((l) => l.stage <= 1).slice(0, 6);
+    const hot = jobLeads().filter((l) => l.stage <= 1).slice(0, 6);
     return `
       <div class="page">
         <div class="hero">
           <div>
             <h3>Good morning. Five trades. One war room.</h3>
-            <p>Speed-to-lead is ${speed}. The AI is already texting storm leads, dialing the board, and spinning Zernio ads while you drink the coffee. Isolation is on — Apex never sees Cascade's book.</p>
+            <p>Speed-to-lead is ${speed}. Inbound shops who want a site and the machine get a call before they bounce to a web guy on Facebook. Signed customers stay isolated.</p>
           </div>
           <div class="top-actions">
             <button class="btn brand" data-act="power">Start power dial</button>
@@ -286,7 +285,7 @@
           ${kpi("Calls today", calls, "Twilio · 4 lines")}
           ${kpi("SMS sent", sms, "A2P 10DLC live", "up")}
           ${kpi("Ad spend", money(spend), leadsN + " leads · Zernio")}
-          ${kpi("Booked estimates", "14", "+3 vs yesterday", "up")}
+          ${kpi("Demos booked", "4", "+2 vs yesterday", "up")}
           ${kpi("AI jobs live", JOBS.filter((j) => j.status === "working" || j.status === "thinking").length, "Head Wrangler on box")}
         </div>
         <div class="grid-3">
@@ -295,7 +294,7 @@
             <div class="body">${hot.map((l) => `
               <div class="row">
                 <div>
-                  <div><b>${esc(l.name)}</b> · ${esc(cust(l.cust).name)}</div>
+                  <div><b>${esc(l.company || l.name)}</b> · ${esc(l.name)}</div>
                   <div class="m" style="color:var(--muted);font-size:12px;margin-top:3px">${esc(l.note)}</div>
                 </div>
                 <div style="display:flex;gap:6px;flex:none">
@@ -322,9 +321,9 @@
               ${[
                 ["AI", "go", "Zernio · Apex Google RSA is 2.1× impression share vs last week."],
                 ["You", "wait", "Approval needed: Cascade after-hours SMS blast (46 opted-in)."],
-                ["Twilio", "info", "Inbound from 530-555-0142 — routed to Apex storm queue."],
-                ["AI", "go", "Booked Priya Shah estimate Thursday 7:30a."],
-                ["Partner", "brand", "Ken Williamson sent a reroof. Auto-texted in 19s."],
+                ["Twilio", "info", "Inbound from Summit Roofing — wants the Apex machine."],
+                ["AI", "go", "Tehama Air proposal sitting 2 days — nudge queued."],
+                ["Partner", "brand", "Ken Williamson intro'd River City Electric."],
               ].map((x) => `<div class="row"><span class="pill ${x[1]}">${x[0]}</span><div style="flex:1;font-size:12.5px">${x[2]}</div></div>`).join("")}
             </div>
           </div>
@@ -337,16 +336,16 @@
     return `
       <div class="page">
         <div class="statline">
-          <span>Full-screen board · every lead the agency touches</span>
-          <select data-act="filter">${[["all", "All books"], ...CUST.map((c) => [c.id, c.name])].map(([v, n]) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
+          <span>Wrangler sales board — shops who want a site and the machine</span>
+          <select data-act="filter">${[["all", "All trades"], ...[...new Set(jobLeads().map((l) => l.trade))].map((t) => [t, t])].map(([v, n]) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>
         </div>
         <div class="board">${STAGES.map((name, i) => {
           const cards = rows.filter((l) => l.stage === i);
           return `<div class="col"><div class="hd"><span>${name}</span><span>${cards.length}</span></div>
             <div class="stack">${cards.map((l) => `
               <div class="deal">
-                <b>${esc(l.name)}</b>
-                <div class="meta"><span>${esc(cust(l.cust).name)}</span><span class="mono">${esc(l.phone)}</span></div>
+                <b>${esc(l.company || l.name)}</b>
+                <div class="meta"><span>${esc(l.name)} · ${esc(l.trade)}</span><span class="mono">${esc(l.phone)}</span></div>
                 <div class="meta"><span>${esc(l.src)}</span><span>score ${l.score}</span></div>
                 <div style="font-size:12px;color:var(--muted);margin-top:6px">${esc(l.note)}</div>
                 <div class="acts">
@@ -364,65 +363,63 @@
     const rows = jobLeads();
     const l = lead(state.lead) && lead(state.lead).kind !== "partner" ? lead(state.lead) : rows[0];
     const x = ld(l);
-    const c = cust(l.cust);
     const tab = state.tab || "overview";
-    const tabs = [["overview", "Overview"], ["job", "Job"], ["comms", "Comms"], ["tasks", "Tasks"], ["money", "Money"], ["files", "Files"], ["attrib", "Source"], ["history", "History"]];
-    const opt = `${x.opt.call ? "Call" : "no-call"} · ${x.opt.sms ? "SMS" : "no-SMS"} · ${x.dnc ? "DNC" : "callable"}`;
+    const tabs = [["overview", "Overview"], ["discovery", "Discovery"], ["scope", "Scope"], ["comms", "Comms"], ["tasks", "Tasks"], ["money", "Money"], ["files", "Files"], ["source", "Source"]];
+    const talk = SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", leadCo(l)).replace("{job}", l.note);
     let body = "";
     if (tab === "overview") body = `${kv([
-      ["Book", `<b>${esc(c.name)}</b> · ${esc(c.trade)}`],
+      ["Company", `<b>${esc(l.company)}</b>`],
+      ["Trade", esc(l.trade)],
+      ["Market", esc(l.city)],
+      ["Contact", esc(l.name) + " · owner"],
       ["Stage", STAGES[l.stage]],
       ["Score", `<span class="temp-${x.temp}">${l.score} · ${x.temp}</span>`],
-      ["SLA", l.sla ? l.sla + "s" : "ok"],
       ["Phone", `<span class="mono">${esc(l.phone)}</span>`],
       ["Email", esc(x.email)],
-      ["Address", esc(x.addr)],
-      ["Year built", esc(x.year)],
-      ["Assigned", esc(x.assigned)],
-      ["Consent", opt],
+      ["Website", esc(x.website)],
       ["Source", esc(l.src)],
-    ])}<div class="sec" style="margin-top:18px"><h5>People on this job</h5>${peopleList(x.people, l.id)}</div>`;
-    if (tab === "job") body = kv([
-      ["Trade", esc(x.job.trade)], ["Issue", esc(x.job.issue)], ["Size", esc(x.job.squares)],
-      ["Material / unit", esc(x.job.material)], ["Insurance", esc(x.job.insurance)],
-      ["Tarp / urgency", esc(x.job.tarp)], ["Access", esc(x.job.access)], ["Photos", x.job.photos],
-    ]) + (x.appts.length ? `<div class="sec" style="margin-top:16px"><h5>Appointments</h5>${x.appts.map((a) => `<div class="person"><div><b>${esc(a.kind)}</b><div style="color:var(--muted);font-size:12px">${esc(a.when)} · ${esc(a.who)}</div></div></div>`).join("")}</div>` : "");
+      ["Assigned", esc(x.assigned)],
+    ])}<div class="sec" style="margin-top:18px"><h5>People</h5>${peopleList(x.people, l.id)}</div>`;
+    if (tab === "discovery") body = kv([
+      ["Pain", esc(x.pain)],
+      ["Stack today", esc(x.stack)],
+      ["Why Wrangler", "Site + ads + Twilio + isolation — not another web guy"],
+    ]);
+    if (tab === "scope") body = kv([
+      ["Build", esc(x.scope)],
+      ["Not in scope", "Their homeowner jobs. That's their CRM. We don't take roof calls."],
+    ]);
     if (tab === "comms") {
       const msgs = state.convos[l.id] || [];
-      body = `<div class="msgs" style="min-height:180px">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.dir}">${esc(m.text)}</div>`).join("") : `<div style="color:var(--muted)">No thread yet. First shop that texts wins.</div>`}</div>
+      body = `<div class="msgs" style="min-height:180px">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.dir}">${esc(m.text)}</div>`).join("") : `<div style="color:var(--muted)">No thread yet.</div>`}</div>
         <div style="display:flex;gap:6px;margin-top:10px"><button class="btn brand" data-act="dial" data-id="${l.id}">Call</button><button class="btn" data-act="sms-open" data-id="${l.id}">Open thread</button></div>
-        <div class="script" style="margin-top:14px">${esc(SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", c.name).replace("{job}", l.note))}</div>`;
+        <div class="script" style="margin-top:14px">${esc(talk)}</div>`;
     }
     if (tab === "tasks") body = x.tasks.map((t, i) => `<label class="check"><input type="checkbox" ${t.done ? "checked" : ""} data-act="task" data-id="${l.id}" data-i="${i}"><span>${esc(t.t)}</span></label>`).join("");
-    if (tab === "money") body = kv([["Estimate", x.money.estimate ? money(x.money.estimate) : "not priced"], ["Deposit", money(x.money.deposit)], ["Financing", esc(x.money.financed)], ["Competitors", esc(x.money.competitor)]]);
-    if (tab === "files") body = (x.files.length ? x.files.map((f) => `<div class="file"><span>${esc(f.n)}</span><span class="pill">${esc(f.k)}</span></div>`).join("") : `<div style="color:var(--muted)">No files. Photos of the pain close claims.</div>`);
-    if (tab === "attrib") body = kv([["Campaign", esc(x.attrib.campaign)], ["Network", esc(x.attrib.network)], ["Keyword", esc(x.attrib.keyword)], ["Landing", esc(x.attrib.landing)], ["Partner", x.attrib.partner ? esc(x.attrib.partner) : "—"], ["First touch", esc(x.attrib.firstTouch)]]);
-    if (tab === "history") body = history([
-      { when: "now", who: "SLA", cls: l.sla > 45 ? "stop" : "wait", text: l.sla ? `Unworked ${l.sla}s` : "Inside SLA" },
-      { when: "8:14a", who: x.attrib.network || "src", cls: "info", text: `In via ${l.src}` },
-      { when: "—", who: "note", cls: "brand", text: l.note },
-    ]);
+    if (tab === "money") body = kv([["Retainer", x.money.mrr ? money(x.money.mrr) + "/mo" : "not priced"], ["Term", esc(x.money.term)], ["Competing with", esc(x.money.competitor)]]);
+    if (tab === "files") body = (x.files.length ? x.files.map((f) => `<div class="file"><span>${esc(f.n)}</span><span class="pill">${esc(f.k)}</span></div>`).join("") : `<div style="color:var(--muted)">No files yet. Drop the site audit and the proposal here.</div>`);
+    if (tab === "source") body = kv([["How they found us", esc(x.attrib.campaign)], ["Partner", x.attrib.partner ? esc(x.attrib.partner) : "—"], ["First touch", esc(x.attrib.firstTouch)]]);
     return `<div class="page desk">
       <div class="roll">${rows.map((r) => `<button class="item ${r.id === l.id ? "on" : ""}" data-act="sel-lead" data-id="${r.id}">
-        <div class="t">${esc(r.name)}</div>
-        <div class="m">${esc(cust(r.cust).name)} · ${esc(STAGES[r.stage])} · ${r.sla ? r.sla + "s" : "ok"}</div>
+        <div class="t">${esc(r.company)}</div>
+        <div class="m">${esc(r.name)} · ${esc(STAGES[r.stage])} · ${money(r.value)}/mo</div>
       </button>`).join("")}</div>
       <div class="dossier">
-        <div class="dh"><span class="pill brand">${esc(l.kind)}</span><span class="pill ${x.temp === "hot" ? "stop" : x.temp === "warm" ? "wait" : "info"}">${x.temp}</span>
-          <div class="who">${esc(l.name)}</div>
-          <div class="sub">${esc(l.phone)} · ${esc(x.addr)} · book: ${esc(c.name)}</div>
-          <div class="pills"><span class="pill">${esc(STAGES[l.stage])}</span><span class="pill">score ${l.score}</span><span class="pill">${esc(l.src)}</span></div>
+        <div class="dh"><span class="pill brand">${esc(l.trade)}</span><span class="pill ${x.temp === "hot" ? "stop" : x.temp === "warm" ? "wait" : "info"}">${x.temp}</span>
+          <div class="who">${esc(l.company)}</div>
+          <div class="sub">${esc(l.name)} · ${esc(l.phone)} · ${esc(l.city)}</div>
+          <div class="pills"><span class="pill">${esc(STAGES[l.stage])}</span><span class="pill">${money(l.value)}/mo</span><span class="pill">${esc(l.src)}</span></div>
         </div>
         <div class="acts">
           <button class="btn tiny brand" data-act="dial" data-id="${l.id}">Call</button>
-          <button class="btn tiny" data-act="sms-open" data-id="${l.id}">SMS</button>
+          <button class="btn tiny" data-act="sms-open" data-id="${l.id}">Inbox</button>
           <button class="btn tiny" data-act="stage" data-id="${l.id}" data-dir="1">Advance</button>
           <button class="btn tiny" data-act="stage" data-id="${l.id}" data-dir="-1">Back</button>
         </div>
         ${tabbar(tabs)}
         <div class="dbody">${body}</div>
       </div>
-      ${rail(x.next, `<h5>Talk track</h5><div class="script">${esc(SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", c.name).replace("{job}", l.note))}</div>`)}
+      ${rail(x.next, `<h5>Talk track</h5><div class="script">${esc(talk)}</div>`)}
     </div>`;
   }
 
@@ -439,7 +436,7 @@
           ${queue.map((l) => `
             <button class="item ${state.call && state.call.id === l.id ? "on" : ""}" data-act="dial" data-id="${l.id}">
               <div class="t">${esc(l.name)}</div>
-              <div class="m">${esc(cust(l.cust).name)} · ${esc(l.phone)} · SLA ${l.sla || 0}s</div>
+              <div class="m">${esc(leadCo(l))} · ${esc(l.phone)}</div>
             </button>`).join("")}
         </div>
         <div class="canvas pad">
@@ -594,7 +591,7 @@
     const x = cd(c.id);
     const tab = state.tab || "overview";
     const tabs = [["overview", "Overview"], ["people", "People"], ["funnel", "Funnel"], ["build", "Build"], ["dominate", "Dominate"], ["phone", "Phone"], ["money", "Money"], ["memory", "Memory"], ["walls", "Walls"]];
-    const inPlay = LEADS.filter((l) => l.cust === c.id && l.stage < 4).length;
+    const inPlay = JOBS.filter((j) => j.cust === c.id).length;
     const ads = ADS.filter((a) => a.cust === c.id);
     let body = "";
     if (tab === "overview") body = kv([
@@ -604,8 +601,9 @@
       ["GBP", esc(x.gbp || "—")],
     ]) + `<div class="sec" style="margin-top:16px"><h5>Health</h5>${(x.health || []).map((h) => `<div class="file"><span>${esc(h.l)}</span><span class="pill ${h.ok ? "go" : "wait"}">${esc(h.v)}</span></div>`).join("")}</div>`;
     if (tab === "people") body = peopleList(x.people && x.people.length ? x.people : [x.owner], "L1");
-    if (tab === "funnel") body = `<div class="sec"><h5>${inPlay} leads in play</h5>${LEADS.filter((l) => l.cust === c.id).map((l) => `<div class="file"><span>${esc(l.name)} · ${esc(l.note)}</span><span class="pill">${esc(STAGES[l.stage])}</span></div>`).join("")}</div>
-      <button class="btn tiny brand" data-act="filter-go" data-id="${c.id}">Open their pipeline</button>`;
+    if (tab === "funnel") body = `<div class="sec"><h5>Work we run for them — not their homeowner jobs</h5>
+        <p style="color:var(--muted);font-size:12.5px;margin:0 0 10px">Their storm calls live in THEIR world. Wrangler sells them the site, the ads, the number, the AI.</p>
+        ${JOBS.filter((j) => j.cust === c.id).map((j) => `<div class="file"><span>${esc(j.title)}</span><span class="pill">${esc(j.status)}</span></div>`).join("") || `<div style="color:var(--muted)">No jobs in flight.</div>`}</div>`;
     if (tab === "build") body = kv([["GitHub", `<span class="mono">${esc(x.github)}</span>`], ["Vercel", `<span class="mono">${esc(x.vercel)}</span>`], ["Jobs", JOBS.filter((j) => j.cust === c.id).map((j) => j.title).join(" · ") || "idle"]]) +
       JOBS.filter((j) => j.cust === c.id).map((j) => `<div class="file"><span>${esc(j.title)}</span><span class="pill">${esc(j.status)}</span></div>`).join("");
     if (tab === "dominate") body = ads.map((a) => `<div class="file"><span>${esc(a.name)}</span><span class="mono">${esc(a.platform)} · ${money(a.spend)} · ${a.leads} leads</span></div>`).join("") || `<div style="color:var(--muted)">No ads yet.</div>`;
@@ -626,10 +624,10 @@
         <div class="dh"><span class="pill brand">${esc(c.trade)}</span>
           <div class="who">${esc(c.name)}</div>
           <div class="sub">${esc(c.city)} · rank #${c.rank} · ${esc(c.share)} share · ${money(c.mrr)}/mo</div>
-          <div class="pills"><span class="pill">${inPlay} live leads</span><span class="pill">${ads.length} campaigns</span><span class="pill">isolated</span></div>
+          <div class="pills"><span class="pill">${inPlay} jobs in flight</span><span class="pill">${ads.length} campaigns</span><span class="pill">isolated</span></div>
         </div>
         <div class="acts">
-          <button class="btn tiny brand" data-act="filter-go" data-id="${c.id}">Pipeline</button>
+          <button class="btn tiny brand" data-act="nav" data-page="leads">Sales leads</button>
           <button class="btn tiny" data-act="nav" data-page="ads">Ads</button>
           <button class="btn tiny" data-act="nav" data-page="work">Build</button>
         </div>
@@ -650,7 +648,7 @@
     const context = cur && l ? `
       <h5>Record</h5>
       <div class="next-box"><b>${esc(l.name)}</b>
-        <div style="color:var(--muted);font-size:12.5px;margin:6px 0">${esc(cust(l.cust).name)} · ${esc(l.note)}</div>
+        <div style="color:var(--muted);font-size:12.5px;margin:6px 0">${esc(leadCo(l))} · ${esc(l.note)}</div>
         <button class="btn tiny brand" data-act="open-lead" data-id="${l.id}">Open dossier</button>
       </div>` : cur && cur.wrangle ? `
       <h5>This is ops, not a homeowner text</h5>
@@ -840,7 +838,7 @@
 
   function party(id) {
     const l = lead(id);
-    if (l) return { name: l.name, phone: l.phone, book: cust(l.cust).name };
+    if (l) return { name: l.name, phone: l.phone, book: leadCo(l) };
     const r = PX.find((x) => x.id === id);
     if (r) return { name: r.dm, phone: r.phone, book: r.name };
     const p = PARTNERS.find((x) => x.id === id);
@@ -906,7 +904,7 @@
       else if (d === "ads") go("ads");
       else if (d === "approvals") go("approvals");
       else if (d === "settings") go("settings");
-      else if (d === "job") { state.tab = "job"; render(); }
+      else if (d === "job") { state.tab = "scope"; render(); }
       else toast("Queued");
     }
     if (act === "pstage") {
@@ -967,7 +965,7 @@
       const t = TEMPLATES.find((x) => x.id === id);
       const l = lead(state.sms);
       const name = l ? l.name.split(" ")[0] : "there";
-      const company = l ? cust(l.cust).name : "the crew";
+      const company = l ? leadCo(l) : "Wrangler";
       const job = l ? l.note : "your request";
       const city = l ? l.city : "";
       const body = t.body.replace("{name}", name).replace("{company}", company).replace("{job}", job).replace("{when}", "Thu 7:30a").replace("{city}", city).replace("{link}", "g.page/apex");

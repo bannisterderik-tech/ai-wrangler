@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LEADS, customerName, type Lead } from "@/lib/os-demo";
+import { LEADS, type Lead } from "@/lib/os-demo";
 
 type Call = { id: string; t0: number; muted: boolean };
 type Ctx = {
@@ -74,7 +74,7 @@ export function DialerDock() {
       <div>
         <div className="text-[13px] font-semibold">{lead ? lead.name : "Twilio idle"}</div>
         <div className="font-mono text-[12px]" style={{ color: "var(--text-secondary)" }}>
-          {lead ? `${lead.phone} · ${customerName(lead.cust)} · ${dur(call!.t0)}` : "4 lines · A2P ready · click any Call"}
+          {lead ? `${lead.phone} · ${lead.company || lead.name} · ${dur(call!.t0)}` : "4 lines · A2P ready · click any Call"}
         </div>
       </div>
       <div className="flex h-7 items-end justify-center gap-[3px]">

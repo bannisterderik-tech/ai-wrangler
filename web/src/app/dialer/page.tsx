@@ -1,11 +1,11 @@
 "use client";
 
-import { DIALER_SCRIPT, LEADS, customerName } from "@/lib/os-demo";
+import { DIALER_SCRIPT, LEADS } from "@/lib/os-demo";
 import { useDialer } from "@/components/os/DialerDock";
 
 export default function DialerPage() {
   const { dial, lead, call } = useDialer();
-  const queue = LEADS.filter((l) => l.kind === "lead" || l.kind === "prospect");
+  const queue = LEADS.filter((l) => l.kind === "lead");
   const s = call ? Math.floor((Date.now() - call.t0) / 1000) : 0;
   const clock = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
@@ -25,8 +25,8 @@ export default function DialerPage() {
               borderColor: "var(--hairline)",
             }}
           >
-            <div className="text-[13.5px] font-semibold">{l.name}</div>
-            <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{customerName(l.cust)} · {l.phone}</div>
+            <div className="text-[13.5px] font-semibold">{l.company}</div>
+            <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{l.name} · {l.phone}</div>
           </button>
         ))}
       </div>
@@ -35,7 +35,7 @@ export default function DialerPage() {
           <div>
             <h3 className="m-0 text-[28px]">{lead ? `Live · ${lead.name}` : "Twilio lines idle"}</h3>
             <p className="mt-2 max-w-[560px] text-[13.5px]" style={{ color: "var(--text-secondary)" }}>
-              {lead ? lead.note : "Click a lead. Four parallel lines, AMD, voicemail drop — pointed at roofers, HVAC, plumbing."}
+              {lead ? lead.note : "Click a shop. Four lines. We're selling sites and the machine — not taking roof calls."}
             </p>
           </div>
           <div className="font-mono text-[28px]">{lead ? clock : "0:00"}</div>
