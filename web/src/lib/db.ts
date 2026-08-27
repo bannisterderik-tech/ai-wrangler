@@ -55,24 +55,54 @@ export function getDb(): PostgresJsDatabase<typeof schema> {
 }
 
 /**
+ * Properties that must never open a connection. `then` is the dangerous one:
+ * anything that awaits or Promise-wraps this object probes for it, and a build
+ * worker or a logger doing that would otherwise trigger a connect — and throw —
+ * miles away from any query.
+ */
+const INERT = new Set<string | symbol>([
+  "then",
+  "catch",
+  "finally",
+  "toJSON",
+  "constructor",
+  "$$typeof",
+  "nodeType",
+  Symbol.toStringTag,
+  Symbol.iterator,
+  Symbol.asyncIterator,
+  Symbol.toPrimitive,
+  Symbol.for("nodejs.util.inspect.custom"),
+  Symbol.for("util.inspect.custom"),
+]);
+
+function lazy<T extends object>(open: () => T): T {
+  return new Proxy({} as T, {
+    get(_target, prop, receiver) {
+      if (INERT.has(prop)) return undefined;
+      const real = open() as unknown as Record<string | symbol, unknown>;
+      const value = Reflect.get(real, prop, receiver);
+      return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(real) : value;
+    },
+    // Inspecting the object must not connect either.
+    has(_target, prop) {
+      return !INERT.has(prop);
+    },
+    ownKeys() {
+      return [];
+    },
+    getOwnPropertyDescriptor() {
+      return undefined;
+    },
+  });
+}
+
+/**
  * `db.select()` still reads the same everywhere; the difference is that touching
  * a property is what opens the connection, so importing this file is free.
  */
-export const db = new Proxy({} as PostgresJsDatabase<typeof schema>, {
-  get(_target, prop, receiver) {
-    const real = getDb() as unknown as Record<string | symbol, unknown>;
-    const value = Reflect.get(real, prop, receiver);
-    return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(real) : value;
-  },
-});
-
-export const client = new Proxy({} as postgres.Sql, {
-  get(_target, prop, receiver) {
-    const real = getClient() as unknown as Record<string | symbol, unknown>;
-    const value = Reflect.get(real, prop, receiver);
-    return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(real) : value;
-  },
-});
+export const db = lazy<PostgresJsDatabase<typeof schema>>(getDb);
+export const client = lazy<postgres.Sql>(getClient);
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

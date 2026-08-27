@@ -122,7 +122,14 @@ starts. Three things to set:
 
    `GET /api/health` reports which of these are wired, in booleans, without
    leaking a value. Hit it first when a deploy looks wrong.
-3. Expect the OS to work and the long-running side not to. `next.config.ts` sets
-   `output: "standalone"` because the job runner wants a box, not a function.
+3. **Do not add a build command or output directory override.** `next.config.ts`
+   already branches on `process.env.VERCEL`: standalone output for a box,
+   Vercel's own output here. It also pins `outputFileTracingRoot` to `web/`,
+   because the repo-root `package.json` is enough to make Next anchor tracing one
+   directory up — and then Vercel's `onBuildComplete` fails with
+   `ENOENT ... web/.next/next-server.js.nft.json`, which says nothing about
+   workspaces and costs an afternoon.
+4. Expect the OS to work and the long-running side not to — the job runner wants
+   a box, not a function.
 
 Railway stays the target for the container.
