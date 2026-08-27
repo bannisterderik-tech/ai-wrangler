@@ -97,7 +97,7 @@ export function DialerDock() {
         {lead ? (
           <>
             <button className="btn-os" onClick={toggleMute}>{call?.muted ? "Unmute" : "Mute"}</button>
-            <button className="btn-os" onClick={() => router.push("/sms")}>SMS</button>
+            <button className="btn-os" onClick={() => router.push("/inbox")}>Inbox</button>
             <button className="btn-os stop" onClick={hang}>Hang up</button>
           </>
         ) : (

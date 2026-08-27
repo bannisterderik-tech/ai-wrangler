@@ -57,7 +57,7 @@ export default function CommandPage() {
                 </div>
                 <div className="flex shrink-0 gap-1">
                   <button className="btn-os brand" onClick={() => dial(l.id)}>Call</button>
-                  <Link href="/sms" className="btn-os no-underline">SMS</Link>
+                  <Link href="/inbox" className="btn-os no-underline">Inbox</Link>
                 </div>
               </div>
             ))}

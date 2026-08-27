@@ -65,7 +65,7 @@ export default function LeadsPage() {
         <div className="font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{l.phone} · {l.city} · {customerName(l.cust)}</div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           <button className="btn-os brand" onClick={() => dial(l.id)}>Call</button>
-          <a className="btn-os no-underline" href="/sms">SMS</a>
+          <a className="btn-os no-underline" href="/inbox">Inbox</a>
         </div>
       </div>
       <Tabs tabs={TABS} tab={tab} onTab={setTab} />

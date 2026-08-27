@@ -7,13 +7,12 @@
       ["leads", "Leads"],
       ["prospects", "Prospects"],
       ["dialer", "Dialer"],
-      ["sms", "SMS"],
+      ["inbox", "Inbox"],
       ["ads", "Ads"],
       ["partners", "Partners"],
     ]],
     ["CLIENTS", [
       ["customers", "Customers"],
-      ["inbox", "Inbox"],
       ["billing", "Billing"],
     ]],
     ["BUILD", [
@@ -33,11 +32,10 @@
     leads: "Lead dossier",
     prospects: "Prospects — firms we want",
     dialer: "Twilio power dialer",
-    sms: "SMS — every book",
     ads: "Zernio ads",
     partners: "Partner dossier",
     customers: "Customer dossier",
-    inbox: "Inbox",
+    inbox: "Inbox — every thread",
     billing: "Billing & margin",
     work: "Live work",
     wrangler: "Head Wrangler",
@@ -122,6 +120,7 @@
     toast: null,
     filter: "all",
     launch: false,
+    chan: "all",
     tick: 0,
     convos: {
       L1: [{ dir: "in", t: "Roof leaking over the garage since last night." }, { dir: "out", t: "On it. Can you take a 2-min call?" }],
@@ -156,6 +155,7 @@
     setTimeout(() => { if (state.toast === msg) { state.toast = null; render(); } }, 2800);
   };
   const go = (page) => {
+    if (page === "sms") page = "inbox";
     state.page = page;
     state.tab = "overview";
     location.hash = "#/" + page;
@@ -209,13 +209,55 @@
   function history(events) {
     return `<div class="tl">${events.map((e) => `<div class="ev"><div class="when">${esc(e.when)}</div><div><span class="pill ${e.cls || "info"}">${esc(e.who)}</span> ${esc(e.text)}</div></div>`).join("")}</div>`;
   }
+  function threads() {
+    const out = [];
+    LEADS.forEach((l) => {
+      const msgs = state.convos[l.id] || [];
+      const last = msgs[msgs.length - 1];
+      out.push({
+        id: l.id, name: l.name, phone: l.phone,
+        kind: l.kind === "partner" ? "partner" : l.kind === "customer" ? "homeowner" : "lead",
+        via: "sms", book: cust(l.cust).name,
+        preview: last ? last.t : l.note,
+        unread: msgs.length === 0 || last?.dir === "in",
+        sla: l.sla, wrangle: false,
+      });
+    });
+    INBOX.forEach((m) => {
+      const msgs = state.convos[m.id] || [];
+      const last = msgs[msgs.length - 1];
+      out.push({
+        id: m.id, name: m.from, phone: "",
+        kind: "client", via: m.via,
+        book: m.from.indexOf("Apex") >= 0 ? "Apex Roofing" : "Cascade HVAC",
+        preview: last ? last.t : m.text,
+        unread: m.status === "new" && !msgs.some((x) => x.dir === "out"),
+        sla: 0, wrangle: true, task: m.task,
+      });
+    });
+    out.push({
+      id: "VM1", name: "Missed · 530-555-0199", phone: "+1 530 555 0199",
+      kind: "lead", via: "vm", book: "Apex Roofing",
+      preview: "Voicemail 0:18 — “garage is leaking, please call”",
+      unread: !(state.convos.VM1 && state.convos.VM1.length), sla: 92, wrangle: false,
+    });
+    const chan = state.chan || "all";
+    return out.filter((t) => {
+      if (chan === "unread") return t.unread;
+      if (chan === "sms") return t.via === "sms";
+      if (chan === "email") return t.via === "email";
+      if (chan === "call") return t.via === "vm" || t.via === "call";
+      if (chan === "wrangle") return t.wrangle;
+      return true;
+    });
+  }
 
   function kpi(label, n, sub, cls) {
     return `<div class="kpi"><div class="l">${esc(label)}</div><div class="n">${n}</div><div class="s ${cls || ""}">${esc(sub)}</div></div>`;
   }
   function ni(id, label) {
     const on = state.page === id ? "on" : "";
-    const pending = id === "approvals" ? 1 : id === "inbox" ? INBOX.length : 0;
+    const pending = id === "approvals" ? 1 : id === "inbox" ? threads().filter((t) => t.unread).length : 0;
     const live = id === "work" && JOBS.some((j) => j.status === "working");
     return `<button class="ni ${on}" data-act="nav" data-page="${id}"><span>${esc(label)}</span>${pending ? `<span class="badge">${pending}</span>` : live ? `<span class="dot"></span>` : ""}</button>`;
   }
@@ -348,7 +390,7 @@
     if (tab === "comms") {
       const msgs = state.convos[l.id] || [];
       body = `<div class="msgs" style="min-height:180px">${msgs.length ? msgs.map((m) => `<div class="bubble ${m.dir}">${esc(m.text)}</div>`).join("") : `<div style="color:var(--muted)">No thread yet. First shop that texts wins.</div>`}</div>
-        <div style="display:flex;gap:6px;margin-top:10px"><button class="btn brand" data-act="dial" data-id="${l.id}">Call</button><button class="btn" data-act="sms-open" data-id="${l.id}">Open SMS desk</button></div>
+        <div style="display:flex;gap:6px;margin-top:10px"><button class="btn brand" data-act="dial" data-id="${l.id}">Call</button><button class="btn" data-act="sms-open" data-id="${l.id}">Open thread</button></div>
         <div class="script" style="margin-top:14px">${esc(SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", c.name).replace("{job}", l.note))}</div>`;
     }
     if (tab === "tasks") body = x.tasks.map((t, i) => `<label class="check"><input type="checkbox" ${t.done ? "checked" : ""} data-act="task" data-id="${l.id}" data-i="${i}"><span>${esc(t.t)}</span></label>`).join("");
@@ -419,32 +461,7 @@
       </div>`;
   }
 
-  function pageSms() {
-    const l = lead(state.sms) || LEADS[0];
-    const msgs = state.convos[l.id] || [];
-    return `
-      <div class="page split">
-        <div class="list">
-          ${LEADS.map((x) => `
-            <button class="item ${x.id === l.id ? "on" : ""}" data-act="sms-sel" data-id="${x.id}">
-              <div class="t">${esc(x.name)} <span class="pill">${esc(x.kind)}</span></div>
-              <div class="m">${esc(cust(x.cust).name)} · ${esc(x.phone)}</div>
-            </button>`).join("")}
-        </div>
-        <div class="thread">
-          <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center">
-            <div><b>${esc(l.name)}</b><div class="mono" style="color:var(--muted);font-size:12px">${esc(l.phone)} · Twilio A2P · ${esc(cust(l.cust).name)}</div></div>
-            <button class="btn tiny brand" data-act="dial" data-id="${l.id}">Call</button>
-          </div>
-          <div class="msgs">${msgs.map((m) => `<div class="bubble ${m.dir}">${esc(m.text)}</div>`).join("")}</div>
-          <div style="display:flex;gap:6px;padding:8px 12px;flex-wrap:wrap">${TEMPLATES.map((t) => `<button class="btn tiny" data-act="tpl" data-id="${t.id}">${esc(t.name)}</button>`).join("")}</div>
-          <form class="composer" data-act="sms-send">
-            <textarea name="body" placeholder="SMS via Twilio — opted-in only"></textarea>
-            <button class="btn brand" type="submit">Send</button>
-          </form>
-        </div>
-      </div>`;
-  }
+  function pageSms() { return pageInbox(); }
 
   function pageAds() {
     const spend = ADS.reduce((a, x) => a + x.spend, 0);
@@ -624,11 +641,58 @@
   }
 
   function pageInbox() {
-    return `<div class="page pad scroll">${INBOX.map((m) => `
-      <div class="card" style="margin-bottom:10px"><div class="body" style="display:flex;gap:12px;align-items:center">
-        <div style="flex:1"><b>${esc(m.from)}</b> <span class="pill">${esc(m.via)}</span><div style="margin-top:6px">“${esc(m.text)}”</div></div>
-        <button class="btn brand" data-act="nav" data-page="wrangler">Wrangle →</button>
-      </div></div>`).join("")}</div>`;
+    const list = threads();
+    const cur = list.find((t) => t.id === state.sms) || list[0];
+    const l = cur && lead(cur.id);
+    const msgs = cur ? (state.convos[cur.id] || (cur.via === "vm" ? [{ dir: "in", t: cur.preview, ch: "vm" }] : cur.wrangle ? [{ dir: "in", t: cur.preview, ch: cur.via }] : [])) : [];
+    const chans = [["all", "All"], ["unread", "Unread"], ["sms", "SMS"], ["email", "Email"], ["call", "Calls / VM"], ["wrangle", "Needs a job"]];
+    const placeholder = !cur ? "" : cur.via === "email" ? "Reply by email — stays on this customer" : cur.via === "slack" ? "Reply in Slack" : cur.via === "vm" ? "Text them back (Twilio) — then call" : "SMS via Twilio — opted-in only";
+    const context = cur && l ? `
+      <h5>Record</h5>
+      <div class="next-box"><b>${esc(l.name)}</b>
+        <div style="color:var(--muted);font-size:12.5px;margin:6px 0">${esc(cust(l.cust).name)} · ${esc(l.note)}</div>
+        <button class="btn tiny brand" data-act="open-lead" data-id="${l.id}">Open dossier</button>
+      </div>` : cur && cur.wrangle ? `
+      <h5>This is ops, not a homeowner text</h5>
+      <div class="next-box"><b>${esc(cur.task || "Turn into a job")}</b>
+        <div style="color:var(--muted);font-size:12.5px;margin:6px 0 10px">${esc(cur.book)} asked. Wrangle hands it to Head Wrangler — isolated to this customer.</div>
+        <button class="btn brand full" data-act="wrangle" data-id="${cur.id}">Wrangle → job</button>
+      </div>` : "";
+    if (!cur) return `<div class="page pad">Inbox is empty.</div>`;
+    return `<div class="page desk">
+      <div class="roll">
+        <div class="acts" style="border-bottom:1px solid var(--line);flex-wrap:wrap">
+          ${chans.map(([cid, label]) => `<button class="btn tiny ${state.chan === cid ? "brand" : ""}" data-act="chan" data-id="${cid}">${esc(label)}</button>`).join("")}
+        </div>
+        ${list.map((t) => `<button class="item ${t.id === cur.id ? "on" : ""}" data-act="sms-sel" data-id="${t.id}">
+          <div class="t">${t.unread ? "● " : ""}${esc(t.name)} <span class="pill ${t.via === "sms" ? "go" : t.via === "vm" || t.via === "call" ? "wait" : t.wrangle ? "brand" : "info"}">${esc(t.via)}</span></div>
+          <div class="m">${esc(t.book)} · ${esc(t.kind)}${t.sla ? " · SLA " + t.sla + "s" : ""}</div>
+          <div class="m" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t.preview)}</div>
+        </button>`).join("") || `<div class="pad" style="color:var(--muted)">Nothing in this filter.</div>`}
+      </div>
+      <div class="thread">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <div><b>${esc(cur.name)}</b>
+            <div class="mono" style="color:var(--muted);font-size:12px">${esc(cur.phone || cur.via)} · ${esc(cur.book)} · ${esc(cur.kind)}</div>
+          </div>
+          <div style="display:flex;gap:6px">
+            ${cur.phone ? `<button class="btn tiny brand" data-act="dial" data-id="${cur.id === "VM1" ? "L2" : cur.id}">Call</button>` : ""}
+            ${cur.wrangle ? `<button class="btn tiny" data-act="wrangle" data-id="${cur.id}">Wrangle</button>` : ""}
+          </div>
+        </div>
+        <div class="msgs">${msgs.map((m) => `<div class="bubble ${m.dir}"><span class="pill" style="margin-right:6px">${esc(m.ch || cur.via)}</span>${esc(m.t)}</div>`).join("")}</div>
+        ${cur.via === "sms" || cur.via === "vm" ? `<div style="display:flex;gap:6px;padding:8px 12px;flex-wrap:wrap">${TEMPLATES.map((t) => `<button class="btn tiny" data-act="tpl" data-id="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}
+        <form class="composer" data-act="sms-send">
+          <textarea name="body" placeholder="${esc(placeholder)}"></textarea>
+          <button class="btn brand" type="submit">${cur.via === "email" ? "Send email" : cur.via === "slack" ? "Reply" : "Send"}</button>
+        </form>
+      </div>
+      <aside class="rail">
+        <h5>Channel</h5>
+        <div style="font-size:12.5px;color:var(--muted);line-height:1.5">One inbox. SMS, email, Slack, missed calls, voicemail. Isolation: a Cascade thread never sits on Apex's DID.</div>
+        ${context}
+      </aside>
+    </div>`;
   }
 
   function pageBilling() {
@@ -717,7 +781,7 @@
       <div class="dialpad">
         ${live ? `
           <button class="btn tiny" data-act="mute">${state.muted ? "Unmute" : "Mute"}</button>
-          <button class="btn tiny" data-act="sms-open" data-id="${live.id}">SMS</button>
+          <button class="btn tiny" data-act="sms-open" data-id="${live.id}">Inbox</button>
           <button class="btn tiny stop" data-act="hang">Hang up</button>` : `
           <button class="btn tiny brand" data-act="power">Power dial</button>
           <button class="btn tiny" data-act="nav" data-page="dialer">Open dialer</button>`}
@@ -820,7 +884,15 @@
     if (act === "dial") dial(id);
     if (act === "hang") hang();
     if (act === "mute") { state.muted = !state.muted; render(); }
-    if (act === "sms-open") { state.sms = id; go("sms"); }
+    if (act === "sms-open") { state.sms = id; state.chan = "all"; go("inbox"); }
+    if (act === "chan") { state.chan = id; render(); }
+    if (act === "open-lead") { state.lead = id; go("leads"); }
+    if (act === "wrangle") {
+      const m = INBOX.find((x) => x.id === id);
+      if (m) m.status = "tasked";
+      toast("Wrangled → Head Wrangler · isolated job queued");
+      go("work");
+    }
     if (act === "sms-sel") { state.sms = id; render(); }
     if (act === "sel-lead") { state.lead = id; state.tab = "overview"; render(); }
     if (act === "sel-cust") { state.custId = id; state.tab = "overview"; render(); }
@@ -830,7 +902,7 @@
     if (act === "next") {
       const d = n.getAttribute("data-do");
       if (d === "dial") dial(state.page === "prospects" ? state.prospect : state.lead);
-      else if (d === "sms") { state.sms = state.page === "partners" ? "L8" : state.lead; go("sms"); }
+      else if (d === "sms") { state.sms = state.page === "partners" ? "L8" : state.lead; go("inbox"); }
       else if (d === "ads") go("ads");
       else if (d === "approvals") go("approvals");
       else if (d === "settings") go("settings");
@@ -894,7 +966,11 @@
     if (act === "tpl") {
       const t = TEMPLATES.find((x) => x.id === id);
       const l = lead(state.sms);
-      const body = t.body.replace("{name}", l.name.split(" ")[0]).replace("{company}", cust(l.cust).name).replace("{job}", l.note).replace("{when}", "Thu 7:30a").replace("{city}", l.city).replace("{link}", "g.page/apex");
+      const name = l ? l.name.split(" ")[0] : "there";
+      const company = l ? cust(l.cust).name : "the crew";
+      const job = l ? l.note : "your request";
+      const city = l ? l.city : "";
+      const body = t.body.replace("{name}", name).replace("{company}", company).replace("{job}", job).replace("{when}", "Thu 7:30a").replace("{city}", city).replace("{link}", "g.page/apex");
       const ta = document.querySelector(".composer textarea");
       if (ta) ta.value = body;
     }
@@ -911,7 +987,10 @@
       state.convos[id] = state.convos[id] || [];
       state.convos[id].push({ dir: "out", t: body });
       n.body.value = "";
-      toast("Twilio SMS queued to " + lead(id).phone);
+      const row = INBOX.find((x) => x.id === id);
+      if (row) row.status = "tasked";
+      const to = (lead(id) && lead(id).phone) || (party(id) && party(id).phone) || "thread";
+      toast((lead(id) || id === "VM1" ? "Twilio SMS queued to " : "Reply queued · ") + to);
       render();
     }
     if (n.getAttribute("data-act") === "ad-create") {
@@ -950,11 +1029,13 @@
   });
 
   addEventListener("hashchange", () => {
-    const p = location.hash.replace("#/", "");
+    let p = location.hash.replace("#/", "");
+    if (p === "sms") p = "inbox";
     if (PAGES[p]) { state.page = p; render(); }
   });
 
-  const boot = location.hash.replace("#/", "");
+  let boot = location.hash.replace("#/", "");
+  if (boot === "sms") boot = "inbox";
   if (PAGES[boot]) state.page = boot;
   render();
   setInterval(() => {

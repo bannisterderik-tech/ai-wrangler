@@ -33,14 +33,14 @@ export default function PartnersPage() {
       list={PARTNERS.map((r) => (
         <RollItem key={r.id} on={r.id === p.id} title={r.name} meta={`${r.kind} · sent ${r.sent} · won ${r.won}`} onClick={() => { setId(r.id); setTab("overview"); }} />
       ))}
-      rail={<Rail title="Text a thank-you and a job" why="Partners who get paid and thanked keep sending." onDo={() => { window.location.href = "/sms"; }} />}
+      rail={<Rail title="Text a thank-you and a job" why="Partners who get paid and thanked keep sending." onDo={() => { window.location.href = "/inbox"; }} />}
     >
       <div className="border-b px-4 pt-4 pb-2" style={{ borderColor: "var(--hairline)" }}>
         <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--brand-text)" }}>{p.kind}</div>
         <h3 className="mt-1 mb-1 text-[24px]">{p.name}</h3>
         <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{p.city} · take {p.take}</div>
         <div className="mt-3 flex gap-1.5">
-          <Link href="/sms" className="btn-os brand no-underline">SMS</Link>
+          <Link href="/inbox" className="btn-os brand no-underline">Inbox</Link>
         </div>
       </div>
       <Tabs tabs={TABS} tab={tab} onTab={setTab} />
