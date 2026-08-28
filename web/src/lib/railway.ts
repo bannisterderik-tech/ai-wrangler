@@ -201,7 +201,7 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
     state.serviceId = process.env.RAILWAY_WORKER_SERVICE_ID;
   }
 
-  if (!state.serviceId) {
+  const create = async () => {
     // ServiceCreateInput does not take a root directory — that lives on the
     // service *instance*. Create, then set it, then deploy, in that order: a
     // build kicked off before the root directory is set builds the repo root,
@@ -254,7 +254,9 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
 
     await deploy(conn.token, serviceId, environmentId);
     return { deployed: true as const, created: true, serviceId };
-  }
+  };
+
+  if (!state.serviceId) return create();
 
   try {
     const tokens = await readTokens(conn.token, projectId, environmentId, state.serviceId);
@@ -262,12 +264,18 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
     await writeTokens(conn.token, projectId, environmentId, state.serviceId, tokens);
     return { deployed: true as const, created: false, serviceId: state.serviceId, agents: tokens.length };
   } catch (e) {
-    // The remembered worker was deleted in the dashboard. Forget it and say so,
-    // rather than failing every mint from here on with a stale id.
+    // The remembered worker was deleted in the dashboard. Forget it and build a
+    // new one in the same click — telling somebody to press the button again is
+    // not recovery, it is homework.
     await rememberService("");
-    return {
-      deployed: false as const,
-      why: `The worker this OS remembered is gone (${(e as Error).message}). Mint again and it will build a new one.`,
-    };
+    try {
+      const made = await create();
+      return { ...made, rebuilt: true as const };
+    } catch (again) {
+      return {
+        deployed: false as const,
+        why: `The remembered worker was gone (${(e as Error).message}) and building a new one failed: ${(again as Error).message}`,
+      };
+    }
   }
 }

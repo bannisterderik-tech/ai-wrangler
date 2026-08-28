@@ -92,7 +92,9 @@ export default function SessionsPage() {
       setDeployNote(
         out.deploy.deployed
           ? out.deploy.created
-            ? "Worker service created on Railway and deploying now."
+            ? out.deploy.rebuilt
+              ? "The old worker was gone, so a new one was created and is deploying now."
+              : "Worker service created on Railway and deploying now."
             : `Handed to the worker — ${out.deploy.agents} agent(s) running. Redeploying.`
           : `Not deployed: ${out.deploy.why}`,
       );
