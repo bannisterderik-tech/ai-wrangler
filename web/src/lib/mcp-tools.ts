@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
-import { db } from "./db";
+import { db, withCustomer } from "./db";
 import { newId } from "./customers";
 import { assertBoundToCustomer, boundIds, IsolationError } from "./isolation";
 import {
@@ -226,7 +226,39 @@ async function jobInScope(session: McpSession, jobId: string) {
       `refused: job ${jobId} is not on this session's floor. Scoped customers: ${session.scope.join(", ") || "none"}.`,
     );
   }
+
+  // And make Postgres agree, before any tool does anything.
+  //
+  // The scope check above is TypeScript. HANDOFF calls row level security the
+  // third wall, but no MCP tool has ever gone through withCustomer, so on the
+  // agent path — the one an autonomous process drives — that wall was not
+  // there. This re-reads the job as the tenant role with app.customer_id pinned
+  // to the job's own customer: if the database does not agree the job belongs
+  // there, nothing proceeds.
+  //
+  // It sits in jobInScope rather than in each tool because every tool already
+  // passes through here. A tool added next year gets this without anyone
+  // remembering to add it, which is the only kind of wall that stays standing.
+  const confirmed = await withCustomer(job.customerId, (tx) =>
+    tx.select({ id: jobs.id }).from(jobs).where(eq(jobs.id, job.id)).limit(1),
+  );
+  if (!confirmed.length) {
+    throw new ToolError(
+      `refused: job ${jobId} is not on this session's floor. Scoped customers: ${session.scope.join(", ") || "none"}.`,
+    );
+  }
   return job;
+}
+
+/**
+ * Run a tool's writes as the tenant, pinned to one customer.
+ *
+ * The scope check decides *whether*; this decides *what the connection can
+ * physically touch* while doing it. A query that names the wrong customer is
+ * refused by Postgres rather than by our own care.
+ */
+export function asTenant<T>(customerId: string, fn: (tx: Parameters<Parameters<typeof withCustomer>[1]>[0]) => Promise<T>) {
+  return withCustomer(customerId, fn);
 }
 
 function mustHold(session: McpSession, job: { id: string; ownerId: string | null }) {
@@ -603,14 +635,16 @@ export async function callTool(session: McpSession, name: string, args: Args): P
       if (!["think", "tool", "gate", "done"].includes(kind)) {
         throw new ToolError("kind must be one of: think, tool, gate, done.");
       }
-      await db.insert(jobSteps).values({
-        jobId: job.id,
-        customerId: job.customerId,
-        kind,
-        text,
-        actor: session.handle,
+      await asTenant(job.customerId, async (tx) => {
+        await tx.insert(jobSteps).values({
+          jobId: job.id,
+          customerId: job.customerId,
+          kind,
+          text,
+          actor: session.handle,
+        });
+        if (kind === "done") await tx.update(jobs).set({ status: "done" }).where(eq(jobs.id, job.id));
       });
-      if (kind === "done") await db.update(jobs).set({ status: "done" }).where(eq(jobs.id, job.id));
       return "Posted.";
     }
 
@@ -622,7 +656,8 @@ export async function callTool(session: McpSession, name: string, args: Args): P
       const blast = s(args.blast);
       if (!title || !what || !blast) throw new ToolError("title, what and blast are required.");
       const id = newId();
-      await db.insert(approvals).values({
+      await asTenant(job.customerId, async (tx) => {
+      await tx.insert(approvals).values({
         id,
         customerId: job.customerId,
         jobId: job.id,
@@ -636,14 +671,17 @@ export async function callTool(session: McpSession, name: string, args: Args): P
         irreversible: args.irreversible === true,
         status: "pending",
       });
-      await db.insert(jobSteps).values({
+      await tx.insert(jobSteps).values({
         jobId: job.id,
         customerId: job.customerId,
         kind: "gate",
         text: `Waiting on a human: ${title}`,
         actor: session.handle,
       });
-      await db.update(jobs).set({ status: "blocked" }).where(eq(jobs.id, job.id));
+        await tx.update(jobs).set({ status: "blocked" }).where(eq(jobs.id, job.id));
+      });
+      // The agency's own record, written on the owner connection: it should
+      // survive even if a tenant statement above had rolled back.
       await log(job.customerId, session.handle, "requested approval", title);
       return `Asked. ${job.id} is now blocked and shows on Needs you. Stop here — do not do it anyway.`;
     }

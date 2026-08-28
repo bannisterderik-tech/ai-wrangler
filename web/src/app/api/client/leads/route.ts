@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { desc, eq } from "drizzle-orm";
 import { withCustomer } from "@/lib/db";
-import { operator } from "@/lib/api";
-import { isClient } from "@/lib/auth";
+import { clientSession } from "@/lib/api";
 import { leadEvents, leads } from "@/lib/schema";
 
 /**
@@ -15,10 +14,13 @@ import { leadEvents, leads } from "@/lib/schema";
  * it is load-bearing rather than proven.
  */
 export async function GET() {
-  const session = await operator();
-  if (!isClient(session)) return NextResponse.json({ error: "not yours" }, { status: 403 });
+  // Re-checked against the people table, not taken from the cookie: a client
+  // who has been removed or moved must stop working immediately, not in a week.
+  const who = await clientSession();
+  if (!who) return NextResponse.json({ error: "not yours" }, { status: 403 });
+  const session = who.session;
 
-  const data = await withCustomer(session.cid, async (tx) => {
+  const data = await withCustomer(who.customerId, async (tx) => {
     const rows = await tx.select().from(leads).orderBy(desc(leads.createdAt));
     const events = await tx.select().from(leadEvents).orderBy(desc(leadEvents.at));
     return { rows, events };
@@ -45,8 +47,11 @@ export async function GET() {
 
 /** Log a call, a text or a note against a lead. */
 export async function POST(req: Request) {
-  const session = await operator();
-  if (!isClient(session)) return NextResponse.json({ error: "not yours" }, { status: 403 });
+  // Re-checked against the people table, not taken from the cookie: a client
+  // who has been removed or moved must stop working immediately, not in a week.
+  const who = await clientSession();
+  if (!who) return NextResponse.json({ error: "not yours" }, { status: 403 });
+  const session = who.session;
 
   const body = await req.json().catch(() => ({}));
   const leadId = String(body.leadId || "");
@@ -55,13 +60,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "leadId and a valid kind are required" }, { status: 400 });
   }
 
-  const ok = await withCustomer(session.cid, async (tx) => {
+  const ok = await withCustomer(who.customerId, async (tx) => {
     // RLS makes this lookup the authorisation check: a lead belonging to anyone
     // else simply does not exist inside this transaction.
     const [lead] = await tx.select().from(leads).where(eq(leads.id, leadId)).limit(1);
     if (!lead) return false;
     await tx.insert(leadEvents).values({
-      customerId: session.cid,
+      customerId: who.customerId,
       leadId,
       kind,
       direction: String(body.direction) === "in" ? "in" : "out",

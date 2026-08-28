@@ -16,6 +16,37 @@ export async function guard(): Promise<NextResponse | null> {
 }
 
 /**
+ * A client session, re-checked against the people table.
+ *
+ * Sessions are signed cookies with a seven day life and no server-side state,
+ * because the middleware runs at the edge and cannot reach Postgres. That is
+ * fine for deciding *who* is asking and wrong for deciding *whether they still
+ * work here*: deleting a client, or moving them to another customer, left their
+ * existing cookie working for up to a week, still pinned to the old customer.
+ *
+ * Route handlers can reach the database, so this is where it gets checked. The
+ * customer comes from the row, not from the cookie — a cookie minted before a
+ * move must not keep opening the old door.
+ */
+export async function clientSession(): Promise<{ session: Session; customerId: string } | null> {
+  const session = await operator();
+  if (!isClient(session)) return null;
+  const { db } = await import("./db");
+  const { people } = await import("./schema");
+  const { sql } = await import("drizzle-orm");
+  // By email, the same way the magic-link callback finds them, and
+  // case-insensitively for the same reason.
+  const [row] = await db
+    .select()
+    .from(people)
+    .where(sql`lower(${people.email}) = ${String(session.sub || "").toLowerCase()} AND ${people.kind} = 'client'`)
+    .limit(1);
+  // No row, no longer a client, revoked, or no customer: the cookie is stale.
+  if (!row || row.kind !== "client" || row.status === "revoked" || !row.customerId) return null;
+  return { session, customerId: row.customerId };
+}
+
+/**
  * Operator only — a signed-in client is refused.
  *
  * guard() asks whether anyone is signed in, not whether they are staff, and a

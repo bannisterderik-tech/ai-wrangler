@@ -2177,3 +2177,161 @@ describe("agents can be stopped from the OS", () => {
     assert.equal(res.status, 401);
   });
 });
+
+/**
+ * The agent path now goes through the database wall, not just past it.
+ *
+ * HANDOFF calls row level security the third wall. No MCP tool had ever gone
+ * through withCustomer, so on the agent path — the one an autonomous process
+ * drives, unattended — that wall was not there at all. Scope was a TypeScript
+ * check and nothing else.
+ */
+describe("tenant isolation reaches the agent path", () => {
+  let token = "";
+  let acmeJob = "";
+  before(async () => {
+    await sql`DELETE FROM jobs WHERE title = 'Wall job'`;
+    await sql`DELETE FROM people WHERE id = 'A_wall'`;
+    token = "wr_sess_wall000000000000000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(token).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, token_hash, status)
+      VALUES ('A_wall','wall-bot','wall-bot','agent','acme',${hash},'connected')`;
+    await sql`
+      INSERT INTO person_tools (person_id, tool) VALUES
+        ('A_wall','claim_job'), ('A_wall','post_step'), ('A_wall','read_project')`;
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Wall job", customerId: "acme", budgetDollars: 5 }),
+    });
+    acmeJob = res.body.id;
+  });
+
+  const call = (name, args) =>
+    fetch(`${BASE}/api/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+    }).then((r) => r.text());
+
+  test("the scope gate asks the database, not only itself", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/lib/mcp-tools.ts", import.meta.url), "utf8"),
+    );
+    // In jobInScope, so a tool added later inherits it rather than needing
+    // somebody to remember.
+    const gate = src.slice(src.indexOf("async function jobInScope"), src.indexOf("function mustHold"));
+    assert.match(gate, /withCustomer\(/, "the gate must confirm against the tenant role");
+  });
+
+  test("writes from a tool land under that customer and nowhere else", async () => {
+    await call("claim_job", { job_id: acmeJob });
+    const out = await call("post_step", { job_id: acmeJob, kind: "think", text: "wall test step" });
+    assert.match(out, /Posted/);
+
+    // Visible to acme's tenant context...
+    const mine = await sql`
+      SELECT count(*)::int AS n FROM job_steps WHERE job_id = ${acmeJob} AND text = 'wall test step'`;
+    assert.equal(mine[0].n, 1);
+
+    // ...and invisible to globex's, enforced by Postgres rather than by a filter
+    // we remembered to write.
+    const theirs = await sql.begin(async (tx) => {
+      await tx`SELECT set_config('app.customer_id', 'globex', true)`;
+      await tx`SET LOCAL ROLE wrangler_tenant`;
+      return tx`SELECT count(*)::int AS n FROM job_steps WHERE text = 'wall test step'`;
+    });
+    assert.equal(theirs[0].n, 0, "another tenant could see a step written for acme");
+  });
+
+  test("a cross-tenant write is refused by the database itself", async () => {
+    await assert.rejects(
+      sql.begin(async (tx) => {
+        await tx`SELECT set_config('app.customer_id', 'acme', true)`;
+        await tx`SET LOCAL ROLE wrangler_tenant`;
+        return tx`
+          INSERT INTO job_steps (job_id, customer_id, kind, text, actor)
+          VALUES (${acmeJob}, 'globex', 'think', 'smuggled', 'attacker')`;
+      }),
+      /row-level security/i,
+      "pinned to acme, a write naming globex has to be refused by Postgres",
+    );
+  });
+
+  test("every tenant table with a customer_id is actually policed", async () => {
+    const rows = await sql`
+      SELECT c.relname
+      FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relrowsecurity
+        AND EXISTS (
+          SELECT 1 FROM information_schema.columns col
+          WHERE col.table_name = c.relname AND col.column_name = 'customer_id')
+        AND NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid = c.oid)`;
+    // RLS on with no policy denies everything, which is safe — but it is also a
+    // table no tenant can ever read, so it is a decision worth being explicit
+    // about rather than a thing that happened.
+    const unpoliced = rows.map((r) => r.relname).sort();
+    assert.deepEqual(
+      unpoliced,
+      ["call_log", "people", "person_scopes", "proposals", "threads"],
+      "a customer-scoped table changed its policy status — decide which it is",
+    );
+  });
+});
+
+/**
+ * Removing a client has to take effect now, not in a week.
+ *
+ * Sessions are signed cookies with a seven day life and no server-side state,
+ * because the middleware runs at the edge and cannot reach Postgres. That
+ * decides who is asking; it cannot decide whether they still work here. Deleting
+ * a client, or moving them to a different customer, left their existing cookie
+ * working — still pinned to the old customer — until it expired on its own.
+ */
+describe("a removed client stops working immediately", () => {
+  let cookie2 = "";
+  before(async () => {
+    await sql`DELETE FROM people WHERE email = 'gone@acme.test'`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, customer_id)
+      VALUES ('p-gone','Leaving Soon','leaving','gone@acme.test','client','acme')`;
+    const raw = `wr_sess_gone_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, 'gone@acme.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    cookie2 = v ? `wrangler_session=${v}` : "";
+  });
+
+  const asThem = (path) =>
+    fetch(`${BASE}${path}`, { headers: { cookie: cookie2, "Content-Type": "application/json" } });
+
+  test("they can read their leads while they still work here", async () => {
+    const res = await asThem("/api/client/leads");
+    assert.equal(res.status, 200, "a current client should be able to read their own leads");
+  });
+
+  test("deleting them takes effect on the very next request", async () => {
+    await sql`DELETE FROM people WHERE email = 'gone@acme.test'`;
+    const res = await asThem("/api/client/leads");
+    assert.equal(res.status, 403, "the cookie is still signed and still unexpired — the row is what decides");
+  });
+
+  test("and a revoked client is refused too", async () => {
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, customer_id, status)
+      VALUES ('p-gone','Leaving Soon','leaving','gone@acme.test','client','acme','revoked')`;
+    const res = await asThem("/api/client/leads");
+    assert.equal(res.status, 403);
+    await sql`DELETE FROM people WHERE email = 'gone@acme.test'`;
+  });
+});
