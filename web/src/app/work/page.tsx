@@ -16,7 +16,11 @@ type Job = {
   steps: Step[]; gate: Gate | null;
   change: { id: string; title: string; repo: string | null; branch: string | null; status: string; diff: string | null } | null;
 };
-type Floor = { jobs: Job[]; people: { id: string; handle: string; name: string; status: string }[] };
+type Floor = {
+  jobs: Job[];
+  people: { id: string; handle: string; name: string; status: string; kind?: string; customerId?: string | null }[];
+  customers: { id: string; name: string }[];
+};
 
 const WORD: Record<string, string> = {
   working: "working", blocked: "waiting on a human", thinking: "reading",
@@ -38,6 +42,9 @@ export default function FloorPage() {
   const [tab, setTab] = useState("transcript");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const [opening, setOpening] = useState(false);
+  const [draft, setDraft] = useState({ title: "", customerId: "", goal: "", budgetDollars: "10", ownerId: "" });
+  const [openError, setOpenError] = useState("");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/floor", { cache: "no-store" });
@@ -66,6 +73,29 @@ export default function FloorPage() {
   const active = filter ?? (gated.length ? "gate" : "all");
   const rows = buckets.find((b) => b[0] === active)?.[2] ?? jobs;
   const job = rows.find((j) => j.id === sel) ?? rows[0] ?? null;
+
+  /** Give an agent a job, with the cap it stops at. */
+  async function openJob(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setOpenError("");
+    const res = await fetch("/api/floor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...draft, budgetDollars: Number(draft.budgetDollars) }),
+    });
+    const out = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setOpenError(out.error || "could not open it");
+      return;
+    }
+    setOpening(false);
+    setDraft({ title: "", customerId: "", goal: "", budgetDollars: "10", ownerId: "" });
+    await load();
+    setSel(out.id);
+    setFilter("all");
+  }
 
   async function act(action: string, extra: Record<string, unknown> = {}) {
     if (!job) return;
@@ -103,10 +133,70 @@ export default function FloorPage() {
               {label} <span className="tabular-nums opacity-70">{list.length}</span>
             </button>
           ))}
+        <button className="btn-os brand" onClick={() => setOpening((v) => !v)}>
+          {opening ? "Cancel" : "+ New job"}
+        </button>
         <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
           ${jobs.reduce((a, j) => a + j.spent, 0).toFixed(2)} today
         </span>
       </DeskBar>
+
+      {opening ? (
+        <form
+          onSubmit={openJob}
+          className="flex flex-wrap items-end gap-2 border-b px-4 py-3"
+          style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}
+        >
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>What to build</span>
+            <input
+              autoFocus
+              value={draft.title}
+              onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+              placeholder="Add a booking page"
+              className="btn-os min-w-[240px]"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Project</span>
+            <select className="btn-os" value={draft.customerId} onChange={(e) => setDraft({ ...draft, customerId: e.target.value, ownerId: "" })}>
+              <option value="">Pick one…</option>
+              {(floor.customers ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Spend cap</span>
+            <input
+              type="number" min="1" max="500" step="1"
+              value={draft.budgetDollars}
+              onChange={(e) => setDraft({ ...draft, budgetDollars: e.target.value })}
+              className="btn-os w-[90px] tabular-nums"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Give it to</span>
+            <select className="btn-os" value={draft.ownerId} onChange={(e) => setDraft({ ...draft, ownerId: e.target.value })}>
+              <option value="">Leave on the board</option>
+              {floor.people
+                .filter((p) => p.kind !== "agent" || p.customerId === draft.customerId)
+                .map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-1 flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>What good looks like</span>
+            <input
+              value={draft.goal}
+              onChange={(e) => setDraft({ ...draft, goal: e.target.value })}
+              placeholder="Optional — the agent reads this before it plans"
+              className="btn-os min-w-[220px]"
+            />
+          </label>
+          <button className="btn-os brand" type="submit" disabled={busy || !draft.title.trim() || !draft.customerId}>
+            Open it
+          </button>
+          {openError ? <span className="text-[12px]" style={{ color: "var(--state-stop)" }}>{openError}</span> : null}
+        </form>
+      ) : null}
 
       <Dossier
         list={rows.map((j) => (

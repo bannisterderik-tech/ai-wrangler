@@ -921,3 +921,75 @@ describe("agency keys are vaulted, shape-checked and write-only", () => {
     assert.equal(res.status, 400);
   });
 });
+
+/**
+ * Opening a job. The cap is the point — an agent stops at it and asks rather
+ * than deciding the work was worth more than you said.
+ */
+describe("giving an agent a job with a limit", () => {
+  before(async () => {
+    await sql`DELETE FROM job_steps WHERE customer_id IN ('acme','globex')`;
+    await sql`DELETE FROM jobs WHERE title LIKE 'Booking page%'`;
+    await sql`DELETE FROM people WHERE id IN ('A_acme-bot','A_globex-bot')`;
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id) VALUES
+        ('A_acme-bot','acme-bot','acme-bot','agent','acme'),
+        ('A_globex-bot','globex-bot','globex-bot','agent','globex')`;
+  });
+
+  test("a job without a cap is refused", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Booking page A", customerId: "acme" }),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /cap/i);
+  });
+
+  test("an absurd cap is refused too", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Booking page B", customerId: "acme", budgetDollars: 5000 }),
+    });
+    assert.equal(res.status, 400);
+  });
+
+  test("a job opens with the cap in cents and lands on the board", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Booking page C", customerId: "acme", budgetDollars: 12.5, goal: "one page, one form" }),
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT budget_cents, owner_id, status, goal, repo FROM jobs WHERE id = ${res.body.id}`;
+    assert.equal(row.budget_cents, 1250);
+    assert.equal(row.owner_id, null, "unclaimed, so any scoped session can take it");
+    assert.equal(row.goal, "one page, one form");
+    assert.equal(row.repo, "agency/acme-site", "the repo comes from the binding, not the form");
+  });
+
+  test("handing it to that project's agent claims it immediately", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Booking page D", customerId: "acme", budgetDollars: 5, ownerId: "A_acme-bot" }),
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT owner_id, status FROM jobs WHERE id = ${res.body.id}`;
+    assert.equal(row.owner_id, "A_acme-bot");
+    assert.equal(row.status, "thinking");
+  });
+
+  test("handing it to another project's agent is refused", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Booking page E", customerId: "acme", budgetDollars: 5, ownerId: "A_globex-bot" }),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /different project/);
+  });
+
+  test("the first step says who opened it and what the cap is", async () => {
+    const [job] = await sql`SELECT id FROM jobs WHERE title = 'Booking page C'`;
+    const [step] = await sql`SELECT text, actor FROM job_steps WHERE job_id = ${job.id} ORDER BY id LIMIT 1`;
+    assert.match(step.text, /Cap \$12\.50/);
+  });
+});
