@@ -75,9 +75,13 @@ walls). Keep it green.
 
 Managed Agents was considered and rejected: it is beta, gated, Anthropic-only (so
 no model choice), and it would mean running a second orchestration system beside
-the one already here. The plan is **Claude Code headless in the Railway
+the one already here. It is **Claude Code headless in a Railway
 container** — the same agent the team already uses, pointed at `/api/mcp`, so the
-walls, the audit trail and the approval gate are the ones already tested.
+walls, the audit trail and the approval gate are the ones already tested. It
+lives in [`worker/`](worker/) and deploys as a second Railway service with Root
+Directory `worker`. What it can do is decided entirely by its session token:
+take away `open_branch` on the Sessions screen and it can read, think and ask,
+and cannot write, because the server refuses the call.
 
 A blog or a CMS change does **not** need that sandbox — content is rows and a
 renderer. Only work that edits a customer's repo does.
