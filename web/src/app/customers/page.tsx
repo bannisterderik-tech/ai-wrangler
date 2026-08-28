@@ -18,7 +18,7 @@ const TABS: [string, string][] = [
 ];
 
 export default function CustomersPage() {
-  const [id, setId] = useState<string>(CUSTOMERS[0].id);
+  const [id, setId] = useState<string | null>(null);
   const [tab, setTab] = useState("overview");
   const [q, setQ] = useState("");
   const [trade, setTrade] = useState("all");
@@ -33,6 +33,7 @@ export default function CustomersPage() {
     return r;
   }, [q, trade, sort]);
   const c = list.find((x) => x.id === id) || list[0] || CUSTOMERS[0];
+  const open = Boolean(id && list.some((x) => x.id === id));
   const ads = ADS.filter((a) => a.cust === c.id);
 
   const body = {
@@ -63,10 +64,13 @@ export default function CustomersPage() {
     </DeskBar>
     <Dossier
       list={list.map((r) => (
-        <RollItem key={r.id} on={r.id === c.id} title={r.name} meta={`${r.city} · #${r.rank} · ${money(r.mrr)}/mo`} onClick={() => { setId(r.id); setTab("overview"); }} />
+        <RollItem key={r.id} on={open && r.id === c.id} title={r.name} meta={`${r.city} · #${r.rank} · ${money(r.mrr)}/mo`} onClick={() => { setId(r.id); setTab("overview"); }} />
       ))}
       rail={<Rail title="Open live work" why={`Jobs we run for ${c.name} stay behind their wall.`} onDo={() => { window.location.href = "/work"; }} />}
+      onClose={() => setId(null)}
     >
+      {open ? (
+        <>
       <div className="border-b px-4 pt-4 pb-2" style={{ borderColor: "var(--hairline)" }}>
         <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--brand-text)" }}>{c.trade}</div>
         <h3 className="mt-1 mb-1 text-[24px]">{c.name}</h3>
@@ -78,6 +82,8 @@ export default function CustomersPage() {
       </div>
       <Tabs tabs={TABS} tab={tab} onTab={setTab} />
       <div className="min-h-0 flex-1 overflow-auto p-4">{body}</div>
+        </>
+      ) : null}
     </Dossier>
     </div>
   );

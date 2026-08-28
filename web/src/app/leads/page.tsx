@@ -20,7 +20,8 @@ export default function LeadsPage() {
   const { dial } = useDialer();
   const all = useMemo(() => LEADS.filter((l) => l.kind !== "partner").map((l) => ({ ...l })), []);
   const [rows, setRows] = useState(all);
-  const [id, setId] = useState(all[0].id);
+  // Nothing is open until you open it.
+  const [id, setId] = useState<string | null>(null);
   const [tab, setTab] = useState("overview");
   const [view, setView] = useState<"list" | "kanban">("list");
   const [q, setQ] = useState("");
@@ -46,6 +47,9 @@ export default function LeadsPage() {
   }, [rows, q, trade, stage, sort]);
 
   const l = shown.find((x) => x.id === id) || shown[0] || rows[0];
+  // Open only what was clicked. The record still computes off a safe default so
+  // nothing below needs a null check; `open` is what decides whether it renders.
+  const open = Boolean(id && shown.some((x) => x.id === id));
   const temp = l.score > 85 ? "hot" : l.score > 70 ? "warm" : "cold";
   const script = DIALER_SCRIPT.replace("{name}", l.name.split(" ")[0]).replace("{company}", l.company).replace("{job}", l.note);
 
@@ -132,7 +136,7 @@ export default function LeadsPage() {
                 </div>
                 <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-auto px-2 pb-2">
                   {cards.map((r) => (
-                    <div key={r.id} className="rounded-xl border p-3 text-left" style={{ background: "var(--surface-inset)", borderColor: r.id === l.id ? "var(--brand)" : "var(--hairline)" }}>
+                    <div key={r.id} className="rounded-xl border p-3 text-left" style={{ background: "var(--surface-inset)", borderColor: open && r.id === l.id ? "var(--brand)" : "var(--hairline)" }}>
                       <button className="w-full text-left" onClick={() => { setId(r.id); setTab("overview"); }}>
                         <b className="text-[13.5px]">{r.company}</b>
                         <div className="mt-1 text-[11.5px]" style={{ color: "var(--text-secondary)" }}>{r.name} · {money(r.value)}/mo</div>
@@ -169,7 +173,7 @@ export default function LeadsPage() {
             </thead>
             <tbody>
               {shown.map((r) => (
-                <tr key={r.id} onClick={() => { setId(r.id); setTab("overview"); }} className="cursor-pointer" style={{ background: r.id === l.id ? "var(--brand-dim)" : "transparent" }}>
+                <tr key={r.id} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setId(r.id); setTab("overview"); } }} onClick={() => { setId(r.id); setTab("overview"); }} className="cursor-pointer" style={{ background: open && r.id === l.id ? "var(--brand-dim)" : "transparent" }}>
                   <td className="border-b px-3 py-2" style={{ borderColor: "var(--hairline)" }}><b>{r.company}</b></td>
                   <td className="border-b px-3 py-2" style={{ borderColor: "var(--hairline)" }}>{r.name}</td>
                   <td className="border-b px-3 py-2" style={{ borderColor: "var(--hairline)" }}>{r.trade}</td>
@@ -187,8 +191,9 @@ export default function LeadsPage() {
             <div className="mt-4 rounded-r-xl border-l-[3px] p-3 text-[12.5px] leading-relaxed" style={{ borderColor: "var(--brand)", background: "var(--surface-inset)" }}>{script}</div>
           </>
         }
+        onClose={() => setId(null)}
       >
-        {dossier}
+        {open ? dossier : null}
       </Dossier>
     </div>
   );

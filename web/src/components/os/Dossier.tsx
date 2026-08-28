@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 
 export function Kv({ rows }: { rows: [string, ReactNode][] }) {
@@ -15,21 +16,63 @@ export function Kv({ rows }: { rows: [string, ReactNode][] }) {
   );
 }
 
+/**
+ * List, record, next move.
+ *
+ * Pass `children` = null for "nothing is selected" and the list takes the whole
+ * screen — a record that opens itself on whatever sorted first is a record you
+ * did not ask for, and one you then cannot get out of. `onClose` puts the way
+ * out where people look for it, and Escape does the same thing.
+ */
 export function Dossier({
   list,
   rail,
   children,
+  onClose,
 }: {
   list: ReactNode;
-  rail: ReactNode;
-  children: ReactNode;
+  rail?: ReactNode;
+  children?: ReactNode;
+  onClose?: () => void;
 }) {
+  const open = Boolean(children);
+
+  useEffect(() => {
+    if (!open || !onClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) {
+    return (
+      <div className="h-full min-h-0 overflow-auto" style={{ background: "var(--surface-raised)" }}>
+        {list}
+      </div>
+    );
+  }
+
   return (
     <div className="grid h-full min-h-0 grid-cols-[300px_1fr_280px]">
       <div className="min-h-0 overflow-auto border-r" style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}>
         {list}
       </div>
-      <div className="flex min-h-0 min-w-0 flex-col">{children}</div>
+      <div className="relative flex min-h-0 min-w-0 flex-col">
+        {onClose ? (
+          <button
+            onClick={onClose}
+            aria-label="Close (Esc)"
+            title="Close (Esc)"
+            className="absolute right-3 top-3 z-10 cursor-pointer rounded-lg border px-2 py-1 text-[11px] leading-none"
+            style={{ background: "var(--btn)", borderColor: "var(--hairline)", color: "var(--text-secondary)" }}
+          >
+            Close ✕
+          </button>
+        ) : null}
+        {children}
+      </div>
       <aside className="min-h-0 overflow-auto border-l p-3.5" style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}>
         {rail}
       </aside>
