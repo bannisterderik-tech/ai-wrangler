@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { newId } from "@/lib/customers";
 import { customers, siteErrors } from "@/lib/schema";
 import { hashToken } from "@/lib/session-token";
+import { raiseEvent } from "@/lib/agent-events";
 
 /**
  * Errors from a customer's deployed site.
@@ -67,6 +68,17 @@ export async function POST(req: Request) {
         status: sql`CASE WHEN ${siteErrors.status} = 'fixed' THEN 'open' ELSE ${siteErrors.status} END`,
       },
     });
+
+  // Wake their copilot, if they have one. Keyed on the fingerprint, so the
+  // same error seen five hundred times is one thing to react to.
+  await raiseEvent({
+    customerId: customer.id,
+    kind: "site_error",
+    source: "their site",
+    refId: fp,
+    summary: `${message}${url ? ` on ${url}` : ""}`,
+    payload: { url, stack: stack.slice(0, 600) },
+  });
 
   // 202: it is recorded, and the caller is a browser that should not care.
   return new NextResponse(null, { status: 202 });

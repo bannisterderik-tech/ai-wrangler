@@ -230,6 +230,8 @@ export const people = pgTable(
   agentKind: text("agent_kind"),
   /** What a copilot is for, in the customer's words. */
   brief: text("brief"),
+  /** Comma-separated event kinds this copilot wakes for. Empty means all. */
+  wakesOn: text("wakes_on"),
   /** Which machine runs this agent, and who provides it. */
   hostId: text("host_id"),
   hostProvider: text("host_provider"),
@@ -736,4 +738,34 @@ export const agentCommands = pgTable(
     result: text("result"),
   },
   (t) => [index("agent_commands_queue").on(t.personId, t.status, t.issuedAt)],
+);
+
+/**
+ * What wakes a copilot.
+ *
+ * Polling is what cost $20 — a paid session every two minutes to be told there
+ * was nothing. Events invert it: nothing runs until something happens, so idle
+ * is one cheap HTTP call.
+ */
+export const agentEvents = pgTable(
+  "agent_events",
+  {
+    id: text("id").primaryKey(),
+    personId: text("person_id").notNull(),
+    customerId: text("customer_id"),
+    /** site_error | client_request | call | lead | message | external */
+    kind: text("kind").notNull(),
+    source: text("source"),
+    /** The row it is about, so the copilot can go and read it. */
+    refId: text("ref_id"),
+    summary: text("summary").notNull(),
+    payload: text("payload"),
+    /** queued | taken | done | ignored | failed */
+    status: text("status").notNull().default("queued"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    takenAt: timestamp("taken_at", { withTimezone: true }),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    result: text("result"),
+  },
+  (t) => [index("agent_events_queue").on(t.personId, t.status, t.createdAt)],
 );

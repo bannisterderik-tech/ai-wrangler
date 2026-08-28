@@ -2279,7 +2279,7 @@ describe("tenant isolation reaches the agent path", () => {
     const unpoliced = rows.map((r) => r.relname).sort();
     assert.deepEqual(
       unpoliced,
-      ["call_log", "people", "person_scopes", "proposals", "threads"],
+      ["agent_events", "call_log", "people", "person_scopes", "proposals", "threads"],
       "a customer-scoped table changed its policy status — decide which it is",
     );
   });
@@ -2382,7 +2382,7 @@ describe("customer copilots and their dependency map", () => {
   });
 
   test("dependencies are recorded even where no connector exists", async () => {
-    for (const [provider, label] of [["odoo", "Accounting"], ["m365_mail", "Synergy"], ["sms", "Personal"]]) {
+    for (const [provider, label] of [["odoo", "Accounting"], ["superhuman_mail", "Synergy"], ["sms", "Personal"]]) {
       const res = await api(`/api/people/${copilot}/connections`, {
         method: "POST",
         body: JSON.stringify({ provider, label }),
@@ -3547,5 +3547,133 @@ describe("connector credentials reach one copilot and nothing else", () => {
     for (const r of rows) {
       assert.ok(!/odoo-secret-value|a-new-value/.test(r.target ?? ""), "a secret must not land in the audit trail");
     }
+  });
+});
+
+/**
+ * What wakes a copilot.
+ *
+ * The build worker polls for jobs, a copilot has none, and polling is what cost
+ * $20 — a paid session every two minutes to be told there was nothing. Events
+ * invert it: nothing runs until something happens, so idle is one cheap HTTP
+ * request and only an event becomes a model run.
+ */
+describe("copilots are woken by events, not by polling", () => {
+  const tok = "wr_sess_evt000000000000000000000000";
+  const otherTok = "wr_sess_evtother00000000000000000000";
+
+  before(async () => {
+    await sql`DELETE FROM agent_events WHERE person_id IN ('A_evt','A_evtother')`;
+    await sql`DELETE FROM people WHERE id IN ('A_evt','A_evtother')`;
+    const { createHash } = await import("node:crypto");
+    const h = (t) => createHash("sha256").update(t).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, tenant_id, token_hash, status, agent_kind) VALUES
+        ('A_evt','evt-copilot','evt-copilot','agent','acme','ai-wrangler',${h(tok)},'connected','copilot'),
+        ('A_evtother','other-copilot','other-copilot','agent','globex','ai-wrangler',${h(otherTok)},'connected','copilot')`;
+    await sql`UPDATE floor_switches SET on_at = NULL WHERE id = 'agents_paused'`;
+  });
+  after(async () => {
+    await sql`UPDATE floor_switches SET on_at = NULL WHERE id = 'agents_paused'`;
+  });
+
+  const collect = (t = tok) =>
+    fetch(`${BASE}/api/agent/events`, { headers: { Authorization: `Bearer ${t}` } }).then((r) => r.json());
+
+  test("a request from their site wakes their copilot", async () => {
+    await sql`
+      INSERT INTO agent_events (id, person_id, customer_id, kind, source, ref_id, summary)
+      VALUES ('E_req','A_evt','acme','client_request','their site','req-9','Can you add a gift card page?')`;
+    const out = await collect();
+    assert.equal(out.events.length, 1);
+    assert.equal(out.events[0].kind, "client_request");
+    assert.match(out.events[0].summary, /gift card/);
+  });
+
+  test("taken once, so a second box does not redo the work", async () => {
+    const again = await collect();
+    assert.equal(again.events.length, 0);
+  });
+
+  test("the same underlying thing does not become two model runs", async () => {
+    // A site error seen five hundred times is one thing to react to. The unique
+    // index on (person, kind, ref) is what makes that true.
+    for (let i = 0; i < 3; i++) {
+      await sql`
+        INSERT INTO agent_events (id, person_id, customer_id, kind, ref_id, summary)
+        VALUES (${"E_dup" + i},'A_evt','acme','site_error','fp-same','TypeError on /booking')
+        ON CONFLICT DO NOTHING`;
+    }
+    const [row] = await sql`
+      SELECT count(*)::int AS n FROM agent_events WHERE person_id = 'A_evt' AND ref_id = 'fp-same'`;
+    assert.equal(row.n, 1);
+  });
+
+  test("another customer's copilot is not woken by it", async () => {
+    const theirs = await collect(otherTok);
+    assert.deepEqual(theirs.events, [], "the queue is keyed on the session, not on an argument");
+  });
+
+  test("it reports what it did, and only on its own events", async () => {
+    const mine = await fetch(`${BASE}/api/agent/events`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "E_req", status: "done", result: "drafted a reply for a human to send" }),
+    });
+    assert.equal(mine.status, 200);
+    const theirs = await fetch(`${BASE}/api/agent/events`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${otherTok}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "E_req", status: "done" }),
+    });
+    assert.equal(theirs.status, 404);
+  });
+
+  test("stopping the floor silences events too, not only jobs", async () => {
+    await sql`UPDATE agent_events SET status = 'queued' WHERE person_id = 'A_evt'`;
+    await api("/api/agents/pause", { method: "POST", body: JSON.stringify({ paused: true, reason: "testing" }) });
+    const out = await collect();
+    assert.equal(out.stop, true);
+    assert.equal(out.events.length, 0, "a paused floor must not hand out work of any kind");
+    await api("/api/agents/pause", { method: "POST", body: JSON.stringify({ paused: false }) });
+  });
+
+  test("a real site error raises a real event, through the ingest route", async () => {
+    // The whole path, not a hand-written row: an error posted by a customer's
+    // own site, through the public ingest route, waking their copilot.
+    const key = "wr_ingest_test_key_for_events";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(key).digest("hex");
+    await sql`UPDATE customers SET ingest_key_hash = ${hash} WHERE id = 'acme'`;
+    await sql`DELETE FROM agent_events WHERE person_id = 'A_evt'`;
+
+    const res = await fetch(`${BASE}/api/ingest/error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-wrangler-key": key },
+      body: JSON.stringify({ message: "TypeError on /booking", url: "/booking" }),
+    });
+    assert.equal(res.status, 202);
+
+    const out = await collect();
+    assert.equal(out.events.length, 1, "their copilot should have been woken");
+    assert.equal(out.events[0].kind, "site_error");
+    assert.match(out.events[0].summary, /TypeError on \/booking/);
+  });
+
+  test("a copilot only wakes for the kinds it was given", async () => {
+    await sql`UPDATE people SET wakes_on = 'client_request' WHERE id = 'A_evt'`;
+    await sql`DELETE FROM agent_events WHERE person_id = 'A_evt'`;
+    const key = "wr_ingest_test_key_for_events";
+
+    // A site error, when this copilot was hired to watch requests.
+    const res = await fetch(`${BASE}/api/ingest/error`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-wrangler-key": key },
+      body: JSON.stringify({ message: "Different error", url: "/other" }),
+    });
+    assert.equal(res.status, 202, "the site must still be served either way");
+    const out = await collect();
+    assert.equal(out.events.length, 0, "not its job, so not its wake-up — and not a paid model run");
+    await sql`UPDATE people SET wakes_on = NULL WHERE id = 'A_evt'`;
   });
 });

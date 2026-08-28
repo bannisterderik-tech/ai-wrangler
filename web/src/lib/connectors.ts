@@ -38,26 +38,25 @@ export const CATEGORIES: { id: Category; label: string }[] = [
 
 export const CONNECTORS: Connector[] = [
   {
-    id: "m365_mail", name: "Microsoft 365 mail", category: "mail", available: false,
-    gives: "Read the inbox, draft replies, and tell you what actually needs you.",
-    note: "Microsoft Graph, an app registration, and admin consent on their tenant.",
+    id: "superhuman_mail", name: "Email — via Superhuman", category: "mail", available: true,
+    gives: "Search the inbox, read threads, draft replies, and say what actually needs them today.",
+    note:
+      "One hosted MCP server covers Gmail and Outlook both, so this replaces a Graph app registration, " +
+      "admin consent and a Gmail OAuth review. The customer connects their own Superhuman account, which " +
+      "means they need one — that is the real dependency. Superhuman holds sending behind its own approval, " +
+      "which agrees with the wall here: a copilot drafts, a person sends.",
   },
   {
-    id: "google_mail", name: "Gmail", category: "mail", available: false,
-    gives: "Same, on Google.", note: "Gmail API and a verified OAuth consent screen.",
+    id: "imap_mail_legacy", name: "Any IMAP mailbox", category: "mail", available: false,
+    gives: "A mailbox with no Superhuman account behind it.",
+    note: "Credentials per mailbox, no OAuth, and no send approval of its own. Only worth it where Superhuman cannot reach.",
   },
   {
-    id: "imap_mail", name: "Any IMAP mailbox", category: "mail", available: false,
-    gives: "Read-only inbox access without a vendor app.", note: "Credentials per mailbox; no OAuth.",
-  },
-  {
-    id: "m365_calendar", name: "Microsoft 365 calendar", category: "calendar", available: false,
-    gives: "See the week, hold slots, and stop double-booking across businesses.",
-    note: "Same Graph registration as the mail connector.",
-  },
-  {
-    id: "google_calendar", name: "Google Calendar", category: "calendar", available: false,
-    gives: "Same, on Google.",
+    id: "superhuman_calendar", name: "Calendar — via Superhuman", category: "calendar", available: true,
+    gives: "See the week across every account, hold slots, and stop the same hour being sold twice.",
+    note:
+      "The same Superhuman MCP connection as the mail one, so connecting once covers both, on Google and " +
+      "Microsoft. For somebody running four businesses out of three calendars, this is the one that pays.",
   },
   {
     id: "apple_calendar", name: "Apple Calendar", category: "calendar", available: false,

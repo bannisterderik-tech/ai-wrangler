@@ -5,6 +5,7 @@ import { clientSession, fail } from "@/lib/api";
 import { people } from "@/lib/schema";
 import { aiConfigured } from "@/lib/ai";
 import { replyTo, saveMessage, thread } from "@/lib/copilot";
+import { raiseEvent } from "@/lib/agent-events";
 
 /** Is there a copilot for this customer, and does it have a brain to think with? */
 async function theirCopilot(customerId: string) {
@@ -65,6 +66,16 @@ export async function POST(req: Request) {
     if (!said) return NextResponse.json({ error: "say something first" }, { status: 400 });
 
     await saveMessage(who.customerId, "them", said);
+    // The customer asking for something is an input worth recording as an
+    // event, even though the reply is answered inline: it is the record of what
+    // they wanted, and it is what a background pass would pick up if the answer
+    // needed work rather than a sentence.
+    await raiseEvent({
+      customerId: who.customerId,
+      kind: "message",
+      source: who.session.name,
+      summary: said.slice(0, 200),
+    });
     // Their question is answered from their own rows, read inside their own
     // transaction. The copilot has no tools, so there is nothing for it to do
     // beyond answer — which is the whole safety model, not a limitation of it.

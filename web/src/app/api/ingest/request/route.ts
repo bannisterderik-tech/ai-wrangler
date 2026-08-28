@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { newId } from "@/lib/customers";
 import { audit, clientRequests, customers } from "@/lib/schema";
 import { hashToken } from "@/lib/session-token";
+import { raiseEvent } from "@/lib/agent-events";
 
 /**
  * "Can you add a booking page." An update request from the client, arriving from
@@ -45,6 +46,16 @@ export async function POST(req: Request) {
     action: `client ${kind} received`,
     target: id,
     at: new Date(),
+  });
+
+  // Somebody is waiting on an answer. This is the event most worth waking for.
+  await raiseEvent({
+    customerId: customer.id,
+    kind: "client_request",
+    source: String(body.name || "their site"),
+    refId: id,
+    summary: `${kind}: ${text.slice(0, 200)}`,
+    payload: { from: String(body.email || "") || null, kind },
   });
 
   return NextResponse.json({ ok: true, id }, { status: 202 });

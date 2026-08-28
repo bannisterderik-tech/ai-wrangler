@@ -17,6 +17,9 @@ const PUBLIC = [
   // A copilot collecting the credentials for its own connections, and only
   // its own — the query is keyed on the session, not on an argument.
   "/api/agent/credentials",
+  // What woke a copilot. The cheap half of the loop: nothing to react to
+  // costs one request, and only an event becomes a model run.
+  "/api/agent/events",
   // Stripe posts here with its own signature; there is no session to have.
   "/api/stripe/webhook",
   // Called from a customer's own deployed site. Write-only, key-authenticated,
