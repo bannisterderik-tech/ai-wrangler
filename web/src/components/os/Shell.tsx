@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { NAV, TITLES } from "@/lib/nav";
 import { DialerDock, DialerProvider } from "./DialerDock";
+import Script from "next/script";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
@@ -209,6 +210,22 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <DialerDock />
         </div>
       </div>
+      {/*
+        Marker.io, our own bug reporter, on our own side of the product. Not on
+        /client or /p/ — those belong to a customer and to a lead signing an
+        agreement, and a third-party script has no business on a page where
+        somebody types their name to sign something.
+      */}
+      <Script id="marker" strategy="afterInteractive">
+        {`window.markerConfig={project:'6a91f5ca48f534786826902f',source:'snippet'};` +
+          `!function(e,r,a){if(!e.__Marker){e.__Marker={};var t=[],n={__cs:t};` +
+          `["show","hide","isVisible","capture","cancelCapture","unload","reload",` +
+          `"isExtensionInstalled","setReporter","clearReporter","setCustomData","on","off"]` +
+          `.forEach(function(e){n[e]=function(){var r=Array.prototype.slice.call(arguments);` +
+          `r.unshift(e),t.push(r)}}),e.Marker=n;var s=r.createElement("script");s.async=1,` +
+          `s.src="https://edge.marker.io/latest/shim.js";var i=r.getElementsByTagName("script")[0];` +
+          `i.parentNode.insertBefore(s,i)}}(window,document);`}
+      </Script>
     </DialerProvider>
   );
 }

@@ -3335,3 +3335,24 @@ describe("agents report their own health", () => {
     assert.equal(res.status, 403, "the fleet is part of the build half");
   });
 });
+
+describe("the feedback widget stays on our side of the product", () => {
+  test("it is inside the agency shell, not the layout", async () => {
+    const shell = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/components/os/Shell.tsx", import.meta.url), "utf8"),
+    );
+    const layout = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/app/layout.tsx", import.meta.url), "utf8"),
+    );
+    assert.match(shell, /markerConfig/, "the widget lives in the shell");
+    // In the layout it would render on every page, including the one where a
+    // lead types their name to sign an agreement.
+    assert.ok(!/markerConfig/.test(layout), "not in the root layout");
+
+    // And it must sit after the bare early-return, so client and signing pages
+    // never reach it.
+    const bareReturn = shell.indexOf("if (bare) {");
+    const widget = shell.indexOf("markerConfig");
+    assert.ok(bareReturn > -1 && widget > bareReturn, "the bare branch returns before the widget");
+  });
+});

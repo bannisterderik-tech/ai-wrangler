@@ -699,3 +699,28 @@ export const agentHealth = pgTable("agent_health", {
   resuming: boolean("resuming"),
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Maintenance a worker picks up on its next cycle.
+ *
+ * A fixed set of verbs, never arbitrary shell — a channel that can run anything
+ * on a client's box is a backdoor with an audit trail rather than maintenance.
+ */
+export const agentCommands = pgTable(
+  "agent_commands",
+  {
+    id: text("id").primaryKey(),
+    personId: text("person_id").notNull(),
+    /** restart | update | reload | run_now | pause | resume | diagnose */
+    command: text("command").notNull(),
+    args: text("args"),
+    issuedBy: text("issued_by").notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+    /** queued | taken | done | failed */
+    status: text("status").notNull().default("queued"),
+    takenAt: timestamp("taken_at", { withTimezone: true }),
+    doneAt: timestamp("done_at", { withTimezone: true }),
+    result: text("result"),
+  },
+  (t) => [index("agent_commands_queue").on(t.personId, t.status, t.issuedAt)],
+);
