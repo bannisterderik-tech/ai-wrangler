@@ -25,6 +25,15 @@ export async function POST(req: Request, ctx: RouteContext<"/api/people/[id]">) 
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || "");
 
+    // A client signs in to their own CRM with a magic link; they have no MCP
+    // session, so a token here would be a credential that can never do anything.
+    if (who.kind === "client" && (action === "token" || action === "tool")) {
+      return NextResponse.json(
+        { error: `${who.name} is a client user, not an operator. They sign in at /client with a magic link.` },
+        { status: 400 },
+      );
+    }
+
     if (action === "token") {
       // Shown once, here, and never again. We keep the hash and a prefix.
       const { raw, hash, prefix } = mintToken();

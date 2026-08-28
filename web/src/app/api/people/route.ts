@@ -12,7 +12,10 @@ export async function GET() {
   if (denied) return denied;
 
   const [rows, scopes, tools, counts] = await Promise.all([
-    db.select().from(people).orderBy(asc(people.createdAt)),
+    // Operators and agents only. A client user is a person row too, but they
+    // sign in to their own CRM and have no MCP session — listing them here
+    // invites minting them a token that could never do anything.
+    db.select().from(people).where(eq(people.kind, "operator")).orderBy(asc(people.createdAt)),
     db.select().from(personScopes),
     db.select().from(personTools),
     db
@@ -27,6 +30,7 @@ export async function GET() {
       id: p.id,
       name: p.name,
       handle: p.handle,
+      kind: p.kind,
       role: p.role,
       approver: p.approver,
       machine: p.machine,

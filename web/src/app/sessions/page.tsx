@@ -28,6 +28,9 @@ export default function SessionsPage() {
   const [tab, setTab] = useState("connect");
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [addError, setAddError] = useState("");
 
   const load = useCallback(async () => {
     const [a, b] = await Promise.all([
@@ -43,6 +46,29 @@ export default function SessionsPage() {
     const t = setInterval(load, 8000);
     return () => clearInterval(t);
   }, [load]);
+
+  /** A teammate, or an agent — an agent is just a person row nobody logs in as. */
+  async function addPerson(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setAddError("");
+    const res = await fetch("/api/people", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newName }),
+    });
+    const out = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) {
+      setAddError(out.error || "could not add them");
+      return;
+    }
+    setNewName("");
+    setAdding(false);
+    await load();
+    setSel(out.id);
+    setTab("connect");
+  }
 
   async function post(id: string, body: Record<string, unknown>) {
     setBusy(true);
@@ -81,6 +107,22 @@ export default function SessionsPage() {
         <span className="text-[11px]" style={{ color: "var(--text-secondary)" }}>
           {data.people.reduce((a, p) => a + p.claimed, 0)} jobs claimed
         </span>
+        {adding ? (
+          <form onSubmit={addPerson} className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Name, or the agent's name"
+              className="btn-os min-w-[200px]"
+            />
+            <button className="btn-os brand" type="submit" disabled={busy || !newName.trim()}>Add</button>
+            <button className="btn-os" type="button" onClick={() => { setAdding(false); setAddError(""); }}>Cancel</button>
+          </form>
+        ) : (
+          <button className="btn-os" onClick={() => setAdding(true)}>+ Add a teammate or agent</button>
+        )}
+        {addError ? <span className="text-[11px]" style={{ color: "var(--state-stop)" }}>{addError}</span> : null}
         <span className="ml-auto text-[11px]" style={{ color: "var(--text-secondary)" }}>
           Everyone brings their own Claude Code. Nobody shares a login.
         </span>
