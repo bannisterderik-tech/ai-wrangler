@@ -54,6 +54,22 @@ export const BRAINS: Brain[] = [
 
 export const DEFAULT_BRAIN: BrainId = "sonnet";
 
+/**
+ * "claude-sonnet-5" as a person would say it.
+ *
+ * Derived from the id rather than written next to it, because the id can be
+ * overridden per tier by an environment variable — a hardcoded label would then
+ * name a model nobody is running.
+ */
+export function modelName(model: string) {
+  const bare = model.replace(/^anthropic\//, "").replace(/^claude-/, "");
+  const parts = bare.split("-");
+  const family = parts.shift() ?? bare;
+  const version = parts.join(".").replace(/\.$/, "");
+  const pretty = family.charAt(0).toUpperCase() + family.slice(1);
+  return version ? `${pretty} ${version}` : pretty;
+}
+
 export function brain(id: string | null | undefined): Brain {
   return BRAINS.find((b) => b.id === id) ?? BRAINS.find((b) => b.id === DEFAULT_BRAIN)!;
 }

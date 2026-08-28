@@ -11,7 +11,7 @@ type Job = {
   steps: { kind: string; text: string; actor: string; at: string }[];
 };
 type Person = { id: string; handle: string; name: string; kind?: string; customerId?: string | null; status: string };
-type Brain = { id: string; label: string; rate: string; good: string; bad: string };
+type Brain = { id: string; label: string; model: string; modelName: string; rate: string; good: string; bad: string };
 
 const money = (n: number) => "$" + n.toFixed(2);
 const TONE: Record<string, string> = {
@@ -114,7 +114,7 @@ export function CustomerWork({ customerId, customerName }: { customerId: string;
             <label className="flex flex-col gap-1">
               <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Brain</span>
               <select className="btn-os" value={draft.tier} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>
-                {brains.map((b) => <option key={b.id} value={b.id}>{b.label} · {b.rate}</option>)}
+                {brains.map((b) => <option key={b.id} value={b.id}>{b.modelName} — {b.label} · {b.rate}</option>)}
               </select>
             </label>
             <label className="flex flex-col gap-1">
@@ -137,7 +137,7 @@ export function CustomerWork({ customerId, customerName }: { customerId: string;
           </div>
           {chosen ? (
             <p className="max-w-[68ch] text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              <strong>{chosen.label}</strong> — {chosen.good}{" "}
+              <strong>{chosen.modelName}</strong> ({chosen.label}) — {chosen.good}{" "}
               <span style={{ color: "var(--state-blocked)" }}>{chosen.bad}</span>
             </p>
           ) : null}

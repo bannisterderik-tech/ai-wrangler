@@ -116,10 +116,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
           </div>
           <nav className="flex flex-1 flex-col overflow-y-auto px-2.5">
             {NAV.map((group) => (
-              <div key={group.section}>
+              // Spacing on the group rather than padding on the heading, so the
+              // gap sits between sections and not above the first one.
+              <div key={group.section} className="mt-6 first:mt-1">
                 <div
-                  className="px-2.5 pb-0.5 pt-3 text-[9px] font-semibold tracking-[1.6px]"
-                  style={{ color: group.section === "BUILD" ? "var(--brand-text)" : "var(--text-secondary)" }}
+                  className="px-2.5 pb-1.5 text-[10px] font-bold uppercase tracking-[1.5px]"
+                  style={{
+                    // A bold 10px label needs more contrast than body-secondary
+                    // grey to read as bold rather than as slightly heavier grey.
+                    color: group.section === "BUILD" ? "var(--brand-text)" : "var(--text-primary)",
+                    opacity: group.section === "BUILD" ? 1 : 0.62,
+                  }}
                 >
                   {group.section}
                 </div>

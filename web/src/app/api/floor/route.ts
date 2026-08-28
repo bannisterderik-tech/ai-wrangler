@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { approvals, audit, boundResources, changes, customers, jobSteps, jobs, people } from "@/lib/schema";
 import { fail, guard, operator } from "@/lib/api";
 import { newId } from "@/lib/customers";
-import { BRAINS, DEFAULT_BRAIN, brainFromTier } from "@/lib/brains";
+import { BRAINS, DEFAULT_BRAIN, brainFromTier, modelName } from "@/lib/brains";
 
 /**
  * The floor in one payload. A job carries its own gate and its own diff, because
@@ -57,6 +57,7 @@ export async function GET() {
         budget: j.budgetCents / 100,
         tier: brainFromTier(j.tier).id,
         brain: brainFromTier(j.tier).label,
+        model: modelName(brainFromTier(j.tier).model),
         steps: steps
           .filter((s) => s.jobId === j.id)
           .map((s) => ({ kind: s.kind, text: s.text, actor: s.actor, at: s.at })),
@@ -80,7 +81,17 @@ export async function GET() {
     }),
     // The picker renders from here, so the tiers and their trade-offs live in
     // one file rather than being retyped into a form.
-    brains: BRAINS.map((b) => ({ id: b.id, label: b.label, rate: b.rate, good: b.good, bad: b.bad })),
+    brains: BRAINS.map((b) => ({
+      id: b.id,
+      label: b.label,
+      // Which model this actually is. "Medium brain" does not tell anyone what
+      // they are buying, and the tier names are ours, not Anthropic's.
+      model: b.model,
+      modelName: modelName(b.model),
+      rate: b.rate,
+      good: b.good,
+      bad: b.bad,
+    })),
     defaultBrain: DEFAULT_BRAIN,
   });
 }
