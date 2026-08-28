@@ -620,3 +620,22 @@ export const agentConnections = pgTable(
   },
   (t) => [index("agent_connections_person").on(t.personId, t.status)],
 );
+
+/** A customer's conversation with their copilot. Walled per customer. */
+export const copilotMessages = pgTable(
+  "copilot_messages",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    /** them | copilot */
+    who: text("who").notNull(),
+    body: text("body").notNull(),
+    /** What it read to answer, so the answer can be checked rather than trusted. */
+    lookedAt: text("looked_at"),
+    cents: integer("cents").notNull().default(0),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("copilot_messages_thread").on(t.customerId, t.at)],
+);

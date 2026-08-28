@@ -2477,3 +2477,96 @@ describe("the self-test reports what vendors say, not what we assume", () => {
     assert.ok(!/Messages\.json|\/v1\/charges|\/pulls/.test(src), "no sending, charging or writing");
   });
 });
+
+/**
+ * The customer's copilot chat.
+ *
+ * It answers from what it can see and holds no capability to do anything else.
+ * That is the whole safety model rather than a limitation of it: once a copilot
+ * reads a customer's mail it is reading text any stranger can write, and an
+ * instruction hidden in an email is indistinguishable from an instruction from
+ * the customer. You cannot prompt your way out of that — you can only make sure
+ * the thing reading it cannot send, spend or delete.
+ */
+describe("a customer can talk to their own copilot and nobody else's", () => {
+  let acmeCookie2 = "";
+  let globexCookie2 = "";
+
+  async function signIn(email) {
+    const raw = `wr_sess_cp_${email.replace(/\W/g, "")}_${Date.now()}${Math.random()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, ${email}, now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    return v ? `wrangler_session=${v}` : "";
+  }
+  const as = (c, path, init = {}) =>
+    fetch(`${BASE}${path}`, { ...init, redirect: "manual", headers: { "Content-Type": "application/json", cookie: c, ...(init.headers || {}) } });
+
+  before(async () => {
+    await sql`DELETE FROM copilot_messages WHERE customer_id IN ('acme','globex')`;
+    await sql`DELETE FROM people WHERE id IN ('cp-acme-user','cp-globex-user','A_cp_acme','A_cp_globex')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, customer_id) VALUES
+        ('cp-acme-user','Ann','ann','ann@acme.test','client','acme'),
+        ('cp-globex-user','Gus','gus','gus@globex.test','client','globex')`;
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, agent_kind, brief) VALUES
+        ('A_cp_acme','acme-copilot','acme-copilot','agent','acme','copilot','Acme brief'),
+        ('A_cp_globex','globex-copilot','globex-copilot','agent','globex','copilot','Globex brief')`;
+    acmeCookie2 = await signIn("ann@acme.test");
+    globexCookie2 = await signIn("gus@globex.test");
+  });
+
+  test("each customer is shown their own copilot", async () => {
+    const mine = await (await as(acmeCookie2, "/api/client/copilot")).json();
+    const theirs = await (await as(globexCookie2, "/api/client/copilot")).json();
+    assert.equal(mine.copilot.name, "acme-copilot");
+    assert.equal(theirs.copilot.name, "globex-copilot");
+    // The lookup must filter in the query. Picking any person for the customer
+    // and then asking whether it happened to be a copilot returns nothing
+    // whenever a client user sorts first — which is most of the time.
+    assert.ok(!JSON.stringify(mine).includes("globex"), "no trace of the other customer");
+  });
+
+  test("without a model key it says so instead of failing silently", async () => {
+    const res = await as(acmeCookie2, "/api/client/copilot");
+    const body = await res.json();
+    assert.equal(body.ready, false);
+    assert.match(body.why, /model key/);
+    const post = await as(acmeCookie2, "/api/client/copilot", {
+      method: "POST",
+      body: JSON.stringify({ body: "who is waiting on me?" }),
+    });
+    assert.equal(post.status, 503, "a chat that cannot answer must refuse, not hang");
+  });
+
+  test("one customer cannot read another's conversation", async () => {
+    await sql`
+      INSERT INTO copilot_messages (id, customer_id, who, body)
+      VALUES ('cm-secret','globex','them','the globex secret')`;
+    const mine = await (await as(acmeCookie2, "/api/client/copilot")).json();
+    assert.ok(!JSON.stringify(mine).includes("globex secret"), "RLS must hide the other thread");
+  });
+
+  test("an operator has no business on the client copilot route", async () => {
+    const res = await api("/api/client/copilot");
+    assert.equal(res.status, 403);
+  });
+
+  test("the copilot holds no capability to act", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/lib/copilot.ts", import.meta.url), "utf8"),
+    );
+    // No tools, and nothing that sends. If a future edit gives it one, this
+    // fails — which is the point, because the prompt alone protects nothing.
+    for (const forbidden of ["sendSms", "placeCall", "openPullRequest", "depositCheckout", "tools:"]) {
+      assert.ok(!src.includes(forbidden), `the copilot must not be able to ${forbidden}`);
+    }
+    // And it must tell the model that what it reads is data, not orders.
+    assert.match(src, /data, not instructions/);
+  });
+});

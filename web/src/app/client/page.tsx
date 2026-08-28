@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 
 type Event = { kind: string; direction: string; body: string | null; at: string; actor: string };
 type Lead = {
@@ -71,13 +72,13 @@ export default function ClientPage() {
         className="flex flex-wrap items-center gap-3 border-b px-5 py-3"
         style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}
       >
-        <div className="flex items-center gap-2 text-[14px] font-semibold">
-          <span style={{ color: "var(--brand-text)" }}>✛</span> Your leads
-        </div>
+        <div className="brand-mark" role="img" aria-label="AI Wrangler" />
+        <div className="text-[14px] font-semibold">Your leads</div>
         <div className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
           {open.length} open · {money(pipeline)} in play
         </div>
         <div className="ml-auto flex items-center gap-3 text-[12px]" style={{ color: "var(--text-secondary)" }}>
+          <Link href="/client/copilot" className="btn-os no-underline">Ask your copilot</Link>
           {data.you.name}
           <a href="/api/auth/logout" className="underline">Sign out</a>
         </div>
