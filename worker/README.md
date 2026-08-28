@@ -75,3 +75,25 @@ floor, then unset it.
 
 Every step it posts shows up on **The floor** under that job, attributed to its
 handle, while it is still working.
+
+## Auth in the container
+
+Claude Code picks up `ANTHROPIC_API_KEY` from the environment; the worker passes
+its own env straight through, so setting it on the Railway service is enough.
+
+If a pass ever logs `Not logged in · Please run /login`, the key did not reach
+the process. Add `--bare` to the args in `run.mjs` — it forces auth to be
+strictly `ANTHROPIC_API_KEY` and never reads a keychain or OAuth, which is what
+you want in a container. It is not on by default only because it also skips
+hooks, LSP and CLAUDE.md discovery, and none of that has been exercised here.
+
+## What was verified, and what was not
+
+Verified: the exact CLI invocation parses — `-p`, `--model`, `--permission-mode
+acceptEdits`, `--mcp-config`, `--strict-mcp-config` and `--allowedTools` are all
+real flags and accepted together. The MCP config is written at 0600. The worker
+resolves each token against the floor and names the agent and its project. Every
+MCP tool in the brief was exercised over the wire against a real server.
+
+Not verified: a complete agent pass. It has never run with a key.
+Deploy with `RUN_ONCE=1` and read the log before letting it poll.

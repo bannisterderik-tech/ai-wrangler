@@ -107,6 +107,36 @@ Hard rules:
   of the same thing.
 - Spend is capped per job. When you are near the cap, post_step saying so and stop.`;
 
+/**
+ * Exactly what this agent may reach for.
+ *
+ * In non-interactive mode an unlisted tool is a prompt nobody is there to
+ * answer, so the MCP tools have to be named. Naming them is also the point: this
+ * list plus the session's grants are the whole of what it can do. It gets git
+ * and the editor, and it does not get a shell that can curl the internet.
+ */
+const ALLOWED = [
+  "mcp__wrangler__list_jobs",
+  "mcp__wrangler__claim_job",
+  "mcp__wrangler__release_job",
+  "mcp__wrangler__read_project",
+  "mcp__wrangler__read_bound_repo",
+  "mcp__wrangler__next_work",
+  "mcp__wrangler__open_work",
+  "mcp__wrangler__open_branch",
+  "mcp__wrangler__post_step",
+  "mcp__wrangler__request_approval",
+  "Read",
+  "Edit",
+  "Write",
+  "Glob",
+  "Grep",
+  "Bash(git *)",
+  "Bash(npm *)",
+  "Bash(ls *)",
+  "Bash(cat *)",
+];
+
 function runOnce(dir) {
   return new Promise((resolve) => {
     const args = [
@@ -114,6 +144,9 @@ function runOnce(dir) {
       "--model", MODEL,
       "--permission-mode", "acceptEdits",
       "--mcp-config", join(dir, ".mcp.json"),
+      // Only the floor. Not whatever else happens to be configured on the box.
+      "--strict-mcp-config",
+      "--allowedTools", ...ALLOWED,
     ];
     const child = spawn("claude", args, {
       cwd: dir,
