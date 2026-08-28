@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SelfTest } from "@/components/os/SelfTest";
+import { AdAccounts } from "@/components/os/AdAccounts";
 
 type KeyField = { id: string; label: string; hint: string; secret: boolean };
 
@@ -100,6 +101,7 @@ export default function SettingsPage() {
       </div>
       <SelfTest />
       <AgencyKeys />
+      <AdAccounts />
       <Row
         name="Vercel"
         desc="Hosting — previews and production deploys."
