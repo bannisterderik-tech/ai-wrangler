@@ -137,6 +137,19 @@ worker**.
 | `ANTHROPIC_API_KEY` | Required, and required specifically in `--bare` mode |
 | `POLL_SECONDS` | Seconds. A value like `120s` is refused at boot rather than parsed to NaN. |
 | `MAX_PASS_SECONDS` | Ceiling on one pass. Default 1800. |
+| `MAX_SPEND_USD` | Ceiling for the whole container, all passes. Default 25. It stops and stays stopped. |
+
+**Stopping it does not mean opening Railway.** The floor has a stop switch: on
+the floor, **Stop all agents**. Every agent asks the floor what to do before it
+starts a paid session, so it takes effect on the next poll, and `claim_job`
+refuses too — which catches a worker running older code that never asks.
+
+`MAX_SPEND_USD` is the backstop underneath all of that. It needs nothing else to
+be working: the worker adds up what the harness said each pass cost and stops
+itself. A previous version idled on Opus every 120 seconds with no skip and no
+per-pass check, spending $20 to be told "nothing to do" thirty times an hour,
+while the per-job counter read $0.00 the whole time. A ceiling that depends on
+no other component is the only kind that would have caught that.
 
 **Editing `WRANGLER_SESSION_TOKENS` is safe now** — workspaces are keyed on the
 token's identity, not its position in that list. It was not safe before: removing

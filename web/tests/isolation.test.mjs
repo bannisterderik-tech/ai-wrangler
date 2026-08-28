@@ -2090,3 +2090,90 @@ describe("a link that leaves the building cannot be aimed by its recipient", () 
     assert.match(src, /throw new Error\(\s*\n?\s*"PUBLIC_ORIGIN is not set/);
   });
 });
+
+/**
+ * The stop switch.
+ *
+ * A deployed worker idled on Opus every 120 seconds with no skip and no
+ * per-pass check — a full session to be told "nothing to do", thirty times an
+ * hour, $20 spent on nothing. The only way to stop it was to delete a Railway
+ * service, which is the exact thing this OS exists to make unnecessary.
+ */
+describe("agents can be stopped from the OS", () => {
+  let token = "";
+  let jobId = "";
+  before(async () => {
+    await sql`DELETE FROM jobs WHERE title = 'Switch job'`;
+    await sql`DELETE FROM people WHERE id = 'A_switch'`;
+    await sql`UPDATE floor_switches SET on_at = NULL WHERE id = 'agents_paused'`;
+    token = "wr_sess_switch0000000000000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(token).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, token_hash, status)
+      VALUES ('A_switch','switch-bot','switch-bot','agent','acme',${hash},'connected')`;
+    await sql`INSERT INTO person_tools (person_id, tool) VALUES ('A_switch','claim_job')`;
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Switch job", customerId: "acme", budgetDollars: 5 }),
+    });
+    jobId = res.body.id;
+  });
+  after(async () => {
+    await sql`UPDATE floor_switches SET on_at = NULL WHERE id = 'agents_paused'`;
+  });
+
+  const next = () =>
+    fetch(`${BASE}/api/agent/next`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
+  const claim = () =>
+    fetch(`${BASE}/api/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0", id: 1, method: "tools/call",
+        params: { name: "claim_job", arguments: { job_id: jobId } },
+      }),
+    }).then((r) => r.text());
+
+  test("running normally, there is work to take", async () => {
+    const r = await next();
+    assert.ok(r.job, "there is a queued job");
+    assert.ok(!r.stop);
+  });
+
+  test("stopping tells the worker not to start a paid session", async () => {
+    const res = await api("/api/agents/pause", {
+      method: "POST",
+      body: JSON.stringify({ paused: true, reason: "burning money on nothing" }),
+    });
+    assert.equal(res.status, 200);
+    const r = await next();
+    assert.equal(r.stop, true, "the cheapest possible answer, before any model runs");
+    assert.match(r.reason, /burning money/);
+  });
+
+  test("and a worker on older code, which never asks, is refused at the claim", async () => {
+    const out = await claim();
+    assert.match(out, /refused/);
+    assert.match(out, /paused/);
+  });
+
+  test("letting them run puts the work back", async () => {
+    await api("/api/agents/pause", { method: "POST", body: JSON.stringify({ paused: false }) });
+    const r = await next();
+    assert.ok(r.job, "work is available again");
+    assert.ok(!r.stop);
+  });
+
+  test("a stranger cannot stop the floor, or restart it", async () => {
+    const saved = cookie;
+    cookie = "";
+    const res = await api("/api/agents/pause", { method: "POST", body: JSON.stringify({ paused: true }) });
+    cookie = saved;
+    assert.equal(res.status, 401);
+  });
+});

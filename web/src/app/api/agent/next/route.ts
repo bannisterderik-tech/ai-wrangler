@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { jobs } from "@/lib/schema";
 import { sessionFromHeader } from "@/lib/session-token";
 import { brainFromTier } from "@/lib/brains";
+import { agentsPaused } from "@/lib/switches";
 
 /**
  * Which job this session would pick up next, and how much brain it asked for.
@@ -24,6 +25,13 @@ export async function GET(req: Request) {
   if (!session) return NextResponse.json({ error: "unknown session" }, { status: 401 });
   if (session.kind !== "agent") {
     return NextResponse.json({ error: "only a project agent asks for work this way" }, { status: 403 });
+  }
+  // Checked first, before scope, before the board. This is the answer that
+  // costs nothing, and it is the one somebody reaches for when a container is
+  // spending money on nothing.
+  const stopped = await agentsPaused();
+  if (stopped.paused) {
+    return NextResponse.json({ stop: true, reason: stopped.reason ?? "agents are paused" });
   }
   if (!session.scope.length) return NextResponse.json({ job: null, reason: "no customers in scope" });
 

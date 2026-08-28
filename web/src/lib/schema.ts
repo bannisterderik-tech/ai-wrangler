@@ -582,3 +582,12 @@ export const proposalPayments = pgTable("proposal_payments", {
   paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Big red buttons. A row, so pulling one takes effect on the next poll. */
+export const floorSwitches = pgTable("floor_switches", {
+  id: text("id").primaryKey(),
+  onAt: timestamp("on_at", { withTimezone: true }),
+  reason: text("reason"),
+  actor: text("actor"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

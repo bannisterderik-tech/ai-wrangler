@@ -41,13 +41,13 @@ if (!TOKENS.length) {
 const WORKSPACE = process.env.WORKSPACE_DIR || "/work";
 const INTERVAL = (() => {
   const raw = process.env.POLL_SECONDS;
-  if (raw === undefined || raw === "") return 120;
+  if (raw === undefined || raw === "") return 600;
   const n = Number(raw);
   if (!Number.isFinite(n) || n <= 0) {
     // "120s" and "2m" both read as obviously correct and both parse to NaN.
     // Math.max(30, NaN) is NaN, setTimeout(NaN) fires in 1ms, and the worker
     // then starts a paid pass as fast as it can spawn one. Refuse to boot.
-    console.error(`[agent] POLL_SECONDS="${raw}" is not a number of seconds. Use POLL_SECONDS=120.`);
+    console.error(`[agent] POLL_SECONDS="${raw}" is not a number of seconds. Use POLL_SECONDS=600.`);
     process.exit(1);
   }
   return n;
@@ -236,6 +236,23 @@ async function nextBrain(token) {
 /** Hard ceiling on one pass, so a stuck agent cannot bill for hours. */
 const MAX_PASS_MS = Math.max(60, Number(process.env.MAX_PASS_SECONDS) || 1800) * 1000;
 
+/**
+ * Hard ceiling on this container, for the whole time it is up.
+ *
+ * The per-job cap is the floor's business and depends on spend being reported
+ * and attributed correctly. This one does not depend on anything: the worker
+ * adds up what the harness told it each pass cost, and when the total passes
+ * this number it stops and stays stopped.
+ *
+ * It exists because the last version of this file idled on Opus every 120
+ * seconds with no per-pass check and no skip — it ran a full session to be told
+ * "nothing to do", 30 times an hour, and spent $20 doing nothing at all. A
+ * ceiling that needs no other component to be working is the only kind that
+ * would have caught it.
+ */
+const MAX_SPEND_USD = Number(process.env.MAX_SPEND_USD) || 25;
+let spentThisBoot = 0;
+
 function runOnce(dir, model, brief) {
   return new Promise((resolve) => {
     const args = [
@@ -346,6 +363,7 @@ async function main() {
   console.log(`[agent] floor: ${MCP_URL}`);
   console.log(`[agent] ${TOKENS.length} agent${TOKENS.length === 1 ? "" : "s"}  model: ${MODEL}`);
   console.log(`[agent] mode: ${ONCE ? "one pass each" : `every ${INTERVAL}s`}`);
+  console.log(`[agent] ceiling: $${MAX_SPEND_USD.toFixed(2)} for this container, ${Math.round(MAX_PASS_MS / 1000)}s per pass`);
   console.log(
     BARE
       ? "[agent] bare mode: the checkout's own hooks, skills and CLAUDE.md are not loaded"
@@ -410,6 +428,13 @@ async function main() {
       console.log(`[agent] --- ${a.label} ---`);
 
       const next = await nextBrain(a.token);
+      if (next?.stop) {
+        // The floor pulled the switch. Obeyed here rather than by deleting a
+        // service, so stopping does not mean opening a dashboard.
+        console.error(`[agent] ${a.label}: the floor says stop — ${next.reason ?? "paused by an operator"}.`);
+        a.dead = true;
+        continue;
+      }
       if (next?.fatal) {
         console.error(`[agent] ${a.label}: the floor refused this token. Not running it again.`);
         a.dead = true;
@@ -443,10 +468,14 @@ async function main() {
       const { code, usd, killed } = await runOnce(a.dir, model, brief);
       const secs = Math.round((Date.now() - started) / 1000);
       const cost = Number.isFinite(usd) ? `$${usd.toFixed(2)}` : "cost unknown";
-      console.log(`[agent] ${a.label}: ${secs}s  ${cost}  (exit ${code})`);
+      console.log(
+        `[agent] ${a.label}: ${secs}s  ${cost}  (exit ${code})  ` +
+          `— $${spentThisBoot.toFixed(2)} of $${MAX_SPEND_USD.toFixed(2)} this boot`,
+      );
       if (!Number.isFinite(usd)) {
         console.warn(`[agent] ${a.label}: could not read the pass cost — the cap cannot see this one.`);
       }
+      if (Number.isFinite(usd)) spentThisBoot += usd;
       const spend = await reportSpend(a.token, usd, next.job.id);
       if (spend?.attributed) {
         a.unbilled = 0;
@@ -469,6 +498,13 @@ async function main() {
       if (killed) console.error(`[agent] ${a.label}: that pass was killed on the time limit.`);
     }
     if (ONCE) process.exit(0);
+    if (spentThisBoot >= MAX_SPEND_USD) {
+      console.error(
+        `[agent] STOPPING: this worker has spent $${spentThisBoot.toFixed(2)} of its $${MAX_SPEND_USD.toFixed(2)} ` +
+          `ceiling. Raise MAX_SPEND_USD if that was the intention.`,
+      );
+      process.exit(1);
+    }
     if (agents.every((a) => a.dead)) {
       console.error("[agent] every agent is stopped. Nothing left to run.");
       process.exit(1);

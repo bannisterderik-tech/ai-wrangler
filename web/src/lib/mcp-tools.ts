@@ -16,6 +16,7 @@ import {
 } from "./schema";
 import type { McpSession } from "./session-token";
 import { recall } from "./recall";
+import { agentsPaused } from "./switches";
 import { cloneUrl, githubAppConfigured, readBranch } from "./github-app";
 
 /**
@@ -272,6 +273,13 @@ export async function callTool(session: McpSession, name: string, args: Args): P
     }
 
     case "claim_job": {
+      // A worker running older code does not ask /api/agent/next, so the switch
+      // has to bite here as well or pausing would only stop the agents that
+      // already know how to be stopped.
+      const paused = await agentsPaused();
+      if (paused.paused) {
+        throw new ToolError(`refused: agents are paused on the floor — ${paused.reason ?? "stopped by an operator"}.`);
+      }
       const job = await jobInScope(session, s(args.job_id));
       // The cap, enforced where it cannot be reasoned past. A job at its budget
       // is not workable by anyone until a human raises it — otherwise the money

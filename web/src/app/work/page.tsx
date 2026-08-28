@@ -48,11 +48,25 @@ export default function FloorPage() {
   const [opening, setOpening] = useState(false);
   const [draft, setDraft] = useState({ title: "", customerId: "", goal: "", budgetDollars: "10", ownerId: "", tier: "sonnet" });
   const [openError, setOpenError] = useState("");
+  const [paused, setPaused] = useState<{ paused: boolean; reason: string | null } | null>(null);
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/floor", { cache: "no-store" });
+    const [res, sw] = await Promise.all([
+      fetch("/api/floor", { cache: "no-store" }),
+      fetch("/api/agents/pause", { cache: "no-store" }),
+    ]);
     if (res.ok) setFloor(await res.json());
+    if (sw.ok) setPaused(await sw.json());
   }, []);
+
+  async function toggleAgents(next: boolean) {
+    await fetch("/api/agents/pause", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paused: next }),
+    }).catch(() => {});
+    await load();
+  }
 
   useEffect(() => {
     load();
@@ -124,6 +138,21 @@ export default function FloorPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {paused?.paused ? (
+        <div
+          className="flex flex-wrap items-center gap-3 border-b px-4 py-2.5"
+          style={{
+            borderColor: "var(--hairline)",
+            background: "color-mix(in srgb, var(--state-stop) 14%, var(--surface-raised))",
+          }}
+        >
+          <strong className="text-[13px]">Agents are stopped.</strong>
+          <span className="text-[12.5px]" style={{ color: "var(--text-secondary)" }}>
+            {paused.reason ?? "Nothing will claim work or start a paid session until you let them go."}
+          </span>
+          <button className="btn-os ml-auto" onClick={() => toggleAgents(false)}>Let them run</button>
+        </div>
+      ) : null}
       <DeskBar>
         {buckets
           .filter(([id, , list]) => list.length || id === "all")
@@ -139,6 +168,15 @@ export default function FloorPage() {
         <button className="btn-os brand" onClick={() => setOpening((v) => !v)}>
           {opening ? "Cancel" : "+ New job"}
         </button>
+        {paused && !paused.paused ? (
+          <button
+            className="btn-os stop"
+            title="Every agent stops before its next paid session. Takes effect on the next poll, not the next deploy."
+            onClick={() => toggleAgents(true)}
+          >
+            Stop all agents
+          </button>
+        ) : null}
         <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
           ${jobs.reduce((a, j) => a + j.spent, 0).toFixed(2)} today
         </span>
