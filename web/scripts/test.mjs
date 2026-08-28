@@ -26,6 +26,11 @@ const env = {
 };
 const base = `http://localhost:${env.PORT}`;
 env.TEST_BASE_URL = base;
+// Every deploy has to set this, and the suite runs NODE_ENV=production, so it
+// has to set it too. Without it the routes that build links leaving the server
+// refuse outright rather than trusting the caller's Host header — which is the
+// point, and which the suite should exercise rather than route around.
+env.PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || base;
 
 step("resetting the test database", [join(here, "reset.mjs")]);
 step("building", [join(web, "node_modules", "next", "dist", "bin", "next"), "build"]);

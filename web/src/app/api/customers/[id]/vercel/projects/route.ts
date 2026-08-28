@@ -6,6 +6,7 @@ import { boundResources } from "@/lib/schema";
 import { ensureCustomer } from "@/lib/customers";
 import { bindResources } from "@/lib/binding";
 import { listCustomerProjects } from "@/lib/vercel";
+import { IsolationError } from "@/lib/isolation";
 
 /** Their Vercel, their token: projects are listed with the customer's own token, never a shared one. */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -42,7 +43,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     const items = ids.map((projectId) => {
       const project = byId.get(projectId);
       if (!project) {
-        return { resourceId: projectId, name: projectId };
+        // Binding something we cannot see on their account puts a row into the
+        // wall that the wall cannot vouch for. The GitHub route refuses this
+        // and so does this one.
+        throw new IsolationError(
+          `${projectId} is not a project on that customer's Vercel account.`,
+          403,
+        );
       }
       return { resourceId: project.id, name: project.name, meta: { framework: project.framework } };
     });

@@ -3,6 +3,7 @@ import { db } from "./db";
 import { newId } from "./customers";
 import { IsolationError, assertBound, assertNotTakenByAnother, boundIds } from "./isolation";
 import { audit, boundResources } from "./schema";
+import { pgCode } from "./api";
 
 export type BindItem = { resourceId: string; name: string; meta?: Record<string, unknown> };
 
@@ -44,8 +45,10 @@ export async function bindResources(
       }
     });
   } catch (e) {
-    const code = (e as { code?: string }).code;
-    if (code === "23505") {
+    // pgCode walks the cause chain. Reading .code off the top-level object
+    // never matched, because Drizzle rethrows as DrizzleQueryError with the
+    // driver error underneath — so this branch had never once run.
+    if (pgCode(e) === "23505") {
       throw new IsolationError(
         `one of those is already bound to another customer. no overlap.`,
         403,

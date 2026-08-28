@@ -1962,3 +1962,131 @@ describe("assigning work to the right hands", () => {
     assert.equal(row.tier, "haiku");
   });
 });
+
+/**
+ * A redirect after sign-in must not be able to leave this origin.
+ *
+ * The old guard was `next.startsWith("/") && !next.startsWith("//")`. WHATWG URL
+ * folds a backslash to a slash for special schemes, so "/\evil.com" begins with
+ * a single slash, passes both checks, and resolves to https://evil.com. The
+ * redirect happens after the session cookie is set, so it is login-CSRF plus a
+ * free off-site bounce.
+ */
+describe("sign-in cannot bounce you off-site", () => {
+  const minted = [];
+  async function link(email, next) {
+    const raw = `wr_sess_redir_${Math.random().toString(36).slice(2)}`;
+    minted.push(raw);
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, ${email}, now() + interval '15 minutes')`;
+    const qs = next === undefined ? "" : `&next=${encodeURIComponent(next)}`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}${qs}`, { redirect: "manual" });
+    return res.headers.get("location") || "";
+  }
+
+  for (const evil of ["/\\evil.com", "/\t/evil.com", "//evil.com", "https://evil.com", "/\\\\evil.com"]) {
+    test(`refuses ${JSON.stringify(evil)}`, async () => {
+      const to = await link("derik@aiwrangler.co", evil);
+      const host = (() => {
+        try {
+          return new URL(to, BASE).host;
+        } catch {
+          return "unparseable";
+        }
+      })();
+      assert.equal(host, new URL(BASE).host, `signed in and was sent to ${to}`);
+    });
+  }
+
+  test("but an ordinary path still works", async () => {
+    const to = await link("derik@aiwrangler.co", "/work");
+    assert.match(to, /\/work$/);
+  });
+});
+
+describe("three quiet holes closed", () => {
+  test("brute force cannot mint a fresh throttle bucket per request", async () => {
+    const tries = [];
+    for (let i = 0; i < 8; i++) {
+      tries.push(
+        await fetch(`${BASE}/api/auth/operator/password`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            // A different caller-supplied leftmost hop every time. Keying on
+            // this gave an attacker unlimited attempts at a single-factor
+            // full-admin password.
+            "X-Forwarded-For": `10.0.0.${i}, 203.0.113.7`,
+          },
+          body: JSON.stringify({ password: "definitely-wrong" }),
+        }).then((r) => r.status),
+      );
+    }
+    assert.ok(tries.includes(429), `never throttled across 8 tries: ${tries.join(",")}`);
+  });
+
+  test("a Vercel project we cannot see is not bindable", async () => {
+    const res = await api("/api/customers/acme/vercel/projects", {
+      method: "POST",
+      body: JSON.stringify({ projectIds: ["prj_i_just_made_this_up"] }),
+    });
+    assert.ok(res.status >= 400, `an unverifiable project was bound: ${res.status}`);
+    const [row] = await sql`
+      SELECT count(*)::int AS n FROM bound_resources WHERE resource_id = 'prj_i_just_made_this_up'`;
+    assert.equal(row.n, 0, "a wall cannot vouch for a row it never verified");
+  });
+
+  test("losing a binding race says what actually happened", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/lib/binding.ts", import.meta.url), "utf8"),
+    );
+    // Drizzle puts the SQLSTATE on .cause, so reading .code off the top-level
+    // error never matched and this refusal had never once run.
+    assert.match(src, /pgCode\(e\) === "23505"/);
+    assert.ok(!/\(e as \{ code\?: string \}\)\.code/.test(src), "the top-level .code read never matches");
+  });
+});
+
+describe("a link that leaves the building cannot be aimed by its recipient", () => {
+  test("a forged Host does not end up in the sign-in link", async () => {
+    // The old code built the emailed link from x-forwarded-host, so a stranger
+    // could ask for a link "for" an operator and have it point at their own
+    // server, collecting the one-time token when the real operator clicked it.
+    await sql`DELETE FROM login_links WHERE email = 'derik@aiwrangler.co'`;
+    const res = await fetch(`${BASE}/api/auth/magic/start`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Forwarded-Host": "evil.tld",
+        "X-Forwarded-Proto": "https",
+      },
+      body: JSON.stringify({ email: "derik@aiwrangler.co" }),
+    });
+    // Not asserting on the status: an earlier suite deliberately stores a bad
+    // Resend key, so this route can legitimately answer 502 here. Mail delivery
+    // is a different test; what matters is which origin built the link.
+    assert.ok(res.status, "the route answered");
+    const [link] = await sql`
+      SELECT requested_from FROM login_links WHERE email = 'derik@aiwrangler.co' ORDER BY created_at DESC LIMIT 1`;
+    if (link?.requested_from) {
+      assert.ok(!/evil\.tld/.test(link.requested_from), `a forged host was recorded: ${link.requested_from}`);
+    }
+    // PUBLIC_ORIGIN is set here, so the header must be ignored outright rather
+    // than merely deprioritised.
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/app/api/auth/magic/start/route.ts", import.meta.url), "utf8"),
+    );
+    assert.match(src, /trustedOrigin\(req\)/, "the sign-in link must use the origin that ignores headers");
+    assert.ok(!/publicOrigin\(/.test(src), "publicOrigin falls back to the caller's Host header");
+  });
+
+  test("trustedOrigin refuses rather than trusting a header in production", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/lib/origin.ts", import.meta.url), "utf8"),
+    );
+    assert.match(src, /throw new Error\(\s*\n?\s*"PUBLIC_ORIGIN is not set/);
+  });
+});

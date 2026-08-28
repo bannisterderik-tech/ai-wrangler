@@ -5,7 +5,7 @@ import { fail, guard, operator } from "@/lib/api";
 import { agencyLeads, audit, proposalItems, proposals } from "@/lib/schema";
 import { newId } from "@/lib/customers";
 import { loadProposal, proposalToken, renderDocument, totals } from "@/lib/proposals";
-import { publicOrigin } from "@/lib/origin";
+import { trustedOrigin } from "@/lib/origin";
 
 const EDITABLE = new Set(["draft"]);
 
@@ -23,7 +23,7 @@ export async function GET(req: Request, ctx: RouteContext<"/api/proposals/[id]">
       ...loaded,
       lead: lead ? { id: lead.id, company: lead.company, contact: lead.contact, email: lead.email } : null,
       document,
-      link: loaded.proposal.token ? `${publicOrigin(req)}/p/${loaded.proposal.token}` : null,
+      link: loaded.proposal.token ? `${trustedOrigin(req)}/p/${loaded.proposal.token}` : null,
       editable: EDITABLE.has(loaded.proposal.status),
     });
   } catch (e) {
@@ -77,7 +77,7 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/proposals/[id]
       await db.insert(audit).values({
         customerId: null, actor: who, action: "sent a proposal", target: id, at: new Date(),
       });
-      return NextResponse.json({ ok: true, link: `${publicOrigin(req)}/p/${token}` });
+      return NextResponse.json({ ok: true, link: `${trustedOrigin(req)}/p/${token}` });
     }
 
     if (body.action === "void") {

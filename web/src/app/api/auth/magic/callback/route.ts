@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { SESSION_COOKIE, isOperatorEmail, sessionCookieOptions, signSession } from "@/lib/auth";
 import { audit, loginLinks, people } from "@/lib/schema";
 import { hashToken } from "@/lib/session-token";
-import { publicOrigin } from "@/lib/origin";
+import { safeNext, publicOrigin } from "@/lib/origin";
 
 /** Redeem a sign-in link. One use, then it is dead. */
 export async function GET(req: Request) {
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
   // A client lands on their own side of the house, never the agency's.
   const home = who?.customerId ? "/client" : "/";
   const next = url.searchParams.get("next");
-  const wanted = next && next.startsWith("/") && !next.startsWith("//") ? next : home;
+  const wanted = safeNext(next, publicOrigin(req), home);
   const dest = who?.customerId && !wanted.startsWith("/client") ? home : wanted;
   const res = NextResponse.redirect(new URL(dest, origin));
   res.cookies.set(SESSION_COOKIE, session, sessionCookieOptions());

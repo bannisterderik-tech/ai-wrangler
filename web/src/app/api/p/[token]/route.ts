@@ -6,7 +6,7 @@ import { agencyLeads, proposalItems, proposalPayments, proposals, signatures } f
 import { newId } from "@/lib/customers";
 import { callerIp, documentHash, renderDocument, totals } from "@/lib/proposals";
 import { depositCheckout, stripeConfigured } from "@/lib/stripe";
-import { publicOrigin } from "@/lib/origin";
+import { trustedOrigin } from "@/lib/origin";
 
 /**
  * The client's side of a proposal. No account, no password — the link IS the
@@ -135,7 +135,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/p/[token]">) {
       if (t.dueTodayCents <= 0) {
         return NextResponse.json({ error: "There is no deposit due on this proposal." }, { status: 400 });
       }
-      const origin = publicOrigin(req);
+      const origin = trustedOrigin(req);
       const session = await depositCheckout({
         proposalId: p.id,
         title: `${p.title} — deposit`,
