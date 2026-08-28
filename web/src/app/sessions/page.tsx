@@ -36,6 +36,7 @@ export default function SessionsPage() {
   const [addError, setAddError] = useState("");
   const [railway, setRailway] = useState<Railway | null>(null);
   const [rwToken, setRwToken] = useState("");
+  const [aiKey, setAiKey] = useState("");
   const [deployNote, setDeployNote] = useState("");
 
   const load = useCallback(async () => {
@@ -258,8 +259,8 @@ export default function SessionsPage() {
                 >
                   Railway is connected{railway.serviceId ? " and the worker exists" : " — the worker will be created on the first agent"}.
                   {railway.anthropic ? null : (
-                    <div className="mt-1" style={{ color: "var(--state-blocked)" }}>
-                      ANTHROPIC_API_KEY is not set on this service, so an agent could not think yet.
+                    <div className="mt-2" style={{ color: "var(--state-blocked)" }}>
+                      No Anthropic key yet — the agent would have nothing to think with.
                     </div>
                   )}
                 </div>
@@ -302,6 +303,36 @@ export default function SessionsPage() {
                   </div>
                 </div>
               )}
+              {railway && !railway.anthropic ? (
+                <div className="mt-2 flex gap-1.5">
+                  <input
+                    type="password"
+                    value={aiKey}
+                    onChange={(e) => setAiKey(e.target.value)}
+                    placeholder="Anthropic API key (sk-ant-…)"
+                    className="btn-os min-w-[240px]"
+                  />
+                  <button
+                    className="btn-os brand"
+                    disabled={busy || !aiKey.trim()}
+                    onClick={async () => {
+                      setBusy(true);
+                      const res = await fetch("/api/railway", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ anthropicKey: aiKey }),
+                      });
+                      const out = await res.json().catch(() => ({}));
+                      setDeployNote(res.ok ? "Anthropic key saved. Agents get it from here." : out.error || "could not save");
+                      setAiKey("");
+                      setBusy(false);
+                      await load();
+                    }}
+                  >
+                    Save key
+                  </button>
+                </div>
+              ) : null}
               {deployNote ? (
                 <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>{deployNote}</p>
               ) : null}

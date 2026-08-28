@@ -827,3 +827,40 @@ describe("agents deploy themselves, and say so when they cannot", () => {
     assert.match(res.body.deploy.why, /Not an agent/);
   });
 });
+
+/**
+ * The Anthropic key belongs in the vault like every other credential, so setting
+ * up an agent never means opening the Railway dashboard.
+ */
+describe("the Anthropic key lives in the vault", () => {
+  before(async () => {
+    await sql`DELETE FROM agency_connections WHERE provider = 'anthropic'`;
+  });
+
+  test("something that is not a key is refused before anything is stored", async () => {
+    const res = await api("/api/railway", {
+      method: "POST",
+      body: JSON.stringify({ anthropicKey: "hunter2" }),
+    });
+    assert.equal(res.status, 500, "the shape check throws");
+    const [row] = await sql`SELECT count(*)::int AS n FROM agency_connections WHERE provider = 'anthropic'`;
+    assert.equal(row.n, 0);
+  });
+
+  test("a key is stored encrypted, never in the clear", async () => {
+    const key = "sk-ant-test-not-a-real-key-000000";
+    const res = await api("/api/railway", { method: "POST", body: JSON.stringify({ anthropicKey: key }) });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.anthropic, true);
+    const [row] = await sql`SELECT encrypted_access FROM agency_connections WHERE provider = 'anthropic'`;
+    assert.ok(row.encrypted_access.startsWith("v1."), "it is a vault blob");
+    assert.ok(!row.encrypted_access.includes(key), "the key itself is not in the row");
+  });
+
+  test("and it never comes back out of the API", async () => {
+    const res = await api("/api/railway");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.anthropic, true, "it says a key exists");
+    assert.ok(!JSON.stringify(res.body).includes("sk-ant-"), "and never returns it");
+  });
+});

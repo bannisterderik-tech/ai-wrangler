@@ -20,6 +20,7 @@ import { agencyConnections } from "./schema";
 
 const API = "https://backboard.railway.com/graphql/v2";
 const PROVIDER = "railway";
+const ANTHROPIC = "anthropic";
 const TOKENS_VAR = "WRANGLER_SESSION_TOKENS";
 
 export type RailwayState = {
@@ -38,6 +39,45 @@ function ids() {
     projectId: process.env.RAILWAY_PROJECT_ID || null,
     environmentId: process.env.RAILWAY_ENVIRONMENT_ID || null,
   };
+}
+
+/**
+ * The agency's Anthropic key. Vault first, environment second — so it can be
+ * pasted into the OS like every other credential instead of being the one thing
+ * that still needs a trip to the Railway dashboard.
+ */
+export async function anthropicKey(): Promise<string | null> {
+  try {
+    const [row] = await db
+      .select()
+      .from(agencyConnections)
+      .where(eq(agencyConnections.provider, ANTHROPIC))
+      .limit(1);
+    if (row?.encryptedAccess) return decrypt(row.encryptedAccess);
+  } catch {
+    /* fall through to the environment */
+  }
+  return process.env.ANTHROPIC_API_KEY || null;
+}
+
+export async function saveAnthropicKey(key: string) {
+  const trimmed = key.trim();
+  if (!/^sk-ant-/.test(trimmed)) {
+    throw new Error("That does not look like an Anthropic key — they start with sk-ant-.");
+  }
+  await db
+    .insert(agencyConnections)
+    .values({
+      provider: ANTHROPIC,
+      mode: "api-key",
+      encryptedAccess: encrypt(trimmed),
+      connectedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: agencyConnections.provider,
+      set: { encryptedAccess: encrypt(trimmed), mode: "api-key", connectedAt: new Date() },
+    });
+  return { ok: true };
 }
 
 async function stored() {
@@ -168,9 +208,12 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
   const conn = await stored();
   if (!conn) return { deployed: false as const, why: "Railway is not connected." };
   const { projectId, environmentId } = state as { projectId: string; environmentId: string };
-  const anthropic = process.env.ANTHROPIC_API_KEY;
+  const anthropic = await anthropicKey();
   if (!anthropic) {
-    return { deployed: false as const, why: "ANTHROPIC_API_KEY is not set on this service, so the agent could not think." };
+    return {
+      deployed: false as const,
+      why: "No Anthropic key saved yet — paste one on this screen and the agent gets it.",
+    };
   }
 
   if (!state.serviceId) {

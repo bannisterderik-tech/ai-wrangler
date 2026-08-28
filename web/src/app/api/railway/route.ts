@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fail, guard, operator } from "@/lib/api";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/schema";
-import { connectRailway, railwayState } from "@/lib/railway";
+import { anthropicKey, connectRailway, railwayState, saveAnthropicKey } from "@/lib/railway";
 
 /** Whether the OS can deploy agents by itself, and the one credential that lets it. */
 export async function GET() {
@@ -11,7 +11,7 @@ export async function GET() {
   const state = await railwayState();
   return NextResponse.json({
     ...state,
-    anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+    anthropic: Boolean(await anthropicKey()),
     repo: process.env.WORKER_REPO || "bannisterderik-tech/ai-wrangler",
   });
 }
@@ -24,16 +24,22 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
     const token = String(body.token || "").trim();
-    if (!token) return NextResponse.json({ error: "token required" }, { status: 400 });
-    await connectRailway(token);
-    await db.insert(audit).values({
-      customerId: null,
-      actor,
-      action: "connected Railway",
-      target: null,
-      at: new Date(),
-    });
-    return NextResponse.json({ ok: true, ...(await railwayState()) });
+    const key = String(body.anthropicKey || "").trim();
+    if (!token && !key) return NextResponse.json({ error: "nothing to save" }, { status: 400 });
+
+    if (key) {
+      await saveAnthropicKey(key);
+      await db.insert(audit).values({
+        customerId: null, actor, action: "saved the Anthropic key", target: null, at: new Date(),
+      });
+    }
+    if (token) {
+      await connectRailway(token);
+      await db.insert(audit).values({
+        customerId: null, actor, action: "connected Railway", target: null, at: new Date(),
+      });
+    }
+    return NextResponse.json({ ok: true, ...(await railwayState()), anthropic: Boolean(await anthropicKey()) });
   } catch (e) {
     return fail(e);
   }

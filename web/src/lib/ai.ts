@@ -95,13 +95,15 @@ function priceOf(model: string, inTok: number, outTok: number) {
 export async function ask({ role = "deep", system, prompt, maxTokens = 8000, effort }: Ask): Promise<Answer> {
   const provider = aiProvider();
   const model = MODELS[role];
-  if (!aiConfigured()) {
-    throw new AiError(
-      provider === "openrouter"
-        ? "OPENROUTER_API_KEY is not set."
-        : "ANTHROPIC_API_KEY is not set. Set it, or set AI_PROVIDER=openrouter with OPENROUTER_API_KEY.",
-      503,
-    );
+  // The key can live in the vault as well as the environment, so it is pasted
+  // into the OS once rather than set on every service that needs it.
+  const { anthropicKey } = await import("./railway");
+  const key = (await anthropicKey()) || "";
+  if (provider === "anthropic" && !key) {
+    throw new AiError("No Anthropic key. Paste one on Sessions, or set AI_PROVIDER=openrouter.", 503);
+  }
+  if (provider === "openrouter" && !process.env.OPENROUTER_API_KEY) {
+    throw new AiError("OPENROUTER_API_KEY is not set.", 503);
   }
 
   if (provider === "openrouter") {
@@ -134,7 +136,7 @@ export async function ask({ role = "deep", system, prompt, maxTokens = 8000, eff
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
+      "x-api-key": key,
       "anthropic-version": "2023-06-01",
       "Content-Type": "application/json",
     },
