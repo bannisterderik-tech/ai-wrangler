@@ -19,6 +19,10 @@ export const NAV = [
     { href: "/sessions", id: "sessions", label: "AI agents" },
     { href: "/playbooks", id: "playbooks", label: "Playbooks" },
   ]},
+  // Only the house sees this group; the Shell drops it for everyone else.
+  { section: "PLATFORM", items: [
+    { href: "/admin", id: "admin", label: "Agency accounts" },
+  ]},
   { section: "SYSTEM", items: [
     { href: "/memory", id: "memory", label: "Memory" },
     { href: "/spending", id: "spending", label: "Spending" },
@@ -29,6 +33,7 @@ export const NAV = [
 ] as const;
 
 export const TITLES: Record<string, string> = {
+  "/admin": "Agency accounts — who is on the platform",
   "/": "Command — dominate the market",
   "/pipeline": "Leads",
   "/leads": "Leads — shops buying from us",

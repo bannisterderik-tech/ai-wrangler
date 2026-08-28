@@ -3013,3 +3013,104 @@ describe("one agency cannot see another's pipeline", () => {
     await sql`UPDATE tenants SET status = 'active' WHERE id = 'rival-agency'`;
   });
 });
+
+/**
+ * The owner's panel.
+ *
+ * Creating agency accounts belongs to whoever owns the product. An account that
+ * could list the others is not an account, it is a shared database with a
+ * filter on it.
+ */
+describe("only the house administers the platform", () => {
+  let rival = "";
+  before(async () => {
+    await sql`DELETE FROM people WHERE email IN ('boss@second.test','dupe@second.test')`;
+    await sql`DELETE FROM tenants WHERE id IN ('second-agency','third-agency')`;
+    await sql`INSERT INTO tenants (id, name, can_build) VALUES ('second-agency','Second Agency', false)`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_second','Second Boss','secondboss','boss@second.test','operator','second-agency','admin')`;
+    const raw = `wr_sess_second_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, 'boss@second.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    rival = v ? `wrangler_session=${v}` : "";
+  });
+
+  const asRival = (path, init = {}) =>
+    fetch(`${BASE}${path}`, {
+      ...init, redirect: "manual",
+      headers: { "Content-Type": "application/json", cookie: rival, ...(init.headers || {}) },
+    });
+
+  test("the house sees every account", async () => {
+    const { status, body } = await api("/api/tenants");
+    assert.equal(status, 200);
+    const ids = body.tenants.map((t) => t.id);
+    assert.ok(ids.includes("ai-wrangler"));
+    assert.ok(ids.includes("second-agency"));
+  });
+
+  test("an agency admin cannot even see that other accounts exist", async () => {
+    const res = await asRival("/api/tenants");
+    assert.equal(res.status, 403);
+  });
+
+  test("and cannot open one", async () => {
+    const res = await asRival("/api/tenants", {
+      method: "POST",
+      body: JSON.stringify({ name: "Third Agency", adminEmail: "x@third.test" }),
+    });
+    assert.equal(res.status, 403);
+    const [row] = await sql`SELECT count(*)::int AS n FROM tenants WHERE id = 'third-agency'`;
+    assert.equal(row.n, 0);
+  });
+
+  test("nor give themselves the build side", async () => {
+    const res = await asRival("/api/tenants", {
+      method: "PATCH",
+      body: JSON.stringify({ id: "second-agency", canBuild: true }),
+    });
+    assert.equal(res.status, 403);
+    const [row] = await sql`SELECT can_build FROM tenants WHERE id = 'second-agency'`;
+    assert.equal(row.can_build, false, "an account that can grant itself capabilities has none");
+  });
+
+  test("a new account starts without the build side unless asked", async () => {
+    const res = await api("/api/tenants", {
+      method: "POST",
+      body: JSON.stringify({ name: "Third Agency", adminName: "Third Boss", adminEmail: "boss@third.test" }),
+    });
+    assert.equal(res.status, 200);
+    const [t] = await sql`SELECT can_build, status FROM tenants WHERE id = 'third-agency'`;
+    assert.equal(t.can_build, false, "the build half is sold, not defaulted on");
+    assert.equal(t.status, "active");
+    // And their admin exists, in their account, as an admin of it and not of ours.
+    const [p] = await sql`SELECT tenant_id, tenant_role, kind FROM people WHERE email = 'boss@third.test'`;
+    assert.equal(p.tenant_id, "third-agency");
+    assert.equal(p.tenant_role, "admin");
+    assert.equal(p.kind, "operator");
+  });
+
+  test("an address already on the platform cannot start a second account", async () => {
+    const res = await api("/api/tenants", {
+      method: "POST",
+      body: JSON.stringify({ name: "Fourth Agency", adminEmail: "boss@third.test" }),
+    });
+    assert.equal(res.status, 409, "a magic link has to know who just signed in");
+  });
+
+  test("the house cannot lock itself out of its own product", async () => {
+    for (const body of [{ status: "suspended" }, { canBuild: false }]) {
+      const res = await api("/api/tenants", { method: "PATCH", body: JSON.stringify({ id: "ai-wrangler", ...body }) });
+      assert.equal(res.status, 400);
+    }
+    const [t] = await sql`SELECT can_build, status FROM tenants WHERE id = 'ai-wrangler'`;
+    assert.equal(t.can_build, true);
+    assert.equal(t.status, "active");
+  });
+});

@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE, isClient, isOwner, readSession, tenantOf, type Session } from "./auth";
+import { HOUSE, SESSION_COOKIE, isClient, isOperatorEmail, readSession, tenantOf, type Session } from "./auth";
 import { IsolationError } from "./isolation";
 
 /** Who is driving. The middleware already gated this request; routes check again anyway. */
@@ -65,9 +65,22 @@ export async function tenantContext(): Promise<
   // A tenant row that has been deleted or suspended stops working now, rather
   // than when the cookie expires.
   if (!row || row.status !== "active") return null;
+  /**
+   * A cookie minted before tenants existed carries no role.
+   *
+   * Before this change the only way to hold an operator session at all was the
+   * house password, house GitHub, or the house email allowlist — so an old
+   * session IS the house, and dropping it to "operator" would lock the owner
+   * out of their own product for a week until the cookie expired. Checked
+   * against the allowlist rather than assumed.
+   */
+  const role =
+    session.trole ??
+    (tenantId === HOUSE && (session.via !== "email" || isOperatorEmail(session.sub)) ? "owner" : "operator");
+
   return {
     tenantId,
-    role: session.trole ?? "operator",
+    role,
     // The house always can; everyone else only if it was sold to them.
     canBuild: row.canBuild,
   };
@@ -101,9 +114,13 @@ export async function guardBuild() {
 
 /** Only the house may create tenants or look across them. */
 export async function guardOwner() {
-  const session = await operator();
-  if (!session) return NextResponse.json({ error: "sign in first" }, { status: 401 });
-  if (!isOwner(session)) return NextResponse.json({ error: "not yours" }, { status: 403 });
+  const t = await tenantContext();
+  if (!t) return NextResponse.json({ error: "sign in first" }, { status: 401 });
+  // Through tenantContext, so a pre-tenant cookie is resolved the same way
+  // everywhere rather than only in the places that remembered to.
+  if (t.role !== "owner" || t.tenantId !== HOUSE) {
+    return NextResponse.json({ error: "not yours" }, { status: 403 });
+  }
   return null;
 }
 

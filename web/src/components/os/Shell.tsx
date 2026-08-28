@@ -121,6 +121,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
               // A CRM-only account never sees the build half. Showing a floor it
               // will be refused is worse than not showing it at all.
               .filter((group) => group.section !== "BUILD" || me?.canBuild !== false)
+              // The platform panel belongs to whoever owns the product. Nobody
+              // else should even see that other accounts exist.
+              .filter((group) => group.section !== "PLATFORM" || me?.isOwner === true)
               .map((group) => (
               // Spacing on the group rather than padding on the heading, so the
               // gap sits between sections and not above the first one.
