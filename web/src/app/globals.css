@@ -136,3 +136,32 @@ button {
 h1, h2, h3, .display {
   font-family: var(--font-display), Syne, var(--font-sans), sans-serif;
 }
+
+/*
+ * The wordmark. Two files, one fetched.
+ *
+ * The cream original reads on a dark ground and disappears on a light one, so a
+ * dark-ink counterpart is generated from the same alpha channel — identical
+ * letterforms, different ink. It is a background rather than two <img> tags
+ * because a browser only downloads the background of a rule that actually
+ * applies; two <img>s would pull both files and hide one. And it is CSS rather
+ * than a src swapped in an effect, which would paint the wrong mark first and
+ * correct it a frame later.
+ */
+.brand-mark {
+  width: 148px;
+  aspect-ratio: 900 / 243;
+  background-image: url("/brand/wrangler-light.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: left center;
+}
+[data-theme="light"] .brand-mark {
+  background-image: url("/brand/wrangler-dark.png");
+}
+/* Nothing is stamped on <html> until a theme is chosen, so respect the OS. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .brand-mark {
+    background-image: url("/brand/wrangler-dark.png");
+  }
+}

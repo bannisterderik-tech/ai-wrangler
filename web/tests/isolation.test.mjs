@@ -1536,3 +1536,44 @@ describe("spend lands on the job that was worked", () => {
     assert.equal(r.status, 403);
   });
 });
+
+/**
+ * The dialer must connect two people, or refuse.
+ *
+ * placeCall used to send <Response><Say>Connecting you through AI
+ * Wrangler.</Say></Response> — no <Dial> anywhere in it. With live credentials
+ * that rings a customer's lead, says one sentence at them and hangs up. A
+ * robocaller, behind a button labelled "Call".
+ */
+describe("the dialer connects a call or says why not", () => {
+  test("the TwiML we would send actually dials the lead", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/lib/twilio.ts", import.meta.url), "utf8"),
+    );
+    assert.match(src, /<Dial/, "TwiML with no <Dial> connects nobody");
+    assert.match(src, /answerOnBridge/, "without answerOnBridge the lead hears ringing as answered");
+    assert.ok(
+      !/Twiml:\s*`<Response><Say>[^`]*<\/Say><\/Response>`/.test(src),
+      "a Say-only call is a robocall",
+    );
+  });
+
+  test("voiceToken does not claim success while returning nothing", async () => {
+    const res = await api("/api/twilio/call");
+    assert.equal(res.status, 200);
+    // Unconfigured is fine; silently reporting ok with a null token is not.
+    if (res.body.token?.token === null) {
+      assert.ok(res.body.token.why, "a null token has to say why it is null");
+    }
+    assert.equal(typeof res.body.canCall, "boolean", "the UI needs to know if a call can be placed at all");
+  });
+
+  test("a call with nowhere to ring us is refused, not faked", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/lib/twilio.ts", import.meta.url), "utf8"),
+    );
+    // The bridge number is what puts a human on our end. No number, no call.
+    assert.match(src, /just a robocall/, "the refusal must exist and explain itself");
+    assert.match(src, /if \(!target\)/, "placeCall has to check it has somewhere to ring");
+  });
+});

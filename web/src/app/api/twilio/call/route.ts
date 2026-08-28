@@ -1,12 +1,18 @@
 import { NextResponse } from "next/server";
-import { guard } from "@/lib/api";
-import { placeCall, voiceToken, twilioConfigured } from "@/lib/twilio";
+import { fail, guard } from "@/lib/api";
+import { placeCall, twilioStatus, voiceToken } from "@/lib/twilio";
+import { getAgencyKey } from "@/lib/keys";
 
 export async function GET() {
   const denied = await guard();
   if (denied) return denied;
+  const status = twilioStatus();
   return NextResponse.json({
-    configured: twilioConfigured(),
+    ...status,
+    // Whether a call can actually be placed, which is not the same as whether
+    // Twilio is configured: bridging needs somewhere to ring you.
+    canCall: status.browser || Boolean(await getAgencyKey("callback_number")),
+    callbackNumber: (await getAgencyKey("callback_number")) ?? null,
     token: await voiceToken("operator"),
   });
 }
@@ -14,11 +20,13 @@ export async function GET() {
 export async function POST(req: Request) {
   const denied = await guard();
   if (denied) return denied;
-  const { to } = await req.json();
-  if (!to) return NextResponse.json({ error: "to required" }, { status: 400 });
   try {
-    return NextResponse.json(await placeCall(String(to)));
+    const { to } = await req.json();
+    if (!to) return NextResponse.json({ error: "who are we calling?" }, { status: 400 });
+    // The number Twilio rings first. The lead only hears a human.
+    const bridge = (await getAgencyKey("callback_number")) ?? process.env.OPERATOR_CALLBACK_NUMBER ?? "";
+    return NextResponse.json(await placeCall(String(to), bridge));
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    return fail(e);
   }
 }

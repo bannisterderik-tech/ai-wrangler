@@ -102,18 +102,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
             borderRight: "1px solid var(--hairline)",
           }}
         >
-          <div className="flex items-center gap-2.5 px-4 pb-3.5 pt-4">
-            <span
-              className="grid h-7 w-7 place-items-center rounded-lg text-[15px] font-extrabold"
-              style={{ background: "linear-gradient(135deg, var(--brand), #ff8a4c)", color: "#140800" }}
-            >
-              ✛
-            </span>
-            <div>
-              <div className="text-[14px] font-semibold tracking-[0.3px]">AI WRANGLER</div>
-              <div className="text-[10px] uppercase tracking-[1.4px]" style={{ color: "var(--text-secondary)" }}>
-                Local domination OS
-              </div>
+          <div className="flex flex-col gap-1 px-4 pb-3.5 pt-4">
+            <div className="brand-mark" role="img" aria-label="AI Wrangler" />
+            <div className="text-[10px] uppercase tracking-[1.4px]" style={{ color: "var(--text-secondary)" }}>
+              Local domination OS
             </div>
           </div>
           <nav className="flex flex-1 flex-col overflow-y-auto px-2.5">

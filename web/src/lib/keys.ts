@@ -15,7 +15,7 @@ import { agencyConnections } from "./schema";
  * and nothing has to be migrated to adopt this.
  */
 
-export type AgencyKey = "anthropic" | "resend" | "openrouter" | "mail_from";
+export type AgencyKey = "anthropic" | "resend" | "openrouter" | "mail_from" | "callback_number";
 
 const KEYS: Record<
   AgencyKey,
@@ -47,6 +47,15 @@ const KEYS: Record<
     label: "Send mail from",
     looksRight: (v) => /.+@.+\..+/.test(v),
     hint: "AI Wrangler <login@reoperative.ai> — the domain must be verified in Resend",
+    secret: false,
+  },
+  // Click-to-call rings this number first, then dials the lead and bridges you.
+  // Without it there is nobody on our end of the call, which is a robocall.
+  callback_number: {
+    env: "OPERATOR_CALLBACK_NUMBER",
+    label: "Ring me on",
+    looksRight: (v) => /^\+?[0-9 ().-]{7,20}$/.test(v),
+    hint: "+15305551234 — Twilio calls you here, then connects the lead",
     secret: false,
   },
 };

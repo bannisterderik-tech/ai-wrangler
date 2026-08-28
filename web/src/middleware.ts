@@ -80,5 +80,8 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // `brand` is the wordmark, which the login page needs before anyone has a
+  // session. It holds two PNGs and nothing else — adding a directory here opens
+  // whatever is in it, so keep it to assets that are meant to be public.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|brand/).*)"],
 };
