@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, withCustomer } from "@/lib/db";
-import { fail, guard } from "@/lib/api";
+import { fail, guard, operator } from "@/lib/api";
 import { memories } from "@/lib/schema";
 import { ensureCustomer, newId } from "@/lib/customers";
+import { embedOne } from "@/lib/recall";
 
 export async function GET(req: Request) {
   const denied = await guard();
@@ -27,7 +28,20 @@ export async function POST(req: Request) {
   }
   try {
     const customer = await ensureCustomer(customerId);
-    const row = { id: newId(), customerId: customer.id, text, createdAt: new Date() };
+    // A rule outranks a note when the agent reads the project, so which one
+    // this is has to be said at the point it is written.
+    const kind = ["note", "rule", "outcome"].includes(String(body.kind)) ? String(body.kind) : "note";
+    const vec = await embedOne(text);
+    const row = {
+      id: newId(),
+      customerId: customer.id,
+      text,
+      kind,
+      source: (await operator())?.name ?? null,
+      embedding: vec?.embedding ?? null,
+      embeddingModel: vec?.model ?? null,
+      createdAt: new Date(),
+    };
     await withCustomer(customer.id, (tx) => tx.insert(memories).values(row));
     return NextResponse.json(row);
   } catch (e) {

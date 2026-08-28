@@ -3,6 +3,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -134,6 +135,13 @@ export const memories = pgTable("memories", {
     .notNull()
     .references(() => customers.id, { onDelete: "cascade" }),
   text: text("text").notNull(),
+  /** note | rule | outcome — a house rule outranks a passing observation. */
+  kind: text("kind").notNull().default("note"),
+  /** Who wrote it: an operator's name, or the job that learned it. */
+  source: text("source"),
+  /** Optional. Null until an embedding provider is configured. */
+  embedding: jsonb("embedding").$type<number[]>(),
+  embeddingModel: text("embedding_model"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

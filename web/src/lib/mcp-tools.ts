@@ -11,11 +11,11 @@ import {
   customers,
   jobs,
   jobSteps,
-  memories,
   metrics,
   siteErrors,
 } from "./schema";
 import type { McpSession } from "./session-token";
+import { recall } from "./recall";
 
 /**
  * The tools a teammate's Claude Code gets over MCP.
@@ -307,7 +307,9 @@ export async function callTool(session: McpSession, name: string, args: Args): P
       const [[customer], bound, notes, openJobs, shipped, requests, errors, series] = await Promise.all([
         db.select().from(customers).where(eq(customers.id, cid)).limit(1),
         db.select().from(boundResources).where(eq(boundResources.customerId, cid)),
-        db.select().from(memories).where(eq(memories.customerId, cid)).orderBy(desc(memories.createdAt)).limit(30),
+        // The notes that bear on THIS job, not the newest thirty by date. House
+        // rules come back regardless of what the ranking thinks.
+        recall(cid, [job.title, job.goal, job.scopeNote].filter(Boolean).join(" "), 14),
         db.select().from(jobs).where(eq(jobs.customerId, cid)),
         db.select().from(changes).where(eq(changes.customerId, cid)).orderBy(desc(changes.createdAt)).limit(8),
         db.select().from(clientRequests).where(and(eq(clientRequests.customerId, cid), eq(clientRequests.status, "new"))),
@@ -331,8 +333,13 @@ export async function callTool(session: McpSession, name: string, args: Args): P
         bound.length ? "" : "- nothing is bound yet; a human has to bind a repo before you can write code",
         "Naming anything not on that list returns a 403. This is the whole list.",
         "",
+        // Everything we know, most relevant to this job first. Ordered, not
+        // filtered: a rule that shares no words with the job title is still a
+        // rule, and dropping it is how an agent ships on a Friday.
         "## House rules — these outrank your own judgement",
-        ...(notes.length ? notes.map((n) => `- ${n.text}`) : ["- none recorded"]),
+        ...(notes.length
+          ? notes.map((n) => `- ${n.text}${n.source ? ` (${n.source})` : ""}`)
+          : ["- none recorded"]),
         "",
         "## On fire",
         ...(errors.length

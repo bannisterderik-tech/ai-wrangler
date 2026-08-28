@@ -1296,3 +1296,69 @@ describe("a job picks its own size of brain", () => {
     assert.match(r.body.reason, /cap|nothing/i);
   });
 });
+
+/**
+ * Recall has to return the notes that bear on the work.
+ *
+ * read_project handed the agent the newest thirty memories by date, so a job
+ * about a booking form was read a note about last quarter's logo — worse
+ * context and more tokens, every pass.
+ */
+describe("memory is searched, not just listed", () => {
+  before(async () => {
+    await sql`DELETE FROM memories WHERE customer_id = 'acme'`;
+    const rows = [
+      ["never touch the pricing page without asking Dana", "rule"],
+      ["the booking form posts to Formspree, not to our own endpoint", "note"],
+      ["site visits are booked in two-hour windows, never exact times", "note"],
+      ["the logo was redrawn in March and the old one is still cached", "note"],
+      ["they bill quarterly and hate being invoiced monthly", "note"],
+      ["hero photography comes from the owner's phone, expect low res", "note"],
+    ];
+    for (const [text, kind] of rows) {
+      await sql`
+        INSERT INTO memories (id, customer_id, text, kind)
+        VALUES (${"M" + Math.random().toString(36).slice(2, 10)}, 'acme', ${text}, ${kind})`;
+    }
+  });
+
+  async function recall(q) {
+    const res = await api(`/api/memories/recall?customerId=acme&q=${encodeURIComponent(q)}`);
+    return res;
+  }
+
+  test("a search for the booking form finds the booking notes", async () => {
+    const { status, body } = await recall("booking form for site visits");
+    assert.equal(status, 200);
+    const texts = body.memories.map((m) => m.text).join(" | ");
+    assert.match(texts, /booking form posts to Formspree/);
+    assert.match(texts, /two-hour windows/);
+  });
+
+  test("it does not lead with the notes that have nothing to do with it", async () => {
+    const { body } = await recall("booking form for site visits");
+    const top = body.memories.filter((m) => m.kind !== "rule").slice(0, 2).map((m) => m.text).join(" | ");
+    assert.ok(!/logo was redrawn/.test(top), `an unrelated note ranked top: ${top}`);
+    assert.ok(!/bill quarterly/.test(top), `an unrelated note ranked top: ${top}`);
+  });
+
+  test("a house rule comes back whatever the query, because it outranks relevance", async () => {
+    const { body } = await recall("hero photography");
+    const rules = body.memories.filter((m) => m.kind === "rule").map((m) => m.text);
+    assert.match(rules.join(" "), /pricing page without asking Dana/);
+  });
+
+  test("it says which backend answered, so nobody assumes semantic when it is lexical", async () => {
+    const { body } = await recall("anything");
+    assert.ok(["semantic", "lexical"].includes(body.mode), `unexpected mode ${body.mode}`);
+  });
+
+  test("another customer's memories are not searchable from here", async () => {
+    await sql`
+      INSERT INTO memories (id, customer_id, text, kind)
+      VALUES ('M_globexsecret','globex','the globex booking form is a secret','note')`;
+    const { body } = await recall("booking form");
+    const texts = body.memories.map((m) => m.text).join(" ");
+    assert.ok(!texts.includes("globex booking form"), "recall leaked across customers");
+  });
+});
