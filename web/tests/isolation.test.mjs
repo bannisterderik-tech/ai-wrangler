@@ -3921,3 +3921,364 @@ describe("customers and ad campaigns stay inside their own agency", () => {
     assert.equal(row.status, "active", "it must still be running");
   });
 });
+
+/**
+ * Zernio: the generated client, the walls, and the webhook.
+ *
+ * There is no Zernio key on this machine, so nothing here proves a live call
+ * works — LIMITS.md says so plainly. What these DO prove is everything that
+ * does not need the network: that the client matches Zernio's published spec,
+ * that a customer's ad account cannot be reached from another agency, that the
+ * validation refuses what Google would refuse, and that the webhook rejects a
+ * forged signature.
+ */
+describe("the Zernio client matches Zernio's own spec", () => {
+  let index, spec;
+
+  before(async () => {
+    const { readFileSync } = await import("node:fs");
+    const yaml = (await import("js-yaml")).default;
+    index = JSON.parse(readFileSync(new URL("../vendor/zernio-operations.json", import.meta.url), "utf8"));
+    spec = yaml.load(readFileSync(new URL("../vendor/zernio-openapi.yaml", import.meta.url), "utf8"));
+  });
+
+  test("every operation in the spec is in the client", () => {
+    const METHODS = ["get", "post", "put", "patch", "delete"];
+    const inSpec = [];
+    for (const [path, item] of Object.entries(spec.paths ?? {})) {
+      for (const m of METHODS) if (item?.[m]?.operationId) inSpec.push(item[m].operationId);
+    }
+    const have = new Set(index.operations.map((o) => o.id));
+    const missing = inSpec.filter((id) => !have.has(id));
+    assert.deepEqual(missing, [], `not wired up: ${missing.slice(0, 10).join(", ")}`);
+    assert.ok(inSpec.length > 500, `expected the full surface, found ${inSpec.length}`);
+  });
+
+  test("every inbound event in the spec is in the catalogue", () => {
+    const inSpec = Object.keys(spec.webhooks ?? {});
+    const have = new Set(index.events.map((e) => e.name));
+    assert.deepEqual(inSpec.filter((n) => !have.has(n)), []);
+    assert.ok(inSpec.length >= 50);
+  });
+
+  test("paths and methods are the spec's, not invented", () => {
+    for (const o of index.operations) {
+      const item = spec.paths[o.path];
+      assert.ok(item, `${o.path} is not a path in the spec`);
+      assert.ok(item[o.method.toLowerCase()], `${o.method} ${o.path} is not in the spec`);
+    }
+  });
+
+  test("the create-ad endpoint has no platform field — the old client sent one", () => {
+    const schema = spec.paths["/v1/ads/create"].post.requestBody.content["application/json"].schema;
+    assert.ok(!schema.properties.platform, "if Zernio adds `platform`, regenerate the client");
+    assert.ok(schema.properties.budgetAmount && schema.properties.budgetType, "budget is flat on create");
+    assert.deepEqual(schema.required, ["accountId", "adAccountId", "name"]);
+  });
+
+  test("and update takes a NESTED budget, unlike create", () => {
+    // The asymmetry is Zernio's. It is asserted because the hand-written client
+    // had it flat in both places, which would have failed every update.
+    const schema = spec.paths["/v1/ads/campaigns/{campaignId}"].put.requestBody.content["application/json"].schema;
+    assert.ok(schema.properties.budget?.properties?.amount, "update nests budget under { amount, type }");
+    assert.ok(!schema.properties.budgetAmount);
+  });
+});
+
+/**
+ * What Google would refuse, we refuse first — exercised through the route, so
+ * the wiring is proved along with the rule.
+ */
+describe("what Google would refuse, we refuse first", () => {
+  const base = {
+    customerId: "ads-check", name: "Bell Plumbing — Search", campaignType: "search",
+    budgetAmount: 50, budgetType: "daily", headline: "Emergency Plumber",
+    body: "Same-day service, licensed and insured.", linkUrl: "https://bell.example",
+    keywords: ["emergency plumber"],
+  };
+  const check = (patch) =>
+    api("/api/ads/google/campaign?check=1", { method: "POST", body: JSON.stringify({ ...base, ...patch }) });
+
+  before(async () => {
+    await sql`DELETE FROM bound_resources WHERE customer_id = 'ads-check'`;
+    await sql`DELETE FROM customers WHERE id = 'ads-check'`;
+    await sql`INSERT INTO customers (id, name, tenant_id) VALUES ('ads-check','Check Co','ai-wrangler')`;
+    await sql`
+      INSERT INTO bound_resources (id, customer_id, provider, resource_id, name, meta_json)
+      VALUES ('B_check','ads-check','google_ads','5550001110','Check Google', '{"accountId":"zacct_check"}')`;
+  });
+
+  test("a complete Search ad passes", async () => {
+    const r = await check({});
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual(r.body.problems, []);
+    assert.equal(r.body.ok, true);
+  });
+
+  test("a headline over 30 characters is caught here, not by Google", async () => {
+    const r = await check({ headline: "Emergency Plumbing Services Available Right Now" });
+    assert.equal(r.body.ok, false);
+    assert.ok(r.body.problems.some((p) => /30/.test(p)));
+  });
+
+  test("a Search campaign with no keywords is refused", async () => {
+    const r = await check({ keywords: [] });
+    assert.ok(r.body.problems.some((p) => /keyword/i.test(p)));
+  });
+
+  test("one sitelink is refused, because Google will not show it", async () => {
+    const one = await check({ sitelinks: [{ text: "Book", linkUrl: "https://b.example" }] });
+    assert.ok(one.body.problems.some((p) => /pairs/i.test(p)));
+    const two = await check({
+      sitelinks: [
+        { text: "Book a visit", linkUrl: "https://b.example" },
+        { text: "Our services", linkUrl: "https://b.example/s" },
+      ],
+    });
+    assert.deepEqual(two.body.problems, []);
+  });
+
+  test("a snippet needs a real header and three values", async () => {
+    const wrong = await check({ structuredSnippets: [{ header: "Sandwiches", values: ["a", "b", "c"] }] });
+    assert.ok(wrong.body.problems.some((p) => /not one of Google/.test(p)));
+    const short = await check({ structuredSnippets: [{ header: "Service catalog", values: ["a", "b"] }] });
+    assert.ok(short.body.problems.some((p) => /at least 3/.test(p)));
+  });
+
+  test("Display needs both images", async () => {
+    const r = await check({ campaignType: "display", keywords: [] });
+    assert.ok(r.body.problems.some((p) => /landscape/.test(p)));
+    assert.ok(r.body.problems.some((p) => /square/.test(p)));
+  });
+
+  test("Search-only fields are not sent on a Display ad — Zernio 400s on them", async () => {
+    const r = await check({
+      campaignType: "display", keywords: [], negativeKeywords: ["free"], callouts: ["24/7"],
+      longHeadline: "Plumbing you can book today", businessName: "Bell Plumbing",
+      images: { landscape: "https://x/l.jpg", square: "https://x/s.jpg" },
+    });
+    assert.deepEqual(r.body.problems, []);
+    assert.equal(r.body.body.negativeKeywords, undefined);
+    assert.equal(r.body.body.callouts, undefined);
+    assert.equal(r.body.body.sitelinks, undefined);
+    assert.ok(r.body.body.images);
+  });
+
+  test("an ad is always built paused, whatever was asked for", async () => {
+    const r = await check({ status: "ACTIVE" });
+    assert.equal(r.body.body.status, "PAUSED");
+  });
+
+  test("the body carries the assets Google actually wants", async () => {
+    const r = await check({
+      additionalHeadlines: ["Licensed & Insured", "24/7 Callout"],
+      additionalDescriptions: ["Upfront pricing, no surprises."],
+      negativeKeywords: ["free", "jobs"],
+      callouts: ["Free estimates"],
+      sitelinks: [
+        { text: "Book a visit", linkUrl: "https://b.example" },
+        { text: "Our services", linkUrl: "https://b.example/s" },
+      ],
+      structuredSnippets: [{ header: "Service catalog", values: ["Drains", "Heaters", "Repipes"] }],
+    });
+    assert.deepEqual(r.body.problems, []);
+    const b = r.body.body;
+    assert.equal(b.additionalHeadlines.length, 2);
+    assert.equal(b.additionalDescriptions.length, 1);
+    assert.equal(b.negativeKeywords.length, 2);
+    assert.equal(b.sitelinks.length, 2);
+    assert.equal(b.structuredSnippets[0].values.length, 3);
+    assert.equal(b.callouts[0], "Free estimates");
+    // The account ids come from the binding, never from the request body.
+    assert.equal(b.accountId, "zacct_check");
+    assert.equal(b.adAccountId, "5550001110");
+  });
+
+  test("the ids cannot be overridden by the caller", async () => {
+    const r = await check({ accountId: "zacct_someone_else", adAccountId: "9999999999" });
+    assert.equal(r.body.body.accountId, "zacct_check");
+    assert.equal(r.body.body.adAccountId, "5550001110");
+  });
+});
+
+describe("one agency cannot touch another's ad account", () => {
+  let theirCookie = "";
+
+  before(async () => {
+    await sql`DELETE FROM bound_resources WHERE provider = 'google_ads' AND customer_id <> 'ads-check'`;
+    await sql`DELETE FROM customers WHERE id IN ('ads-ours','ads-theirs')`;
+    await sql`DELETE FROM people WHERE email = 'boss@fourth.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'fourth-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build, plan) VALUES ('fourth-agency','Fourth Agency', true, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_fourth','Fourth Boss','fourthboss','boss@fourth.test','operator','fourth-agency','admin')`;
+    await sql`
+      INSERT INTO customers (id, name, tenant_id) VALUES
+        ('ads-ours','Ours Co','ai-wrangler'), ('ads-theirs','Theirs Co','fourth-agency')`;
+
+    const raw = `wr_sess_fourth_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`INSERT INTO login_links (token_hash, email, expires_at)
+              VALUES (${hash}, 'boss@fourth.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    theirCookie = v ? `wrangler_session=${v}` : "";
+  });
+
+  const asThem = (path, init = {}) =>
+    fetch(`${BASE}${path}`, {
+      ...init, redirect: "manual",
+      headers: { "Content-Type": "application/json", cookie: theirCookie, ...(init.headers || {}) },
+    });
+
+  test("binding an ad account to our customer works", async () => {
+    const res = await api("/api/ads/accounts", {
+      method: "POST",
+      body: JSON.stringify({ customerId: "ads-ours", accountId: "zacct_ours", adAccountId: "1112223330", name: "Ours Google" }),
+    });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    const [row] = await sql`
+      SELECT customer_id, resource_id FROM bound_resources
+      WHERE provider = 'google_ads' AND resource_id = '1112223330'`;
+    assert.equal(row.customer_id, "ads-ours");
+  });
+
+  test("the same Google Ads account cannot be bound to a second customer", async () => {
+    const res = await asThem("/api/ads/accounts", {
+      method: "POST",
+      body: JSON.stringify({ customerId: "ads-theirs", accountId: "zacct_x", adAccountId: "1112223330" }),
+    });
+    assert.ok(res.status === 403 || res.status === 404, `expected a refusal, got ${res.status}`);
+    const [{ count }] = await sql`SELECT count(*)::int FROM bound_resources WHERE provider = 'google_ads' AND customer_id <> 'ads-check'`;
+    assert.equal(count, 1, "one ad account, one customer");
+  });
+
+  test("another agency's customer is not even visible to bind", async () => {
+    const res = await asThem("/api/ads/accounts", {
+      method: "POST",
+      body: JSON.stringify({ customerId: "ads-ours", accountId: "zacct_y", adAccountId: "9990001110" }),
+    });
+    assert.equal(res.status, 404, "our customer must read as not found from their account");
+  });
+
+  test("and their bindings list does not contain ours", async () => {
+    const theirs = await (await asThem("/api/ads/accounts")).json();
+    assert.deepEqual((theirs.bound ?? []).map((b) => b.customerId), []);
+    const mine = await api("/api/ads/accounts");
+    assert.ok(mine.body.bound.map((b) => b.customerId).includes("ads-ours"));
+  });
+
+  test("reading Google for a customer on another account is refused", async () => {
+    const res = await asThem("/api/ads/google?customerId=ads-ours&view=tree");
+    assert.equal(res.status, 404);
+  });
+
+  test("and so is building a campaign against them", async () => {
+    const res = await asThem("/api/ads/google/campaign", {
+      method: "POST",
+      body: JSON.stringify({ customerId: "ads-ours", name: "Sneaky", campaignType: "search", budgetAmount: 10 }),
+    });
+    assert.equal(res.status, 404);
+  });
+
+  test("the validator runs before any key is needed, so ?check=1 works offline", async () => {
+    const res = await api("/api/ads/google/campaign?check=1", {
+      method: "POST",
+      body: JSON.stringify({
+        customerId: "ads-ours", name: "Ours — Search", campaignType: "search",
+        budgetAmount: 50, budgetType: "daily",
+        headline: "This headline is far too long for Google to accept",
+        body: "Fine.", linkUrl: "https://x.example", keywords: ["plumber"],
+      }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, false);
+    assert.ok(res.body.problems.some((p) => /30/.test(p)));
+  });
+});
+
+describe("the Zernio webhook refuses anything it cannot verify", () => {
+  const post = (body, headers = {}) =>
+    fetch(`${BASE}/api/zernio/webhook`, {
+      method: "POST", redirect: "manual",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: typeof body === "string" ? body : JSON.stringify(body),
+    });
+
+  test("it is reachable without a session — Zernio has no cookie", async () => {
+    const res = await post({ event: "webhook.test" });
+    assert.notEqual(res.status, 307, "the door must not redirect Zernio to the login page");
+    assert.notEqual(res.status, 401 + 1000);
+  });
+
+  test("an unsigned event is refused", async () => {
+    const res = await post({ event: "lead.received", data: { accountId: "zacct_ours" } });
+    assert.ok(res.status === 401 || res.status === 503, `expected a refusal, got ${res.status}`);
+  });
+
+  test("a forged signature is refused", async () => {
+    const res = await post({ event: "lead.received" }, { "x-zernio-signature": "0".repeat(64) });
+    assert.ok(res.status === 401 || res.status === 503);
+  });
+
+  test("no event was raised by any of that", async () => {
+    const [{ count }] = await sql`SELECT count(*)::int FROM agent_events WHERE source = 'zernio'`;
+    assert.equal(count, 0, "an unverified webhook must never wake a copilot");
+  });
+
+  /*
+   * And now the half that makes the refusals mean something.
+   *
+   * A suite that only ever sends bad signatures passes just as happily with the
+   * verification deleted. These sign correctly and check the event lands.
+   */
+  test("a correctly signed event wakes that customer's copilot", async () => {
+    const { createHmac } = await import("node:crypto");
+    await sql`DELETE FROM people WHERE id = 'A_zern'`;
+    await sql`DELETE FROM customers WHERE id = 'zern-co'`;
+    await sql`INSERT INTO customers (id, name, tenant_id) VALUES ('zern-co','Zern Co','ai-wrangler')`;
+    await sql`
+      INSERT INTO people (id, name, handle, kind, agent_kind, customer_id)
+      VALUES ('A_zern','Zern Copilot','zerncopilot','agent','copilot','zern-co')`;
+    await sql`
+      INSERT INTO bound_resources (id, customer_id, provider, resource_id, name, meta_json)
+      VALUES ('B_zern','zern-co','google_ads','7770001110','Zern Google','{"accountId":"zacct_zern"}')`;
+
+    const payload = JSON.stringify({
+      event: "lead.received",
+      id: "evt_1",
+      data: { accountId: "zacct_zern", leadType: "PHONE_CALL" },
+    });
+    const sig = createHmac("sha256", process.env.ZERNIO_WEBHOOK_SECRET).update(payload).digest("hex");
+    const res = await post(payload, { "x-zernio-signature": sig });
+    assert.equal(res.status, 200, await res.text());
+
+    const [ev] = await sql`
+      SELECT customer_id, kind, summary FROM agent_events
+      WHERE source = 'zernio' AND customer_id = 'zern-co'`;
+    assert.ok(ev, "a signed lead.received should have woken the copilot");
+    assert.equal(ev.kind, "lead");
+    assert.match(ev.summary, /lead came in/i);
+  });
+
+  test("the same body with one byte changed is refused", async () => {
+    const { createHmac } = await import("node:crypto");
+    const payload = JSON.stringify({ event: "lead.received", data: { accountId: "zacct_zern" } });
+    const sig = createHmac("sha256", process.env.ZERNIO_WEBHOOK_SECRET).update(payload).digest("hex");
+    // Same signature, tampered body — which is exactly what the HMAC is for.
+    const res = await post(payload.replace("zacct_zern", "zacct_theirs"), { "x-zernio-signature": sig });
+    assert.equal(res.status, 401);
+  });
+
+  test("an event for an account nobody is bound to wakes nothing", async () => {
+    const { createHmac } = await import("node:crypto");
+    const payload = JSON.stringify({ event: "lead.received", data: { accountId: "zacct_unknown" } });
+    const sig = createHmac("sha256", process.env.ZERNIO_WEBHOOK_SECRET).update(payload).digest("hex");
+    const res = await post(payload, { "x-zernio-signature": sig });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.match(body.ignored ?? "", /no customer/);
+  });
+});

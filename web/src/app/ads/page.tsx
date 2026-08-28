@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DeskBar } from "@/components/os/Dossier";
+import { GoogleAds } from "@/components/os/GoogleAds";
 
 type Campaign = {
   id: string; customerId: string; customer: string; name: string; platform: string;
@@ -22,6 +23,7 @@ export default function AdsPage() {
   const [draft, setDraft] = useState({ name: "", customerId: "", platform: "google", goal: "", dailyCap: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [side, setSide] = useState<"plan" | "google">("plan");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/ads", { cache: "no-store" });
@@ -68,13 +70,26 @@ export default function AdsPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <DeskBar>
-        <button className="btn-os brand" onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ New campaign"}</button>
-        <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
-          {money(spend)} spend · {leads} leads{leads ? ` · ${money(Math.round(spend / leads))} per lead` : ""}
-        </span>
+        {/*
+          Two different things, kept apart on purpose. The plan is what we agreed
+          to spend; Google is what actually happened. Merging them into one table
+          would make a number somebody typed look like a number Google reported.
+        */}
+        <button className={`btn-os ${side === "plan" ? "brand" : ""}`} onClick={() => setSide("plan")}>The plan</button>
+        <button className={`btn-os ${side === "google" ? "brand" : ""}`} onClick={() => setSide("google")}>Live on Google</button>
+        {side === "plan" ? (
+          <button className="btn-os" onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ New campaign"}</button>
+        ) : null}
+        {side === "plan" ? (
+          <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+            {money(spend)} planned · {leads} leads{leads ? ` · ${money(Math.round(spend / leads))} per lead` : ""}
+          </span>
+        ) : null}
       </DeskBar>
 
-      {adding ? (
+      {side === "google" ? <GoogleAds /> : null}
+
+      {side === "plan" && adding ? (
         <form onSubmit={add} className="flex flex-wrap items-end gap-2 border-b px-4 py-3" style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}>
           <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Campaign</span>
@@ -106,6 +121,7 @@ export default function AdsPage() {
         </form>
       ) : null}
 
+      {side === "plan" ? (
       <div className="min-h-0 flex-1 overflow-auto">
         {rows.length === 0 ? (
           <div className="p-5 text-[13.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
@@ -147,6 +163,7 @@ export default function AdsPage() {
           </table>
         )}
       </div>
+      ) : null}
     </div>
   );
 }

@@ -2,6 +2,16 @@ import { and, eq } from "drizzle-orm";
 import { db } from "./db";
 import { boundResources } from "./schema";
 
+/**
+ * The kinds of thing that can belong to exactly one customer.
+ *
+ * `google_ads` is the Zernio SocialAccount behind a customer's Google Ads
+ * account. It goes through the same wall as a repo for the same reason: an ad
+ * account is somebody's money, and pointing two customers at one of them spends
+ * the wrong person's.
+ */
+export type BoundKind = "vercel" | "github" | "google_ads";
+
 export class IsolationError extends Error {
   status: number;
   constructor(message: string, status = 403) {
@@ -13,7 +23,7 @@ export class IsolationError extends Error {
 
 export function assertBound(
   customerId: string,
-  kind: "vercel" | "github",
+  kind: BoundKind,
   resourceId: string,
   allow: string[],
 ) {
@@ -32,7 +42,7 @@ export function assertBound(
   }
 }
 
-export async function boundIds(customerId: string, kind: "vercel" | "github") {
+export async function boundIds(customerId: string, kind: BoundKind) {
   const rows = await db
     .select({ resourceId: boundResources.resourceId })
     .from(boundResources)
@@ -46,7 +56,7 @@ export async function boundIds(customerId: string, kind: "vercel" | "github") {
  */
 export async function assertBoundToCustomer(
   customerId: string,
-  kind: "vercel" | "github",
+  kind: BoundKind,
   resourceId: string,
 ) {
   if (!resourceId) throw new IsolationError(`${kind} resource id required`, 400);
@@ -68,7 +78,7 @@ export async function assertBoundToCustomer(
 /** Refuse to hand a resource to a second customer. Also enforced by a unique index. */
 export async function assertNotTakenByAnother(
   customerId: string,
-  kind: "vercel" | "github",
+  kind: BoundKind,
   resourceId: string,
 ) {
   const rows = await db

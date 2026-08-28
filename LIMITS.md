@@ -42,6 +42,8 @@ Stripe key and no Twilio account on the machine it was written on.
 | **Stripe** | Tested against a self-signed payload with a test secret. Never talked to Stripe. |
 | **Twilio** | No call has ever been placed. The `<Dial>` TwiML is correct by reading, not by ringing a phone. |
 | **Resend** | Mail has failed in testing, not succeeded. |
+| **Zernio** | All 596 operations are generated from Zernio's published spec and typecheck. **No live call has ever been made** — there is no `ZERNIO_API_KEY` on the machine this was written on. The spec-conformance and validation tests pass without one; they prove the client matches the spec, not that the spec matches Zernio's behaviour. |
+| **The Zernio webhook** | The signature check is mutation-tested (removing it fails two tests) and the accept path is exercised with a real HMAC. Zernio itself has never called it. |
 
 **How to close this gap, in order:**
 
@@ -61,6 +63,14 @@ Stripe key and no Twilio account on the machine it was written on.
 
 Not bugs. Nothing here is scheduled, and none of it should be sold.
 
+- **A Google Ads account has to be bound by hand before anything works.** Every
+  Zernio call is scoped to an account, so a customer with none bound gets a
+  clear refusal rather than a guess. There is no OAuth flow in the OS yet — the
+  Zernio account id and Google customer id are entered on Settings → Ad accounts.
+- **Only Google is wired to a screen.** All 596 operations are callable in code —
+  Meta, TikTok, LinkedIn, Pinterest, X, OpenAI Ads, sixteen social platforms,
+  the inbox, telephony and WhatsApp — but the only UI built on them is Google
+  Ads. Everything else is a client with no screen.
 - **10 of the 12 connectors a copilot can name do not exist.** Microsoft 365
   mail, calendar, Teams, SharePoint, Asana, Odoo, Apple Calendar, IMAP,
   meeting notes. The dependency map is real and useful — it is the scope of the

@@ -9,7 +9,9 @@
     "lint": "eslint",
     "db:migrate": "node scripts/migrate.mjs",
     "db:reset": "node scripts/reset.mjs",
-    "test": "node scripts/test.mjs"
+    "test": "node scripts/test.mjs",
+    "zernio:gen": "node scripts/zernio-generate.mjs",
+    "zernio:pull": "curl -fsS -o vendor/zernio-openapi.yaml https://zernio.com/openapi.yaml && node scripts/zernio-generate.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

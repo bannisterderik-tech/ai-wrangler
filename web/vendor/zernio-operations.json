@@ -1,0 +1,4433 @@
+{
+  "operations": [
+    {
+      "id": "activateWorkflow",
+      "name": "activateWorkflow",
+      "method": "POST",
+      "path": "/v1/workflows/{workflowId}/activate",
+      "group": "accounts"
+    },
+    {
+      "id": "assignGoogleBusinessLocation",
+      "name": "assignGoogleBusinessLocation",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/gmb-locations/assign",
+      "group": "accounts"
+    },
+    {
+      "id": "completeGoogleBusinessVerification",
+      "name": "completeGoogleBusinessVerification",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/gmb-verifications/{verificationId}/complete",
+      "group": "accounts"
+    },
+    {
+      "id": "completeTelegramConnect",
+      "name": "completeTelegramConnect",
+      "method": "PATCH",
+      "path": "/v1/connect/telegram",
+      "group": "accounts"
+    },
+    {
+      "id": "completeWhatsAppPhoneSelection",
+      "name": "completeWhatsAppPhoneSelection",
+      "method": "POST",
+      "path": "/v1/connect/whatsapp/select-phone-number",
+      "group": "accounts"
+    },
+    {
+      "id": "configureTikTokAdsBrandIdentity",
+      "name": "configureTikTokAdsBrandIdentity",
+      "method": "PATCH",
+      "path": "/v1/connect/tiktok-ads",
+      "group": "accounts"
+    },
+    {
+      "id": "connectAds",
+      "name": "connectAds",
+      "method": "GET",
+      "path": "/v1/connect/{platform}/ads",
+      "group": "accounts"
+    },
+    {
+      "id": "connectBlueskyCredentials",
+      "name": "connectBlueskyCredentials",
+      "method": "POST",
+      "path": "/v1/connect/bluesky/credentials",
+      "group": "accounts"
+    },
+    {
+      "id": "connectDiscordChannel",
+      "name": "connectDiscordChannel",
+      "method": "POST",
+      "path": "/v1/connect/discord",
+      "group": "accounts"
+    },
+    {
+      "id": "connectOpenAIAdsCredentials",
+      "name": "connectOpenAIAdsCredentials",
+      "method": "POST",
+      "path": "/v1/connect/openai-ads/credentials",
+      "group": "accounts"
+    },
+    {
+      "id": "connectShopifyWithToken",
+      "name": "connectShopifyWithToken",
+      "method": "POST",
+      "path": "/v1/connect/shopify/token",
+      "group": "accounts"
+    },
+    {
+      "id": "connectSlackChannel",
+      "name": "connectSlackChannel",
+      "method": "POST",
+      "path": "/v1/connect/slack",
+      "group": "accounts"
+    },
+    {
+      "id": "connectWhatsAppCredentials",
+      "name": "connectWhatsAppCredentials",
+      "method": "POST",
+      "path": "/v1/connect/whatsapp/credentials",
+      "group": "accounts"
+    },
+    {
+      "id": "connectWhatsAppEmbeddedSignup",
+      "name": "connectWhatsAppEmbeddedSignup",
+      "method": "POST",
+      "path": "/v1/connect/whatsapp/embedded-signup",
+      "group": "accounts"
+    },
+    {
+      "id": "createAccountGroup",
+      "name": "createAccountGroup",
+      "method": "POST",
+      "path": "/v1/account-groups",
+      "group": "accounts"
+    },
+    {
+      "id": "createCustomConversion",
+      "name": "createCustomConversion",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/custom-conversions",
+      "group": "accounts"
+    },
+    {
+      "id": "createCustomField",
+      "name": "createCustomField",
+      "method": "POST",
+      "path": "/v1/custom-fields",
+      "group": "accounts"
+    },
+    {
+      "id": "createGoogleBusinessMedia",
+      "name": "createGoogleBusinessMedia",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/gmb-media",
+      "group": "accounts"
+    },
+    {
+      "id": "createGoogleBusinessPlaceAction",
+      "name": "createGoogleBusinessPlaceAction",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/gmb-place-actions",
+      "group": "accounts"
+    },
+    {
+      "id": "createPinterestBoard",
+      "name": "createPinterestBoard",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/pinterest-boards",
+      "group": "accounts"
+    },
+    {
+      "id": "createProfile",
+      "name": "createProfile",
+      "method": "POST",
+      "path": "/v1/profiles",
+      "group": "accounts"
+    },
+    {
+      "id": "createWhatsAppDataset",
+      "name": "createWhatsAppDataset",
+      "method": "POST",
+      "path": "/v1/whatsapp/dataset",
+      "group": "accounts"
+    },
+    {
+      "id": "createWhatsAppFlow",
+      "name": "createWhatsAppFlow",
+      "method": "POST",
+      "path": "/v1/whatsapp/flows",
+      "group": "accounts"
+    },
+    {
+      "id": "createWhatsAppTemplate",
+      "name": "createWhatsAppTemplate",
+      "method": "POST",
+      "path": "/v1/whatsapp/templates",
+      "group": "accounts"
+    },
+    {
+      "id": "createWorkflow",
+      "name": "createWorkflow",
+      "method": "POST",
+      "path": "/v1/workflows",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteAccount",
+      "name": "deleteAccount",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteAccountGroup",
+      "name": "deleteAccountGroup",
+      "method": "DELETE",
+      "path": "/v1/account-groups/{groupId}",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteCustomField",
+      "name": "deleteCustomField",
+      "method": "DELETE",
+      "path": "/v1/custom-fields/{fieldId}",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteGoogleBusinessMedia",
+      "name": "deleteGoogleBusinessMedia",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/gmb-media",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteGoogleBusinessPlaceAction",
+      "name": "deleteGoogleBusinessPlaceAction",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/gmb-place-actions",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteInstagramIceBreakers",
+      "name": "deleteInstagramIceBreakers",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/instagram-ice-breakers",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteMessengerMenu",
+      "name": "deleteMessengerMenu",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/messenger-menu",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteProfile",
+      "name": "deleteProfile",
+      "method": "DELETE",
+      "path": "/v1/profiles/{profileId}",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteTelegramCommands",
+      "name": "deleteTelegramCommands",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/telegram-commands",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteWhatsappBusinessUsername",
+      "name": "deleteWhatsappBusinessUsername",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/business-profile/username",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteWhatsAppFlow",
+      "name": "deleteWhatsAppFlow",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/flows/{flowId}",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteWhatsAppTemplate",
+      "name": "deleteWhatsAppTemplate",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/templates/{templateName}",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteWhatsAppTemplateById",
+      "name": "deleteWhatsAppTemplateById",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/templates/id/{templateId}",
+      "group": "accounts"
+    },
+    {
+      "id": "deleteWorkflow",
+      "name": "deleteWorkflow",
+      "method": "DELETE",
+      "path": "/v1/workflows/{workflowId}",
+      "group": "accounts"
+    },
+    {
+      "id": "deprecateWhatsAppFlow",
+      "name": "deprecateWhatsAppFlow",
+      "method": "POST",
+      "path": "/v1/whatsapp/flows/{flowId}/deprecate",
+      "group": "accounts"
+    },
+    {
+      "id": "duplicateWorkflow",
+      "name": "duplicateWorkflow",
+      "method": "POST",
+      "path": "/v1/workflows/{workflowId}/duplicate",
+      "group": "accounts"
+    },
+    {
+      "id": "fetchGoogleBusinessVerificationOptions",
+      "name": "fetchGoogleBusinessVerificationOptions",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/gmb-verifications/options",
+      "group": "accounts"
+    },
+    {
+      "id": "getAccountHealth",
+      "name": "getAccountHealth",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/health",
+      "group": "accounts"
+    },
+    {
+      "id": "getAccountPosts",
+      "name": "getAccountPosts",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/posts",
+      "group": "accounts"
+    },
+    {
+      "id": "getAllAccountsHealth",
+      "name": "getAllAccountsHealth",
+      "method": "GET",
+      "path": "/v1/accounts/health",
+      "group": "accounts"
+    },
+    {
+      "id": "getBlueskySettings",
+      "name": "getBlueskySettings",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/bluesky-settings",
+      "group": "accounts"
+    },
+    {
+      "id": "getConnectUrl",
+      "name": "getConnectUrl",
+      "method": "GET",
+      "path": "/v1/connect/{platform}",
+      "group": "accounts"
+    },
+    {
+      "id": "getDiscordChannels",
+      "name": "getDiscordChannels",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/discord-channels",
+      "group": "accounts"
+    },
+    {
+      "id": "getDiscordSettings",
+      "name": "getDiscordSettings",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/discord-settings",
+      "group": "accounts"
+    },
+    {
+      "id": "getFacebookPages",
+      "name": "getFacebookPages",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/facebook-page",
+      "group": "accounts"
+    },
+    {
+      "id": "getGmbAttributeMetadata",
+      "name": "getGmbAttributeMetadata",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-attribute-metadata",
+      "group": "accounts"
+    },
+    {
+      "id": "getGmbLocations",
+      "name": "getGmbLocations",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-locations",
+      "group": "accounts"
+    },
+    {
+      "id": "getGoogleBusinessAttributes",
+      "name": "getGoogleBusinessAttributes",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-attributes",
+      "group": "accounts"
+    },
+    {
+      "id": "getGoogleBusinessFoodMenus",
+      "name": "getGoogleBusinessFoodMenus",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-food-menus",
+      "group": "accounts"
+    },
+    {
+      "id": "getGoogleBusinessLocationDetails",
+      "name": "getGoogleBusinessLocationDetails",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-location-details",
+      "group": "accounts"
+    },
+    {
+      "id": "getGoogleBusinessServices",
+      "name": "getGoogleBusinessServices",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-services",
+      "group": "accounts"
+    },
+    {
+      "id": "getGoogleBusinessVerifications",
+      "name": "getGoogleBusinessVerifications",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-verifications",
+      "group": "accounts"
+    },
+    {
+      "id": "getInstagramAudio",
+      "name": "getInstagramAudio",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/instagram/audio/{audioId}",
+      "group": "accounts"
+    },
+    {
+      "id": "getInstagramIceBreakers",
+      "name": "getInstagramIceBreakers",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/instagram-ice-breakers",
+      "group": "accounts"
+    },
+    {
+      "id": "getInstagramPublishingLimit",
+      "name": "getInstagramPublishingLimit",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/instagram/publishing-limit",
+      "group": "accounts"
+    },
+    {
+      "id": "getLinkedInMentions",
+      "name": "getLinkedInMentions",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/linkedin-mentions",
+      "group": "accounts"
+    },
+    {
+      "id": "getLinkedInOrganizations",
+      "name": "getLinkedInOrganizations",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/linkedin-organizations",
+      "group": "accounts"
+    },
+    {
+      "id": "getMessengerMenu",
+      "name": "getMessengerMenu",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/messenger-menu",
+      "group": "accounts"
+    },
+    {
+      "id": "getPinterestBoards",
+      "name": "getPinterestBoards",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/pinterest-boards",
+      "group": "accounts"
+    },
+    {
+      "id": "getProfile",
+      "name": "getProfile",
+      "method": "GET",
+      "path": "/v1/profiles/{profileId}",
+      "group": "accounts"
+    },
+    {
+      "id": "getRedditFlairs",
+      "name": "getRedditFlairs",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/reddit-flairs",
+      "group": "accounts"
+    },
+    {
+      "id": "getRedditSubreddits",
+      "name": "getRedditSubreddits",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/reddit-subreddits",
+      "group": "accounts"
+    },
+    {
+      "id": "getShopifyConnectUrl",
+      "name": "getShopifyConnectUrl",
+      "method": "GET",
+      "path": "/v1/connect/shopify",
+      "group": "accounts"
+    },
+    {
+      "id": "getSlackSettings",
+      "name": "getSlackSettings",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/slack-settings",
+      "group": "accounts"
+    },
+    {
+      "id": "getSubredditRules",
+      "name": "getSubredditRules",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/reddit-subreddits/{subreddit}/rules",
+      "group": "accounts"
+    },
+    {
+      "id": "getTelegramCommands",
+      "name": "getTelegramCommands",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/telegram-commands",
+      "group": "accounts"
+    },
+    {
+      "id": "getTelegramConnectStatus",
+      "name": "getTelegramConnectStatus",
+      "method": "GET",
+      "path": "/v1/connect/telegram",
+      "group": "accounts"
+    },
+    {
+      "id": "getTikTokCreatorInfo",
+      "name": "getTikTokCreatorInfo",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/tiktok/creator-info",
+      "group": "accounts"
+    },
+    {
+      "id": "getUser",
+      "name": "getUser",
+      "method": "GET",
+      "path": "/v1/users/{userId}",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppBusinessProfile",
+      "name": "getWhatsAppBusinessProfile",
+      "method": "GET",
+      "path": "/v1/whatsapp/business-profile",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsappBusinessUsername",
+      "name": "getWhatsappBusinessUsername",
+      "method": "GET",
+      "path": "/v1/whatsapp/business-profile/username",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsappBusinessUsernameSuggestions",
+      "name": "getWhatsappBusinessUsernameSuggestions",
+      "method": "GET",
+      "path": "/v1/whatsapp/business-profile/username/suggestions",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppCallingConfig",
+      "name": "getWhatsAppCallingConfig",
+      "method": "GET",
+      "path": "/v1/whatsapp/calling",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppDataset",
+      "name": "getWhatsAppDataset",
+      "method": "GET",
+      "path": "/v1/whatsapp/dataset",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppDisplayName",
+      "name": "getWhatsAppDisplayName",
+      "method": "GET",
+      "path": "/v1/whatsapp/business-profile/display-name",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppFlow",
+      "name": "getWhatsAppFlow",
+      "method": "GET",
+      "path": "/v1/whatsapp/flows/{flowId}",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppFlowJson",
+      "name": "getWhatsAppFlowJson",
+      "method": "GET",
+      "path": "/v1/whatsapp/flows/{flowId}/json",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppFlowPreview",
+      "name": "getWhatsAppFlowPreview",
+      "method": "GET",
+      "path": "/v1/whatsapp/flows/{flowId}/preview",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppLibraryTemplate",
+      "name": "getWhatsAppLibraryTemplate",
+      "method": "GET",
+      "path": "/v1/whatsapp/template-library",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppTemplate",
+      "name": "getWhatsAppTemplate",
+      "method": "GET",
+      "path": "/v1/whatsapp/templates/{templateName}",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppTemplateById",
+      "name": "getWhatsAppTemplateById",
+      "method": "GET",
+      "path": "/v1/whatsapp/templates/id/{templateId}",
+      "group": "accounts"
+    },
+    {
+      "id": "getWhatsAppTemplates",
+      "name": "getWhatsAppTemplates",
+      "method": "GET",
+      "path": "/v1/whatsapp/templates",
+      "group": "accounts"
+    },
+    {
+      "id": "getWorkflow",
+      "name": "getWorkflow",
+      "method": "GET",
+      "path": "/v1/workflows/{workflowId}",
+      "group": "accounts"
+    },
+    {
+      "id": "getWorkflowVersion",
+      "name": "getWorkflowVersion",
+      "method": "GET",
+      "path": "/v1/workflows/{workflowId}/versions/{version}",
+      "group": "accounts"
+    },
+    {
+      "id": "getYoutubeCaptions",
+      "name": "getYoutubeCaptions",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/youtube-captions",
+      "group": "accounts"
+    },
+    {
+      "id": "getYoutubePlaylists",
+      "name": "getYoutubePlaylists",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/youtube-playlists",
+      "group": "accounts"
+    },
+    {
+      "id": "handleOAuthCallback",
+      "name": "handleOAuthCallback",
+      "method": "POST",
+      "path": "/v1/connect/{platform}",
+      "group": "accounts"
+    },
+    {
+      "id": "initiateTelegramConnect",
+      "name": "initiateTelegramConnect",
+      "method": "POST",
+      "path": "/v1/connect/telegram",
+      "group": "accounts"
+    },
+    {
+      "id": "listAccountGroups",
+      "name": "listAccountGroups",
+      "method": "GET",
+      "path": "/v1/account-groups",
+      "group": "accounts"
+    },
+    {
+      "id": "listAccounts",
+      "name": "listAccounts",
+      "method": "GET",
+      "path": "/v1/accounts",
+      "group": "accounts"
+    },
+    {
+      "id": "listCustomConversions",
+      "name": "listCustomConversions",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/custom-conversions",
+      "group": "accounts"
+    },
+    {
+      "id": "listCustomFields",
+      "name": "listCustomFields",
+      "method": "GET",
+      "path": "/v1/custom-fields",
+      "group": "accounts"
+    },
+    {
+      "id": "listFacebookPages",
+      "name": "listFacebookPages",
+      "method": "GET",
+      "path": "/v1/connect/facebook/select-page",
+      "group": "accounts"
+    },
+    {
+      "id": "listGoogleBusinessLocations",
+      "name": "listGoogleBusinessLocations",
+      "method": "GET",
+      "path": "/v1/connect/googlebusiness/locations",
+      "group": "accounts"
+    },
+    {
+      "id": "listGoogleBusinessMedia",
+      "name": "listGoogleBusinessMedia",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-media",
+      "group": "accounts"
+    },
+    {
+      "id": "listGoogleBusinessPlaceActions",
+      "name": "listGoogleBusinessPlaceActions",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-place-actions",
+      "group": "accounts"
+    },
+    {
+      "id": "listPinterestBoardsForSelection",
+      "name": "listPinterestBoardsForSelection",
+      "method": "GET",
+      "path": "/v1/connect/pinterest/select-board",
+      "group": "accounts"
+    },
+    {
+      "id": "listProfiles",
+      "name": "listProfiles",
+      "method": "GET",
+      "path": "/v1/profiles",
+      "group": "accounts"
+    },
+    {
+      "id": "listSnapchatProfiles",
+      "name": "listSnapchatProfiles",
+      "method": "GET",
+      "path": "/v1/connect/snapchat/select-profile",
+      "group": "accounts"
+    },
+    {
+      "id": "listUsers",
+      "name": "listUsers",
+      "method": "GET",
+      "path": "/v1/users",
+      "group": "accounts"
+    },
+    {
+      "id": "listWhatsAppAccountEvents",
+      "name": "listWhatsAppAccountEvents",
+      "method": "GET",
+      "path": "/v1/whatsapp/account-events",
+      "group": "accounts"
+    },
+    {
+      "id": "listWhatsAppFlows",
+      "name": "listWhatsAppFlows",
+      "method": "GET",
+      "path": "/v1/whatsapp/flows",
+      "group": "accounts"
+    },
+    {
+      "id": "listWhatsAppFlowVersions",
+      "name": "listWhatsAppFlowVersions",
+      "method": "GET",
+      "path": "/v1/whatsapp/flows/{flowId}/versions",
+      "group": "accounts"
+    },
+    {
+      "id": "listWhatsAppPhoneNumbers",
+      "name": "listWhatsAppPhoneNumbers",
+      "method": "GET",
+      "path": "/v1/connect/whatsapp/select-phone-number",
+      "group": "accounts"
+    },
+    {
+      "id": "listWorkflows",
+      "name": "listWorkflows",
+      "method": "GET",
+      "path": "/v1/workflows",
+      "group": "accounts"
+    },
+    {
+      "id": "listWorkflowVersions",
+      "name": "listWorkflowVersions",
+      "method": "GET",
+      "path": "/v1/workflows/{workflowId}/versions",
+      "group": "accounts"
+    },
+    {
+      "id": "moveAccountToProfile",
+      "name": "moveAccountToProfile",
+      "method": "PATCH",
+      "path": "/v1/accounts/{accountId}",
+      "group": "accounts"
+    },
+    {
+      "id": "pauseWorkflow",
+      "name": "pauseWorkflow",
+      "method": "POST",
+      "path": "/v1/workflows/{workflowId}/pause",
+      "group": "accounts"
+    },
+    {
+      "id": "publishWhatsAppFlow",
+      "name": "publishWhatsAppFlow",
+      "method": "POST",
+      "path": "/v1/whatsapp/flows/{flowId}/publish",
+      "group": "accounts"
+    },
+    {
+      "id": "registerWhatsAppNumber",
+      "name": "registerWhatsAppNumber",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/whatsapp/register",
+      "group": "accounts"
+    },
+    {
+      "id": "restoreWorkflowVersion",
+      "name": "restoreWorkflowVersion",
+      "method": "POST",
+      "path": "/v1/workflows/{workflowId}/versions/{version}/restore",
+      "group": "accounts"
+    },
+    {
+      "id": "searchInstagramAudio",
+      "name": "searchInstagramAudio",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/instagram/audio",
+      "group": "accounts"
+    },
+    {
+      "id": "selectFacebookPage",
+      "name": "selectFacebookPage",
+      "method": "POST",
+      "path": "/v1/connect/facebook/select-page",
+      "group": "accounts"
+    },
+    {
+      "id": "selectGoogleBusinessLocation",
+      "name": "selectGoogleBusinessLocation",
+      "method": "POST",
+      "path": "/v1/connect/googlebusiness/select-location",
+      "group": "accounts"
+    },
+    {
+      "id": "selectLinkedInOrganization",
+      "name": "selectLinkedInOrganization",
+      "method": "POST",
+      "path": "/v1/connect/linkedin/select-organization",
+      "group": "accounts"
+    },
+    {
+      "id": "selectPinterestBoard",
+      "name": "selectPinterestBoard",
+      "method": "POST",
+      "path": "/v1/connect/pinterest/select-board",
+      "group": "accounts"
+    },
+    {
+      "id": "selectSnapchatProfile",
+      "name": "selectSnapchatProfile",
+      "method": "POST",
+      "path": "/v1/connect/snapchat/select-profile",
+      "group": "accounts"
+    },
+    {
+      "id": "setInstagramIceBreakers",
+      "name": "setInstagramIceBreakers",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/instagram-ice-breakers",
+      "group": "accounts"
+    },
+    {
+      "id": "setMessengerMenu",
+      "name": "setMessengerMenu",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/messenger-menu",
+      "group": "accounts"
+    },
+    {
+      "id": "setRedditPostFlair",
+      "name": "setRedditPostFlair",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/reddit-flairs",
+      "group": "accounts"
+    },
+    {
+      "id": "setTelegramCommands",
+      "name": "setTelegramCommands",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/telegram-commands",
+      "group": "accounts"
+    },
+    {
+      "id": "setWhatsappBusinessUsername",
+      "name": "setWhatsappBusinessUsername",
+      "method": "POST",
+      "path": "/v1/whatsapp/business-profile/username",
+      "group": "accounts"
+    },
+    {
+      "id": "startGoogleBusinessVerification",
+      "name": "startGoogleBusinessVerification",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/gmb-verifications",
+      "group": "accounts"
+    },
+    {
+      "id": "updateAccount",
+      "name": "updateAccount",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}",
+      "group": "accounts"
+    },
+    {
+      "id": "updateAccountGroup",
+      "name": "updateAccountGroup",
+      "method": "PUT",
+      "path": "/v1/account-groups/{groupId}",
+      "group": "accounts"
+    },
+    {
+      "id": "updateBlueskySettings",
+      "name": "updateBlueskySettings",
+      "method": "PATCH",
+      "path": "/v1/accounts/{accountId}/bluesky-settings",
+      "group": "accounts"
+    },
+    {
+      "id": "updateCustomField",
+      "name": "updateCustomField",
+      "method": "PATCH",
+      "path": "/v1/custom-fields/{fieldId}",
+      "group": "accounts"
+    },
+    {
+      "id": "updateDiscordSettings",
+      "name": "updateDiscordSettings",
+      "method": "PATCH",
+      "path": "/v1/accounts/{accountId}/discord-settings",
+      "group": "accounts"
+    },
+    {
+      "id": "updateFacebookPage",
+      "name": "updateFacebookPage",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/facebook-page",
+      "group": "accounts"
+    },
+    {
+      "id": "updateGmbLocation",
+      "name": "updateGmbLocation",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/gmb-locations",
+      "group": "accounts"
+    },
+    {
+      "id": "updateGoogleBusinessAttributes",
+      "name": "updateGoogleBusinessAttributes",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/gmb-attributes",
+      "group": "accounts"
+    },
+    {
+      "id": "updateGoogleBusinessFoodMenus",
+      "name": "updateGoogleBusinessFoodMenus",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/gmb-food-menus",
+      "group": "accounts"
+    },
+    {
+      "id": "updateGoogleBusinessLocationDetails",
+      "name": "updateGoogleBusinessLocationDetails",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/gmb-location-details",
+      "group": "accounts"
+    },
+    {
+      "id": "updateGoogleBusinessPlaceAction",
+      "name": "updateGoogleBusinessPlaceAction",
+      "method": "PATCH",
+      "path": "/v1/accounts/{accountId}/gmb-place-actions",
+      "group": "accounts"
+    },
+    {
+      "id": "updateGoogleBusinessServices",
+      "name": "updateGoogleBusinessServices",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/gmb-services",
+      "group": "accounts"
+    },
+    {
+      "id": "updateLinkedInOrganization",
+      "name": "updateLinkedInOrganization",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/linkedin-organization",
+      "group": "accounts"
+    },
+    {
+      "id": "updatePinterestBoards",
+      "name": "updatePinterestBoards",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/pinterest-boards",
+      "group": "accounts"
+    },
+    {
+      "id": "updateProfile",
+      "name": "updateProfile",
+      "method": "PUT",
+      "path": "/v1/profiles/{profileId}",
+      "group": "accounts"
+    },
+    {
+      "id": "updateRedditSubreddits",
+      "name": "updateRedditSubreddits",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/reddit-subreddits",
+      "group": "accounts"
+    },
+    {
+      "id": "updateSlackSettings",
+      "name": "updateSlackSettings",
+      "method": "PATCH",
+      "path": "/v1/accounts/{accountId}/slack-settings",
+      "group": "accounts"
+    },
+    {
+      "id": "updateWhatsAppBusinessProfile",
+      "name": "updateWhatsAppBusinessProfile",
+      "method": "POST",
+      "path": "/v1/whatsapp/business-profile",
+      "group": "accounts"
+    },
+    {
+      "id": "updateWhatsAppDisplayName",
+      "name": "updateWhatsAppDisplayName",
+      "method": "POST",
+      "path": "/v1/whatsapp/business-profile/display-name",
+      "group": "accounts"
+    },
+    {
+      "id": "updateWhatsAppFlow",
+      "name": "updateWhatsAppFlow",
+      "method": "PATCH",
+      "path": "/v1/whatsapp/flows/{flowId}",
+      "group": "accounts"
+    },
+    {
+      "id": "updateWhatsAppTemplate",
+      "name": "updateWhatsAppTemplate",
+      "method": "PATCH",
+      "path": "/v1/whatsapp/templates/{templateName}",
+      "group": "accounts"
+    },
+    {
+      "id": "updateWhatsAppTemplateById",
+      "name": "updateWhatsAppTemplateById",
+      "method": "PATCH",
+      "path": "/v1/whatsapp/templates/id/{templateId}",
+      "group": "accounts"
+    },
+    {
+      "id": "updateWorkflow",
+      "name": "updateWorkflow",
+      "method": "PATCH",
+      "path": "/v1/workflows/{workflowId}",
+      "group": "accounts"
+    },
+    {
+      "id": "updateYoutubeDefaultPlaylist",
+      "name": "updateYoutubeDefaultPlaylist",
+      "method": "PUT",
+      "path": "/v1/accounts/{accountId}/youtube-playlists",
+      "group": "accounts"
+    },
+    {
+      "id": "uploadWhatsAppFlowJson",
+      "name": "uploadWhatsAppFlowJson",
+      "method": "PUT",
+      "path": "/v1/whatsapp/flows/{flowId}/json",
+      "group": "accounts"
+    },
+    {
+      "id": "uploadWhatsAppProfilePhoto",
+      "name": "uploadWhatsAppProfilePhoto",
+      "method": "POST",
+      "path": "/v1/whatsapp/business-profile/photo",
+      "group": "accounts"
+    },
+    {
+      "id": "createApiKey",
+      "name": "createApiKey",
+      "method": "POST",
+      "path": "/v1/api-keys",
+      "group": "admin-plane"
+    },
+    {
+      "id": "createInviteToken",
+      "name": "createInviteToken",
+      "method": "POST",
+      "path": "/v1/invite/tokens",
+      "group": "admin-plane"
+    },
+    {
+      "id": "deleteApiKey",
+      "name": "deleteApiKey",
+      "method": "DELETE",
+      "path": "/v1/api-keys/{keyId}",
+      "group": "admin-plane"
+    },
+    {
+      "id": "listApiKeys",
+      "name": "listApiKeys",
+      "method": "GET",
+      "path": "/v1/api-keys",
+      "group": "admin-plane"
+    },
+    {
+      "id": "listConnectedApps",
+      "name": "listConnectedApps",
+      "method": "GET",
+      "path": "/v1/me/connected-apps",
+      "group": "admin-plane"
+    },
+    {
+      "id": "revokeConnectedApp",
+      "name": "revokeConnectedApp",
+      "method": "DELETE",
+      "path": "/v1/me/connected-apps/{clientId}",
+      "group": "admin-plane"
+    },
+    {
+      "id": "addConversionAssociations",
+      "name": "addConversionAssociations",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/conversion-destinations/{destinationId}/associations",
+      "group": "ads"
+    },
+    {
+      "id": "addTrackingTagSharedAccount",
+      "name": "addTrackingTagSharedAccount",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/tracking-tags/{tagId}/shared-accounts",
+      "group": "ads"
+    },
+    {
+      "id": "addUsersToAdAudience",
+      "name": "addUsersToAdAudience",
+      "method": "POST",
+      "path": "/v1/ads/audiences/{audienceId}/users",
+      "group": "ads"
+    },
+    {
+      "id": "adjustConversions",
+      "name": "adjustConversions",
+      "method": "POST",
+      "path": "/v1/ads/conversions/adjustments",
+      "group": "ads"
+    },
+    {
+      "id": "archiveLeadForm",
+      "name": "archiveLeadForm",
+      "method": "DELETE",
+      "path": "/v1/ads/lead-forms/{formId}",
+      "group": "ads"
+    },
+    {
+      "id": "attachCampaignAssets",
+      "name": "attachCampaignAssets",
+      "method": "POST",
+      "path": "/v1/ads/campaigns/{campaignId}/assets",
+      "group": "ads"
+    },
+    {
+      "id": "boostPost",
+      "name": "boostPost",
+      "method": "POST",
+      "path": "/v1/ads/boost",
+      "group": "ads"
+    },
+    {
+      "id": "bulkUpdateAdCampaignStatus",
+      "name": "bulkUpdateAdCampaignStatus",
+      "method": "POST",
+      "path": "/v1/ads/campaigns/bulk-status",
+      "group": "ads"
+    },
+    {
+      "id": "cancelRfReservation",
+      "name": "cancelRfReservation",
+      "method": "DELETE",
+      "path": "/v1/ads/rf-predictions/{predictionId}",
+      "group": "ads"
+    },
+    {
+      "id": "createAdAudience",
+      "name": "createAdAudience",
+      "method": "POST",
+      "path": "/v1/ads/audiences",
+      "group": "ads"
+    },
+    {
+      "id": "createAdCampaign",
+      "name": "createAdCampaign",
+      "method": "POST",
+      "path": "/v1/ads/campaigns",
+      "group": "ads"
+    },
+    {
+      "id": "createAdCreative",
+      "name": "createAdCreative",
+      "method": "POST",
+      "path": "/v1/ads/creatives",
+      "group": "ads"
+    },
+    {
+      "id": "createAdInsightsReport",
+      "name": "createAdInsightsReport",
+      "method": "POST",
+      "path": "/v1/ads/insights/reports",
+      "group": "ads"
+    },
+    {
+      "id": "createCallAd",
+      "name": "createCallAd",
+      "method": "POST",
+      "path": "/v1/ads/call",
+      "group": "ads"
+    },
+    {
+      "id": "createConversionDestination",
+      "name": "createConversionDestination",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/conversion-destinations",
+      "group": "ads"
+    },
+    {
+      "id": "createCtwaAd",
+      "name": "createCtwaAd",
+      "method": "POST",
+      "path": "/v1/ads/ctwa",
+      "group": "ads"
+    },
+    {
+      "id": "createHighDemandPeriod",
+      "name": "createHighDemandPeriod",
+      "method": "POST",
+      "path": "/v1/ads/high-demand-periods",
+      "group": "ads"
+    },
+    {
+      "id": "createLeadForm",
+      "name": "createLeadForm",
+      "method": "POST",
+      "path": "/v1/ads/lead-forms",
+      "group": "ads"
+    },
+    {
+      "id": "createMessagingAd",
+      "name": "createMessagingAd",
+      "method": "POST",
+      "path": "/v1/ads/messaging",
+      "group": "ads"
+    },
+    {
+      "id": "createRfPrediction",
+      "name": "createRfPrediction",
+      "method": "POST",
+      "path": "/v1/ads/rf-predictions",
+      "group": "ads"
+    },
+    {
+      "id": "createStandaloneAd",
+      "name": "createStandaloneAd",
+      "method": "POST",
+      "path": "/v1/ads/create",
+      "group": "ads"
+    },
+    {
+      "id": "createTrackingTag",
+      "name": "createTrackingTag",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/tracking-tags",
+      "group": "ads"
+    },
+    {
+      "id": "createValueRuleSet",
+      "name": "createValueRuleSet",
+      "method": "POST",
+      "path": "/v1/ads/value-rule-sets",
+      "group": "ads"
+    },
+    {
+      "id": "deleteAd",
+      "name": "deleteAd",
+      "method": "DELETE",
+      "path": "/v1/ads/{adId}",
+      "group": "ads"
+    },
+    {
+      "id": "deleteAdAudience",
+      "name": "deleteAdAudience",
+      "method": "DELETE",
+      "path": "/v1/ads/audiences/{audienceId}",
+      "group": "ads"
+    },
+    {
+      "id": "deleteAdCampaign",
+      "name": "deleteAdCampaign",
+      "method": "DELETE",
+      "path": "/v1/ads/campaigns/{campaignId}",
+      "group": "ads"
+    },
+    {
+      "id": "deleteAdCreative",
+      "name": "deleteAdCreative",
+      "method": "DELETE",
+      "path": "/v1/ads/creatives/{creativeId}",
+      "group": "ads"
+    },
+    {
+      "id": "deleteAdSet",
+      "name": "deleteAdSet",
+      "method": "DELETE",
+      "path": "/v1/ads/ad-sets/{adSetId}",
+      "group": "ads"
+    },
+    {
+      "id": "deleteAdVideo",
+      "name": "deleteAdVideo",
+      "method": "DELETE",
+      "path": "/v1/ads/videos/{videoId}",
+      "group": "ads"
+    },
+    {
+      "id": "deleteConversionDestination",
+      "name": "deleteConversionDestination",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/conversion-destinations/{destinationId}",
+      "group": "ads"
+    },
+    {
+      "id": "deleteValueRuleSet",
+      "name": "deleteValueRuleSet",
+      "method": "DELETE",
+      "path": "/v1/ads/value-rule-sets/{valueRuleSetId}",
+      "group": "ads"
+    },
+    {
+      "id": "duplicateAd",
+      "name": "duplicateAd",
+      "method": "POST",
+      "path": "/v1/ads/{adId}/duplicate",
+      "group": "ads"
+    },
+    {
+      "id": "duplicateAdCampaign",
+      "name": "duplicateAdCampaign",
+      "method": "POST",
+      "path": "/v1/ads/campaigns/{campaignId}/duplicate",
+      "group": "ads"
+    },
+    {
+      "id": "duplicateAdSet",
+      "name": "duplicateAdSet",
+      "method": "POST",
+      "path": "/v1/ads/ad-sets/{adSetId}/duplicate",
+      "group": "ads"
+    },
+    {
+      "id": "estimateAdReach",
+      "name": "estimateAdReach",
+      "method": "POST",
+      "path": "/v1/ads/targeting/reach-estimate",
+      "group": "ads"
+    },
+    {
+      "id": "generateAdPreviews",
+      "name": "generateAdPreviews",
+      "method": "POST",
+      "path": "/v1/ads/preview",
+      "group": "ads"
+    },
+    {
+      "id": "generateKeywordHistoricalMetrics",
+      "name": "generateKeywordHistoricalMetrics",
+      "method": "POST",
+      "path": "/v1/ads/keywords/historical-metrics",
+      "group": "ads"
+    },
+    {
+      "id": "generateKeywordIdeas",
+      "name": "generateKeywordIdeas",
+      "method": "POST",
+      "path": "/v1/ads/keywords/ideas",
+      "group": "ads"
+    },
+    {
+      "id": "getAd",
+      "name": "getAd",
+      "method": "GET",
+      "path": "/v1/ads/{adId}",
+      "group": "ads"
+    },
+    {
+      "id": "getAdAccountFinance",
+      "name": "getAdAccountFinance",
+      "method": "GET",
+      "path": "/v1/ads/accounts/finance",
+      "group": "ads"
+    },
+    {
+      "id": "getAdAnalytics",
+      "name": "getAdAnalytics",
+      "method": "GET",
+      "path": "/v1/ads/{adId}/analytics",
+      "group": "ads"
+    },
+    {
+      "id": "getAdAudience",
+      "name": "getAdAudience",
+      "method": "GET",
+      "path": "/v1/ads/audiences/{audienceId}",
+      "group": "ads"
+    },
+    {
+      "id": "getAdCreative",
+      "name": "getAdCreative",
+      "method": "GET",
+      "path": "/v1/ads/creatives/{creativeId}",
+      "group": "ads"
+    },
+    {
+      "id": "getAdInsightsReport",
+      "name": "getAdInsightsReport",
+      "method": "GET",
+      "path": "/v1/ads/insights/reports/{reportRunId}",
+      "group": "ads"
+    },
+    {
+      "id": "getAdMedia",
+      "name": "getAdMedia",
+      "method": "GET",
+      "path": "/v1/ads/{adId}/media",
+      "group": "ads"
+    },
+    {
+      "id": "getAdPreviews",
+      "name": "getAdPreviews",
+      "method": "GET",
+      "path": "/v1/ads/{adId}/preview",
+      "group": "ads"
+    },
+    {
+      "id": "getAdsActivityLog",
+      "name": "getAdsActivityLog",
+      "method": "GET",
+      "path": "/v1/ads/activity",
+      "group": "ads"
+    },
+    {
+      "id": "getAdSetDetails",
+      "name": "getAdSetDetails",
+      "method": "GET",
+      "path": "/v1/ads/ad-sets/{adSetId}",
+      "group": "ads"
+    },
+    {
+      "id": "getAdsSearchTerms",
+      "name": "getAdsSearchTerms",
+      "method": "GET",
+      "path": "/v1/ads/search-terms",
+      "group": "ads"
+    },
+    {
+      "id": "getAdsTimeline",
+      "name": "getAdsTimeline",
+      "method": "GET",
+      "path": "/v1/ads/timeline",
+      "group": "ads"
+    },
+    {
+      "id": "getAdTrackingTags",
+      "name": "getAdTrackingTags",
+      "method": "GET",
+      "path": "/v1/ads/{adId}/tracking-tags",
+      "group": "ads"
+    },
+    {
+      "id": "getAdTree",
+      "name": "getAdTree",
+      "method": "GET",
+      "path": "/v1/ads/tree",
+      "group": "ads"
+    },
+    {
+      "id": "getCampaignAnalytics",
+      "name": "getCampaignAnalytics",
+      "method": "GET",
+      "path": "/v1/ads/campaigns/{campaignId}/analytics",
+      "group": "ads"
+    },
+    {
+      "id": "getConversionDestination",
+      "name": "getConversionDestination",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/conversion-destinations/{destinationId}",
+      "group": "ads"
+    },
+    {
+      "id": "getConversionMetrics",
+      "name": "getConversionMetrics",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/conversion-destinations/{destinationId}/metrics",
+      "group": "ads"
+    },
+    {
+      "id": "getConversionsQuality",
+      "name": "getConversionsQuality",
+      "method": "GET",
+      "path": "/v1/ads/conversions/quality",
+      "group": "ads"
+    },
+    {
+      "id": "getDsaDefaults",
+      "name": "getDsaDefaults",
+      "method": "GET",
+      "path": "/v1/ads/dsa-defaults",
+      "group": "ads"
+    },
+    {
+      "id": "getDsaRecommendations",
+      "name": "getDsaRecommendations",
+      "method": "GET",
+      "path": "/v1/ads/dsa-recommendations",
+      "group": "ads"
+    },
+    {
+      "id": "getLeadForm",
+      "name": "getLeadForm",
+      "method": "GET",
+      "path": "/v1/ads/lead-forms/{formId}",
+      "group": "ads"
+    },
+    {
+      "id": "getLinkedInBidPricing",
+      "name": "getLinkedInBidPricing",
+      "method": "POST",
+      "path": "/v1/ads/targeting/bid-pricing",
+      "group": "ads"
+    },
+    {
+      "id": "getLinkedInSupplyForecast",
+      "name": "getLinkedInSupplyForecast",
+      "method": "POST",
+      "path": "/v1/ads/targeting/supply-forecast",
+      "group": "ads"
+    },
+    {
+      "id": "getRfPrediction",
+      "name": "getRfPrediction",
+      "method": "GET",
+      "path": "/v1/ads/rf-predictions/{predictionId}",
+      "group": "ads"
+    },
+    {
+      "id": "getTrackingTag",
+      "name": "getTrackingTag",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/tracking-tags/{tagId}",
+      "group": "ads"
+    },
+    {
+      "id": "getTrackingTagStats",
+      "name": "getTrackingTagStats",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/tracking-tags/{tagId}/stats",
+      "group": "ads"
+    },
+    {
+      "id": "getValueRuleSet",
+      "name": "getValueRuleSet",
+      "method": "GET",
+      "path": "/v1/ads/value-rule-sets/{valueRuleSetId}",
+      "group": "ads"
+    },
+    {
+      "id": "listAdAccounts",
+      "name": "listAdAccounts",
+      "method": "GET",
+      "path": "/v1/ads/accounts",
+      "group": "ads"
+    },
+    {
+      "id": "listAdAudiences",
+      "name": "listAdAudiences",
+      "method": "GET",
+      "path": "/v1/ads/audiences",
+      "group": "ads"
+    },
+    {
+      "id": "listAdCampaigns",
+      "name": "listAdCampaigns",
+      "method": "GET",
+      "path": "/v1/ads/campaigns",
+      "group": "ads"
+    },
+    {
+      "id": "listAdCatalogProductSets",
+      "name": "listAdCatalogProductSets",
+      "method": "GET",
+      "path": "/v1/ads/catalogs/{catalogId}/product-sets",
+      "group": "ads"
+    },
+    {
+      "id": "listAdCatalogs",
+      "name": "listAdCatalogs",
+      "method": "GET",
+      "path": "/v1/ads/catalogs",
+      "group": "ads"
+    },
+    {
+      "id": "listAdCreatives",
+      "name": "listAdCreatives",
+      "method": "GET",
+      "path": "/v1/ads/creatives",
+      "group": "ads"
+    },
+    {
+      "id": "listAdImages",
+      "name": "listAdImages",
+      "method": "GET",
+      "path": "/v1/ads/images",
+      "group": "ads"
+    },
+    {
+      "id": "listAdKeywords",
+      "name": "listAdKeywords",
+      "method": "GET",
+      "path": "/v1/ads/keywords",
+      "group": "ads"
+    },
+    {
+      "id": "listAdLabels",
+      "name": "listAdLabels",
+      "method": "GET",
+      "path": "/v1/ads/labels",
+      "group": "ads"
+    },
+    {
+      "id": "listAds",
+      "name": "listAds",
+      "method": "GET",
+      "path": "/v1/ads",
+      "group": "ads"
+    },
+    {
+      "id": "listAdsBusinessCenters",
+      "name": "listAdsBusinessCenters",
+      "method": "GET",
+      "path": "/v1/ads/business-centers",
+      "group": "ads"
+    },
+    {
+      "id": "listAdStudies",
+      "name": "listAdStudies",
+      "method": "GET",
+      "path": "/v1/ads/studies",
+      "group": "ads"
+    },
+    {
+      "id": "listAdVideos",
+      "name": "listAdVideos",
+      "method": "GET",
+      "path": "/v1/ads/videos",
+      "group": "ads"
+    },
+    {
+      "id": "listConversionAssociations",
+      "name": "listConversionAssociations",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/conversion-destinations/{destinationId}/associations",
+      "group": "ads"
+    },
+    {
+      "id": "listConversionDestinations",
+      "name": "listConversionDestinations",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/conversion-destinations",
+      "group": "ads"
+    },
+    {
+      "id": "listHighDemandPeriods",
+      "name": "listHighDemandPeriods",
+      "method": "GET",
+      "path": "/v1/ads/high-demand-periods",
+      "group": "ads"
+    },
+    {
+      "id": "listLeadForms",
+      "name": "listLeadForms",
+      "method": "GET",
+      "path": "/v1/ads/lead-forms",
+      "group": "ads"
+    },
+    {
+      "id": "listLocalServicesLeadConversations",
+      "name": "listLocalServicesLeadConversations",
+      "method": "GET",
+      "path": "/v1/ads/local-services/leads/{leadId}/conversations",
+      "group": "ads"
+    },
+    {
+      "id": "listLocalServicesLeads",
+      "name": "listLocalServicesLeads",
+      "method": "GET",
+      "path": "/v1/ads/local-services/leads",
+      "group": "ads"
+    },
+    {
+      "id": "listMetaBusinesses",
+      "name": "listMetaBusinesses",
+      "method": "GET",
+      "path": "/v1/ads/businesses",
+      "group": "ads"
+    },
+    {
+      "id": "listTrackingTags",
+      "name": "listTrackingTags",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/tracking-tags",
+      "group": "ads"
+    },
+    {
+      "id": "listTrackingTagSharedAccounts",
+      "name": "listTrackingTagSharedAccounts",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/tracking-tags/{tagId}/shared-accounts",
+      "group": "ads"
+    },
+    {
+      "id": "listValueRuleSets",
+      "name": "listValueRuleSets",
+      "method": "GET",
+      "path": "/v1/ads/value-rule-sets",
+      "group": "ads"
+    },
+    {
+      "id": "listWhatsAppConversions",
+      "name": "listWhatsAppConversions",
+      "method": "GET",
+      "path": "/v1/whatsapp/conversions",
+      "group": "ads"
+    },
+    {
+      "id": "queryAdInsights",
+      "name": "queryAdInsights",
+      "method": "GET",
+      "path": "/v1/ads/insights",
+      "group": "ads"
+    },
+    {
+      "id": "removeConversionAssociations",
+      "name": "removeConversionAssociations",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/conversion-destinations/{destinationId}/associations",
+      "group": "ads"
+    },
+    {
+      "id": "removeTrackingTagSharedAccount",
+      "name": "removeTrackingTagSharedAccount",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/tracking-tags/{tagId}/shared-accounts",
+      "group": "ads"
+    },
+    {
+      "id": "replaceAdAudienceCompanies",
+      "name": "replaceAdAudienceCompanies",
+      "method": "POST",
+      "path": "/v1/ads/audiences/{audienceId}/companies",
+      "group": "ads"
+    },
+    {
+      "id": "reserveRfPrediction",
+      "name": "reserveRfPrediction",
+      "method": "POST",
+      "path": "/v1/ads/rf-predictions/{predictionId}/reserve",
+      "group": "ads"
+    },
+    {
+      "id": "searchAdInterests",
+      "name": "searchAdInterests",
+      "method": "GET",
+      "path": "/v1/ads/interests",
+      "group": "ads"
+    },
+    {
+      "id": "searchAdTargeting",
+      "name": "searchAdTargeting",
+      "method": "GET",
+      "path": "/v1/ads/targeting/search",
+      "group": "ads"
+    },
+    {
+      "id": "sendConversions",
+      "name": "sendConversions",
+      "method": "POST",
+      "path": "/v1/ads/conversions",
+      "group": "ads"
+    },
+    {
+      "id": "sendWhatsAppConversion",
+      "name": "sendWhatsAppConversion",
+      "method": "POST",
+      "path": "/v1/whatsapp/conversions",
+      "group": "ads"
+    },
+    {
+      "id": "updateAd",
+      "name": "updateAd",
+      "method": "PUT",
+      "path": "/v1/ads/{adId}",
+      "group": "ads"
+    },
+    {
+      "id": "updateAdAccount",
+      "name": "updateAdAccount",
+      "method": "PATCH",
+      "path": "/v1/ads/accounts",
+      "group": "ads"
+    },
+    {
+      "id": "updateAdAudience",
+      "name": "updateAdAudience",
+      "method": "PUT",
+      "path": "/v1/ads/audiences/{audienceId}",
+      "group": "ads"
+    },
+    {
+      "id": "updateAdCampaign",
+      "name": "updateAdCampaign",
+      "method": "PUT",
+      "path": "/v1/ads/campaigns/{campaignId}",
+      "group": "ads"
+    },
+    {
+      "id": "updateAdCampaignStatus",
+      "name": "updateAdCampaignStatus",
+      "method": "PUT",
+      "path": "/v1/ads/campaigns/{campaignId}/status",
+      "group": "ads"
+    },
+    {
+      "id": "updateAdCreative",
+      "name": "updateAdCreative",
+      "method": "PUT",
+      "path": "/v1/ads/creatives/{creativeId}",
+      "group": "ads"
+    },
+    {
+      "id": "updateAdSet",
+      "name": "updateAdSet",
+      "method": "PUT",
+      "path": "/v1/ads/ad-sets/{adSetId}",
+      "group": "ads"
+    },
+    {
+      "id": "updateAdSetStatus",
+      "name": "updateAdSetStatus",
+      "method": "PUT",
+      "path": "/v1/ads/ad-sets/{adSetId}/status",
+      "group": "ads"
+    },
+    {
+      "id": "updateAdStatus",
+      "name": "updateAdStatus",
+      "method": "PUT",
+      "path": "/v1/ads/{adId}/status",
+      "group": "ads"
+    },
+    {
+      "id": "updateAdTrackingTags",
+      "name": "updateAdTrackingTags",
+      "method": "PATCH",
+      "path": "/v1/ads/{adId}/tracking-tags",
+      "group": "ads"
+    },
+    {
+      "id": "updateConversionDestination",
+      "name": "updateConversionDestination",
+      "method": "PATCH",
+      "path": "/v1/accounts/{accountId}/conversion-destinations/{destinationId}",
+      "group": "ads"
+    },
+    {
+      "id": "updateTrackingTag",
+      "name": "updateTrackingTag",
+      "method": "PATCH",
+      "path": "/v1/accounts/{accountId}/tracking-tags/{tagId}",
+      "group": "ads"
+    },
+    {
+      "id": "updateValueRuleSet",
+      "name": "updateValueRuleSet",
+      "method": "PUT",
+      "path": "/v1/ads/value-rule-sets/{valueRuleSetId}",
+      "group": "ads"
+    },
+    {
+      "id": "uploadAdImage",
+      "name": "uploadAdImage",
+      "method": "POST",
+      "path": "/v1/ads/images",
+      "group": "ads"
+    },
+    {
+      "id": "uploadAdVideo",
+      "name": "uploadAdVideo",
+      "method": "POST",
+      "path": "/v1/ads/videos",
+      "group": "ads"
+    },
+    {
+      "id": "getAnalytics",
+      "name": "getAnalytics",
+      "method": "GET",
+      "path": "/v1/analytics",
+      "group": "analytics"
+    },
+    {
+      "id": "getBestTimeToPost",
+      "name": "getBestTimeToPost",
+      "method": "GET",
+      "path": "/v1/analytics/best-time",
+      "group": "analytics"
+    },
+    {
+      "id": "getContentDecay",
+      "name": "getContentDecay",
+      "method": "GET",
+      "path": "/v1/analytics/content-decay",
+      "group": "analytics"
+    },
+    {
+      "id": "getDailyMetrics",
+      "name": "getDailyMetrics",
+      "method": "GET",
+      "path": "/v1/analytics/daily-metrics",
+      "group": "analytics"
+    },
+    {
+      "id": "getFacebookPageInsights",
+      "name": "getFacebookPageInsights",
+      "method": "GET",
+      "path": "/v1/analytics/facebook/page-insights",
+      "group": "analytics"
+    },
+    {
+      "id": "getFacebookPostEarnings",
+      "name": "getFacebookPostEarnings",
+      "method": "GET",
+      "path": "/v1/analytics/facebook/post-earnings",
+      "group": "analytics"
+    },
+    {
+      "id": "getFacebookPostReactions",
+      "name": "getFacebookPostReactions",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/facebook-post-reactions",
+      "group": "analytics"
+    },
+    {
+      "id": "getFollowerStats",
+      "name": "getFollowerStats",
+      "method": "GET",
+      "path": "/v1/accounts/follower-stats",
+      "group": "analytics"
+    },
+    {
+      "id": "getGoogleBusinessPerformance",
+      "name": "getGoogleBusinessPerformance",
+      "method": "GET",
+      "path": "/v1/analytics/googlebusiness/performance",
+      "group": "analytics"
+    },
+    {
+      "id": "getGoogleBusinessSearchKeywords",
+      "name": "getGoogleBusinessSearchKeywords",
+      "method": "GET",
+      "path": "/v1/analytics/googlebusiness/search-keywords",
+      "group": "analytics"
+    },
+    {
+      "id": "getInboxHeatmap",
+      "name": "getInboxHeatmap",
+      "method": "GET",
+      "path": "/v1/analytics/inbox/heatmap",
+      "group": "analytics"
+    },
+    {
+      "id": "getInboxResponseTime",
+      "name": "getInboxResponseTime",
+      "method": "GET",
+      "path": "/v1/analytics/inbox/response-time",
+      "group": "analytics"
+    },
+    {
+      "id": "getInboxSourceBreakdown",
+      "name": "getInboxSourceBreakdown",
+      "method": "GET",
+      "path": "/v1/analytics/inbox/source-breakdown",
+      "group": "analytics"
+    },
+    {
+      "id": "getInboxTopAccounts",
+      "name": "getInboxTopAccounts",
+      "method": "GET",
+      "path": "/v1/analytics/inbox/top-accounts",
+      "group": "analytics"
+    },
+    {
+      "id": "getInboxVolume",
+      "name": "getInboxVolume",
+      "method": "GET",
+      "path": "/v1/analytics/inbox/volume",
+      "group": "analytics"
+    },
+    {
+      "id": "getInstagramAccountInsights",
+      "name": "getInstagramAccountInsights",
+      "method": "GET",
+      "path": "/v1/analytics/instagram/account-insights",
+      "group": "analytics"
+    },
+    {
+      "id": "getInstagramDemographics",
+      "name": "getInstagramDemographics",
+      "method": "GET",
+      "path": "/v1/analytics/instagram/demographics",
+      "group": "analytics"
+    },
+    {
+      "id": "getInstagramFollowerHistory",
+      "name": "getInstagramFollowerHistory",
+      "method": "GET",
+      "path": "/v1/analytics/instagram/follower-history",
+      "group": "analytics"
+    },
+    {
+      "id": "getInstagramStoryInsights",
+      "name": "getInstagramStoryInsights",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/instagram/stories/{storyId}/insights",
+      "group": "analytics"
+    },
+    {
+      "id": "getLinkedInAggregateAnalytics",
+      "name": "getLinkedInAggregateAnalytics",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/linkedin-aggregate-analytics",
+      "group": "analytics"
+    },
+    {
+      "id": "getLinkedInOrgAggregateAnalytics",
+      "name": "getLinkedInOrgAggregateAnalytics",
+      "method": "GET",
+      "path": "/v1/analytics/linkedin/org-aggregate-analytics",
+      "group": "analytics"
+    },
+    {
+      "id": "getLinkedInPostAnalytics",
+      "name": "getLinkedInPostAnalytics",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/linkedin-post-analytics",
+      "group": "analytics"
+    },
+    {
+      "id": "getLinkedInPostReactions",
+      "name": "getLinkedInPostReactions",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/linkedin-post-reactions",
+      "group": "analytics"
+    },
+    {
+      "id": "getPostingFrequency",
+      "name": "getPostingFrequency",
+      "method": "GET",
+      "path": "/v1/analytics/posting-frequency",
+      "group": "analytics"
+    },
+    {
+      "id": "getPostTimeline",
+      "name": "getPostTimeline",
+      "method": "GET",
+      "path": "/v1/analytics/post-timeline",
+      "group": "analytics"
+    },
+    {
+      "id": "getTikTokAccountInsights",
+      "name": "getTikTokAccountInsights",
+      "method": "GET",
+      "path": "/v1/analytics/tiktok/account-insights",
+      "group": "analytics"
+    },
+    {
+      "id": "getYouTubeChannelInsights",
+      "name": "getYouTubeChannelInsights",
+      "method": "GET",
+      "path": "/v1/analytics/youtube/channel-insights",
+      "group": "analytics"
+    },
+    {
+      "id": "getYouTubeDailyViews",
+      "name": "getYouTubeDailyViews",
+      "method": "GET",
+      "path": "/v1/analytics/youtube/daily-views",
+      "group": "analytics"
+    },
+    {
+      "id": "getYouTubeDemographics",
+      "name": "getYouTubeDemographics",
+      "method": "GET",
+      "path": "/v1/analytics/youtube/demographics",
+      "group": "analytics"
+    },
+    {
+      "id": "getYouTubeVideoRetention",
+      "name": "getYouTubeVideoRetention",
+      "method": "GET",
+      "path": "/v1/analytics/youtube/video-retention",
+      "group": "analytics"
+    },
+    {
+      "id": "listInstagramStories",
+      "name": "listInstagramStories",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/instagram/stories",
+      "group": "analytics"
+    },
+    {
+      "id": "getBilling",
+      "name": "getBilling",
+      "method": "GET",
+      "path": "/v1/billing",
+      "group": "billing"
+    },
+    {
+      "id": "getCallsUsage",
+      "name": "getCallsUsage",
+      "method": "GET",
+      "path": "/v1/usage/calls",
+      "group": "billing"
+    },
+    {
+      "id": "getSmsUsage",
+      "name": "getSmsUsage",
+      "method": "GET",
+      "path": "/v1/usage/sms",
+      "group": "billing"
+    },
+    {
+      "id": "getUsage",
+      "name": "getUsage",
+      "method": "GET",
+      "path": "/v1/usage",
+      "group": "billing"
+    },
+    {
+      "id": "getUsageStats",
+      "name": "getUsageStats",
+      "method": "GET",
+      "path": "/v1/usage-stats",
+      "group": "billing"
+    },
+    {
+      "id": "getXApiPricing",
+      "name": "getXApiPricing",
+      "method": "GET",
+      "path": "/v1/billing/x-pricing",
+      "group": "billing"
+    },
+    {
+      "id": "addDiscordMemberRole",
+      "name": "addDiscordMemberRole",
+      "method": "PUT",
+      "path": "/v1/discord/guilds/{guildId}/members/{userId}/roles/{roleId}",
+      "group": "contacts"
+    },
+    {
+      "id": "blockWhatsAppUsers",
+      "name": "blockWhatsAppUsers",
+      "method": "POST",
+      "path": "/v1/whatsapp/block-users",
+      "group": "contacts"
+    },
+    {
+      "id": "bulkCreateContacts",
+      "name": "bulkCreateContacts",
+      "method": "POST",
+      "path": "/v1/contacts/bulk",
+      "group": "contacts"
+    },
+    {
+      "id": "clearContactFieldValue",
+      "name": "clearContactFieldValue",
+      "method": "DELETE",
+      "path": "/v1/contacts/{contactId}/fields/{slug}",
+      "group": "contacts"
+    },
+    {
+      "id": "createContact",
+      "name": "createContact",
+      "method": "POST",
+      "path": "/v1/contacts",
+      "group": "contacts"
+    },
+    {
+      "id": "createTestLead",
+      "name": "createTestLead",
+      "method": "POST",
+      "path": "/v1/ads/lead-forms/{formId}/test-leads",
+      "group": "contacts"
+    },
+    {
+      "id": "deleteContact",
+      "name": "deleteContact",
+      "method": "DELETE",
+      "path": "/v1/contacts/{contactId}",
+      "group": "contacts"
+    },
+    {
+      "id": "getContact",
+      "name": "getContact",
+      "method": "GET",
+      "path": "/v1/contacts/{contactId}",
+      "group": "contacts"
+    },
+    {
+      "id": "getContactChannels",
+      "name": "getContactChannels",
+      "method": "GET",
+      "path": "/v1/contacts/{contactId}/channels",
+      "group": "contacts"
+    },
+    {
+      "id": "getDiscordGuildMember",
+      "name": "getDiscordGuildMember",
+      "method": "GET",
+      "path": "/v1/discord/guilds/{guildId}/members/{userId}",
+      "group": "contacts"
+    },
+    {
+      "id": "getWhatsAppBlockedUsers",
+      "name": "getWhatsAppBlockedUsers",
+      "method": "GET",
+      "path": "/v1/whatsapp/block-users",
+      "group": "contacts"
+    },
+    {
+      "id": "getWhatsAppBlockStatus",
+      "name": "getWhatsAppBlockStatus",
+      "method": "GET",
+      "path": "/v1/whatsapp/block-users/status",
+      "group": "contacts"
+    },
+    {
+      "id": "getWhatsAppCallPermissions",
+      "name": "getWhatsAppCallPermissions",
+      "method": "GET",
+      "path": "/v1/whatsapp/call-permissions",
+      "group": "contacts"
+    },
+    {
+      "id": "getWhatsAppNumberInfo",
+      "name": "getWhatsAppNumberInfo",
+      "method": "GET",
+      "path": "/v1/whatsapp/number-info",
+      "group": "contacts"
+    },
+    {
+      "id": "listContacts",
+      "name": "listContacts",
+      "method": "GET",
+      "path": "/v1/contacts",
+      "group": "contacts"
+    },
+    {
+      "id": "listDiscordGuildMembers",
+      "name": "listDiscordGuildMembers",
+      "method": "GET",
+      "path": "/v1/discord/guilds/{guildId}/members",
+      "group": "contacts"
+    },
+    {
+      "id": "listFormLeads",
+      "name": "listFormLeads",
+      "method": "GET",
+      "path": "/v1/ads/lead-forms/{formId}/leads",
+      "group": "contacts"
+    },
+    {
+      "id": "listLeads",
+      "name": "listLeads",
+      "method": "GET",
+      "path": "/v1/ads/leads",
+      "group": "contacts"
+    },
+    {
+      "id": "listSlackMembers",
+      "name": "listSlackMembers",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/slack-members",
+      "group": "contacts"
+    },
+    {
+      "id": "listSmsOptOuts",
+      "name": "listSmsOptOuts",
+      "method": "GET",
+      "path": "/v1/sms/opt-outs",
+      "group": "contacts"
+    },
+    {
+      "id": "removeDiscordMemberRole",
+      "name": "removeDiscordMemberRole",
+      "method": "DELETE",
+      "path": "/v1/discord/guilds/{guildId}/members/{userId}/roles/{roleId}",
+      "group": "contacts"
+    },
+    {
+      "id": "searchDiscordGuildMembers",
+      "name": "searchDiscordGuildMembers",
+      "method": "GET",
+      "path": "/v1/discord/guilds/{guildId}/members/search",
+      "group": "contacts"
+    },
+    {
+      "id": "setContactFieldValue",
+      "name": "setContactFieldValue",
+      "method": "PUT",
+      "path": "/v1/contacts/{contactId}/fields/{slug}",
+      "group": "contacts"
+    },
+    {
+      "id": "unblockWhatsAppUsers",
+      "name": "unblockWhatsAppUsers",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/block-users",
+      "group": "contacts"
+    },
+    {
+      "id": "updateContact",
+      "name": "updateContact",
+      "method": "PATCH",
+      "path": "/v1/contacts/{contactId}",
+      "group": "contacts"
+    },
+    {
+      "id": "uploadSmsOptInProof",
+      "name": "uploadSmsOptInProof",
+      "method": "POST",
+      "path": "/v1/sms/registrations/{id}/opt-in-proof",
+      "group": "contacts"
+    },
+    {
+      "id": "uploadSmsOptInProofFile",
+      "name": "uploadSmsOptInProofFile",
+      "method": "POST",
+      "path": "/v1/sms/opt-in-proof",
+      "group": "contacts"
+    },
+    {
+      "id": "batchGetGoogleBusinessReviews",
+      "name": "batchGetGoogleBusinessReviews",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/gmb-reviews/batch",
+      "group": "engagement"
+    },
+    {
+      "id": "bookmarkPost",
+      "name": "bookmarkPost",
+      "method": "POST",
+      "path": "/v1/twitter/bookmark",
+      "group": "engagement"
+    },
+    {
+      "id": "createDiscordGuildRole",
+      "name": "createDiscordGuildRole",
+      "method": "POST",
+      "path": "/v1/discord/guilds/{guildId}/roles",
+      "group": "engagement"
+    },
+    {
+      "id": "createDiscordScheduledEvent",
+      "name": "createDiscordScheduledEvent",
+      "method": "POST",
+      "path": "/v1/discord/guilds/{guildId}/events",
+      "group": "engagement"
+    },
+    {
+      "id": "createDiscordThread",
+      "name": "createDiscordThread",
+      "method": "POST",
+      "path": "/v1/discord/channels/{channelId}/threads",
+      "group": "engagement"
+    },
+    {
+      "id": "crosspostDiscordMessage",
+      "name": "crosspostDiscordMessage",
+      "method": "POST",
+      "path": "/v1/discord/channels/{channelId}/messages/{messageId}/crosspost",
+      "group": "engagement"
+    },
+    {
+      "id": "deleteDiscordGuildRole",
+      "name": "deleteDiscordGuildRole",
+      "method": "DELETE",
+      "path": "/v1/discord/guilds/{guildId}/roles/{roleId}",
+      "group": "engagement"
+    },
+    {
+      "id": "deleteDiscordMessage",
+      "name": "deleteDiscordMessage",
+      "method": "DELETE",
+      "path": "/v1/discord/channels/{channelId}/messages/{messageId}",
+      "group": "engagement"
+    },
+    {
+      "id": "deleteDiscordScheduledEvent",
+      "name": "deleteDiscordScheduledEvent",
+      "method": "DELETE",
+      "path": "/v1/discord/guilds/{guildId}/events/{eventId}",
+      "group": "engagement"
+    },
+    {
+      "id": "deleteGoogleBusinessReviewReply",
+      "name": "deleteGoogleBusinessReviewReply",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/gmb-reviews/{reviewId}/reply",
+      "group": "engagement"
+    },
+    {
+      "id": "deleteInboxComment",
+      "name": "deleteInboxComment",
+      "method": "DELETE",
+      "path": "/v1/inbox/comments/{postId}",
+      "group": "engagement"
+    },
+    {
+      "id": "deleteInboxReviewReply",
+      "name": "deleteInboxReviewReply",
+      "method": "DELETE",
+      "path": "/v1/inbox/reviews/{reviewId}/reply",
+      "group": "engagement"
+    },
+    {
+      "id": "editDiscordGuildRole",
+      "name": "editDiscordGuildRole",
+      "method": "PATCH",
+      "path": "/v1/discord/guilds/{guildId}/roles/{roleId}",
+      "group": "engagement"
+    },
+    {
+      "id": "editInboxComment",
+      "name": "editInboxComment",
+      "method": "PATCH",
+      "path": "/v1/inbox/comments/{postId}/{commentId}",
+      "group": "engagement"
+    },
+    {
+      "id": "followUser",
+      "name": "followUser",
+      "method": "POST",
+      "path": "/v1/twitter/follow",
+      "group": "engagement"
+    },
+    {
+      "id": "getAdComments",
+      "name": "getAdComments",
+      "method": "GET",
+      "path": "/v1/ads/{adId}/comments",
+      "group": "engagement"
+    },
+    {
+      "id": "getDiscordScheduledEvent",
+      "name": "getDiscordScheduledEvent",
+      "method": "GET",
+      "path": "/v1/discord/guilds/{guildId}/events/{eventId}",
+      "group": "engagement"
+    },
+    {
+      "id": "getGoogleBusinessReview",
+      "name": "getGoogleBusinessReview",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-reviews/{reviewId}",
+      "group": "engagement"
+    },
+    {
+      "id": "getGoogleBusinessReviews",
+      "name": "getGoogleBusinessReviews",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/gmb-reviews",
+      "group": "engagement"
+    },
+    {
+      "id": "getInboxPostComments",
+      "name": "getInboxPostComments",
+      "method": "GET",
+      "path": "/v1/inbox/comments/{postId}",
+      "group": "engagement"
+    },
+    {
+      "id": "getRedditFeed",
+      "name": "getRedditFeed",
+      "method": "GET",
+      "path": "/v1/reddit/feed",
+      "group": "engagement"
+    },
+    {
+      "id": "getTweet",
+      "name": "getTweet",
+      "method": "GET",
+      "path": "/v1/twitter/tweet",
+      "group": "engagement"
+    },
+    {
+      "id": "hideInboxComment",
+      "name": "hideInboxComment",
+      "method": "POST",
+      "path": "/v1/inbox/comments/{postId}/{commentId}/hide",
+      "group": "engagement"
+    },
+    {
+      "id": "likeInboxComment",
+      "name": "likeInboxComment",
+      "method": "POST",
+      "path": "/v1/inbox/comments/{postId}/{commentId}/like",
+      "group": "engagement"
+    },
+    {
+      "id": "listDiscordGuildRoles",
+      "name": "listDiscordGuildRoles",
+      "method": "GET",
+      "path": "/v1/discord/guilds/{guildId}/roles",
+      "group": "engagement"
+    },
+    {
+      "id": "listDiscordPinnedMessages",
+      "name": "listDiscordPinnedMessages",
+      "method": "GET",
+      "path": "/v1/discord/channels/{channelId}/pins",
+      "group": "engagement"
+    },
+    {
+      "id": "listDiscordScheduledEvents",
+      "name": "listDiscordScheduledEvents",
+      "method": "GET",
+      "path": "/v1/discord/guilds/{guildId}/events",
+      "group": "engagement"
+    },
+    {
+      "id": "listInboxComments",
+      "name": "listInboxComments",
+      "method": "GET",
+      "path": "/v1/inbox/comments",
+      "group": "engagement"
+    },
+    {
+      "id": "listInboxMentions",
+      "name": "listInboxMentions",
+      "method": "GET",
+      "path": "/v1/inbox/mentions",
+      "group": "engagement"
+    },
+    {
+      "id": "listInboxReviews",
+      "name": "listInboxReviews",
+      "method": "GET",
+      "path": "/v1/inbox/reviews",
+      "group": "engagement"
+    },
+    {
+      "id": "pinDiscordMessage",
+      "name": "pinDiscordMessage",
+      "method": "PUT",
+      "path": "/v1/discord/channels/{channelId}/pins/{messageId}",
+      "group": "engagement"
+    },
+    {
+      "id": "removeBookmark",
+      "name": "removeBookmark",
+      "method": "DELETE",
+      "path": "/v1/twitter/bookmark",
+      "group": "engagement"
+    },
+    {
+      "id": "replyToGoogleBusinessReview",
+      "name": "replyToGoogleBusinessReview",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/gmb-reviews/{reviewId}/reply",
+      "group": "engagement"
+    },
+    {
+      "id": "replyToInboxPost",
+      "name": "replyToInboxPost",
+      "method": "POST",
+      "path": "/v1/inbox/comments/{postId}",
+      "group": "engagement"
+    },
+    {
+      "id": "replyToInboxReview",
+      "name": "replyToInboxReview",
+      "method": "POST",
+      "path": "/v1/inbox/reviews/{reviewId}/reply",
+      "group": "engagement"
+    },
+    {
+      "id": "replyToMention",
+      "name": "replyToMention",
+      "method": "POST",
+      "path": "/v1/inbox/mentions/reply",
+      "group": "engagement"
+    },
+    {
+      "id": "retweetPost",
+      "name": "retweetPost",
+      "method": "POST",
+      "path": "/v1/twitter/retweet",
+      "group": "engagement"
+    },
+    {
+      "id": "searchReddit",
+      "name": "searchReddit",
+      "method": "GET",
+      "path": "/v1/reddit/search",
+      "group": "engagement"
+    },
+    {
+      "id": "searchTweets",
+      "name": "searchTweets",
+      "method": "GET",
+      "path": "/v1/twitter/search",
+      "group": "engagement"
+    },
+    {
+      "id": "setCommentModeration",
+      "name": "setCommentModeration",
+      "method": "POST",
+      "path": "/v1/inbox/comments/{postId}/{commentId}/moderation",
+      "group": "engagement"
+    },
+    {
+      "id": "undoRetweet",
+      "name": "undoRetweet",
+      "method": "DELETE",
+      "path": "/v1/twitter/retweet",
+      "group": "engagement"
+    },
+    {
+      "id": "unfollowUser",
+      "name": "unfollowUser",
+      "method": "DELETE",
+      "path": "/v1/twitter/follow",
+      "group": "engagement"
+    },
+    {
+      "id": "unhideInboxComment",
+      "name": "unhideInboxComment",
+      "method": "DELETE",
+      "path": "/v1/inbox/comments/{postId}/{commentId}/hide",
+      "group": "engagement"
+    },
+    {
+      "id": "unlikeInboxComment",
+      "name": "unlikeInboxComment",
+      "method": "DELETE",
+      "path": "/v1/inbox/comments/{postId}/{commentId}/like",
+      "group": "engagement"
+    },
+    {
+      "id": "unpinDiscordMessage",
+      "name": "unpinDiscordMessage",
+      "method": "DELETE",
+      "path": "/v1/discord/channels/{channelId}/pins/{messageId}",
+      "group": "engagement"
+    },
+    {
+      "id": "updateDiscordScheduledEvent",
+      "name": "updateDiscordScheduledEvent",
+      "method": "PATCH",
+      "path": "/v1/discord/guilds/{guildId}/events/{eventId}",
+      "group": "engagement"
+    },
+    {
+      "id": "voteRedditThing",
+      "name": "voteRedditThing",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/reddit-vote",
+      "group": "engagement"
+    },
+    {
+      "id": "activateSequence",
+      "name": "activateSequence",
+      "method": "POST",
+      "path": "/v1/sequences/{sequenceId}/activate",
+      "group": "messages"
+    },
+    {
+      "id": "addBroadcastRecipients",
+      "name": "addBroadcastRecipients",
+      "method": "POST",
+      "path": "/v1/broadcasts/{broadcastId}/recipients",
+      "group": "messages"
+    },
+    {
+      "id": "addMessageReaction",
+      "name": "addMessageReaction",
+      "method": "POST",
+      "path": "/v1/inbox/conversations/{conversationId}/messages/{messageId}/reactions",
+      "group": "messages"
+    },
+    {
+      "id": "addWhatsAppGroupParticipants",
+      "name": "addWhatsAppGroupParticipants",
+      "method": "POST",
+      "path": "/v1/whatsapp/wa-groups/{groupId}/participants",
+      "group": "messages"
+    },
+    {
+      "id": "approveWhatsAppGroupJoinRequests",
+      "name": "approveWhatsAppGroupJoinRequests",
+      "method": "POST",
+      "path": "/v1/whatsapp/wa-groups/{groupId}/join-requests",
+      "group": "messages"
+    },
+    {
+      "id": "cancelBroadcast",
+      "name": "cancelBroadcast",
+      "method": "POST",
+      "path": "/v1/broadcasts/{broadcastId}/cancel",
+      "group": "messages"
+    },
+    {
+      "id": "createBroadcast",
+      "name": "createBroadcast",
+      "method": "POST",
+      "path": "/v1/broadcasts",
+      "group": "messages"
+    },
+    {
+      "id": "createCommentAutomation",
+      "name": "createCommentAutomation",
+      "method": "POST",
+      "path": "/v1/comment-automations",
+      "group": "messages"
+    },
+    {
+      "id": "createInboxConversation",
+      "name": "createInboxConversation",
+      "method": "POST",
+      "path": "/v1/inbox/conversations",
+      "group": "messages"
+    },
+    {
+      "id": "createSequence",
+      "name": "createSequence",
+      "method": "POST",
+      "path": "/v1/sequences",
+      "group": "messages"
+    },
+    {
+      "id": "createVoiceCall",
+      "name": "createVoiceCall",
+      "method": "POST",
+      "path": "/v1/voice/calls",
+      "group": "messages"
+    },
+    {
+      "id": "createVoiceWebSession",
+      "name": "createVoiceWebSession",
+      "method": "POST",
+      "path": "/v1/voice/calls/web",
+      "group": "messages"
+    },
+    {
+      "id": "createWhatsAppGroupChat",
+      "name": "createWhatsAppGroupChat",
+      "method": "POST",
+      "path": "/v1/whatsapp/wa-groups",
+      "group": "messages"
+    },
+    {
+      "id": "createWhatsAppGroupInviteLink",
+      "name": "createWhatsAppGroupInviteLink",
+      "method": "POST",
+      "path": "/v1/whatsapp/wa-groups/{groupId}/invite-link",
+      "group": "messages"
+    },
+    {
+      "id": "createWhatsAppSandboxSession",
+      "name": "createWhatsAppSandboxSession",
+      "method": "POST",
+      "path": "/v1/whatsapp/sandbox/sessions",
+      "group": "messages"
+    },
+    {
+      "id": "deleteBroadcast",
+      "name": "deleteBroadcast",
+      "method": "DELETE",
+      "path": "/v1/broadcasts/{broadcastId}",
+      "group": "messages"
+    },
+    {
+      "id": "deleteCommentAutomation",
+      "name": "deleteCommentAutomation",
+      "method": "DELETE",
+      "path": "/v1/comment-automations/{automationId}",
+      "group": "messages"
+    },
+    {
+      "id": "deleteInboxMessage",
+      "name": "deleteInboxMessage",
+      "method": "DELETE",
+      "path": "/v1/inbox/conversations/{conversationId}/messages/{messageId}",
+      "group": "messages"
+    },
+    {
+      "id": "deleteSequence",
+      "name": "deleteSequence",
+      "method": "DELETE",
+      "path": "/v1/sequences/{sequenceId}",
+      "group": "messages"
+    },
+    {
+      "id": "deleteWhatsAppGroupChat",
+      "name": "deleteWhatsAppGroupChat",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/wa-groups/{groupId}",
+      "group": "messages"
+    },
+    {
+      "id": "deleteWhatsAppSandboxSession",
+      "name": "deleteWhatsAppSandboxSession",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/sandbox/sessions/{sessionId}",
+      "group": "messages"
+    },
+    {
+      "id": "dialVoiceWebCall",
+      "name": "dialVoiceWebCall",
+      "method": "POST",
+      "path": "/v1/voice/calls/web/dial",
+      "group": "messages"
+    },
+    {
+      "id": "editInboxMessage",
+      "name": "editInboxMessage",
+      "method": "PATCH",
+      "path": "/v1/inbox/conversations/{conversationId}/messages/{messageId}",
+      "group": "messages"
+    },
+    {
+      "id": "endVoiceCall",
+      "name": "endVoiceCall",
+      "method": "POST",
+      "path": "/v1/voice/calls/{id}/end",
+      "group": "messages"
+    },
+    {
+      "id": "enrollContacts",
+      "name": "enrollContacts",
+      "method": "POST",
+      "path": "/v1/sequences/{sequenceId}/enroll",
+      "group": "messages"
+    },
+    {
+      "id": "getBroadcast",
+      "name": "getBroadcast",
+      "method": "GET",
+      "path": "/v1/broadcasts/{broadcastId}",
+      "group": "messages"
+    },
+    {
+      "id": "getCall",
+      "name": "getCall",
+      "method": "GET",
+      "path": "/v1/calls/{id}",
+      "group": "messages"
+    },
+    {
+      "id": "getCallRecording",
+      "name": "getCallRecording",
+      "method": "GET",
+      "path": "/v1/calls/{id}/recording",
+      "group": "messages"
+    },
+    {
+      "id": "getCommentAutomation",
+      "name": "getCommentAutomation",
+      "method": "GET",
+      "path": "/v1/comment-automations/{automationId}",
+      "group": "messages"
+    },
+    {
+      "id": "getInboxConversation",
+      "name": "getInboxConversation",
+      "method": "GET",
+      "path": "/v1/inbox/conversations/{conversationId}",
+      "group": "messages"
+    },
+    {
+      "id": "getInboxConversationAnalytics",
+      "name": "getInboxConversationAnalytics",
+      "method": "GET",
+      "path": "/v1/analytics/inbox/conversations/{conversationId}",
+      "group": "messages"
+    },
+    {
+      "id": "getInboxConversationMessages",
+      "name": "getInboxConversationMessages",
+      "method": "GET",
+      "path": "/v1/inbox/conversations/{conversationId}/messages",
+      "group": "messages"
+    },
+    {
+      "id": "getMessageAttachment",
+      "name": "getMessageAttachment",
+      "method": "GET",
+      "path": "/v1/inbox/conversations/{conversationId}/messages/{messageId}/attachments/{index}",
+      "group": "messages"
+    },
+    {
+      "id": "getSequence",
+      "name": "getSequence",
+      "method": "GET",
+      "path": "/v1/sequences/{sequenceId}",
+      "group": "messages"
+    },
+    {
+      "id": "getVoiceCall",
+      "name": "getVoiceCall",
+      "method": "GET",
+      "path": "/v1/voice/calls/{id}",
+      "group": "messages"
+    },
+    {
+      "id": "getVoiceCallEstimate",
+      "name": "getVoiceCallEstimate",
+      "method": "GET",
+      "path": "/v1/voice/calls/estimate",
+      "group": "messages"
+    },
+    {
+      "id": "getVoiceCallRecording",
+      "name": "getVoiceCallRecording",
+      "method": "GET",
+      "path": "/v1/voice/calls/{id}/recording",
+      "group": "messages"
+    },
+    {
+      "id": "getWhatsAppCall",
+      "name": "getWhatsAppCall",
+      "method": "GET",
+      "path": "/v1/whatsapp/calls/{id}",
+      "group": "messages"
+    },
+    {
+      "id": "getWhatsAppCallEstimate",
+      "name": "getWhatsAppCallEstimate",
+      "method": "GET",
+      "path": "/v1/whatsapp/calls/estimate",
+      "group": "messages"
+    },
+    {
+      "id": "getWhatsAppCallRecording",
+      "name": "getWhatsAppCallRecording",
+      "method": "GET",
+      "path": "/v1/whatsapp/calls/{id}/recording",
+      "group": "messages"
+    },
+    {
+      "id": "getWhatsAppGroupChat",
+      "name": "getWhatsAppGroupChat",
+      "method": "GET",
+      "path": "/v1/whatsapp/wa-groups/{groupId}",
+      "group": "messages"
+    },
+    {
+      "id": "getWhatsAppMedia",
+      "name": "getWhatsAppMedia",
+      "method": "GET",
+      "path": "/v1/whatsapp/media/{mediaId}",
+      "group": "messages"
+    },
+    {
+      "id": "initiateWhatsAppCall",
+      "name": "initiateWhatsAppCall",
+      "method": "POST",
+      "path": "/v1/whatsapp/calls",
+      "group": "messages"
+    },
+    {
+      "id": "listBroadcastRecipients",
+      "name": "listBroadcastRecipients",
+      "method": "GET",
+      "path": "/v1/broadcasts/{broadcastId}/recipients",
+      "group": "messages"
+    },
+    {
+      "id": "listBroadcasts",
+      "name": "listBroadcasts",
+      "method": "GET",
+      "path": "/v1/broadcasts",
+      "group": "messages"
+    },
+    {
+      "id": "listCalls",
+      "name": "listCalls",
+      "method": "GET",
+      "path": "/v1/calls",
+      "group": "messages"
+    },
+    {
+      "id": "listCommentAutomationLogs",
+      "name": "listCommentAutomationLogs",
+      "method": "GET",
+      "path": "/v1/comment-automations/{automationId}/logs",
+      "group": "messages"
+    },
+    {
+      "id": "listCommentAutomations",
+      "name": "listCommentAutomations",
+      "method": "GET",
+      "path": "/v1/comment-automations",
+      "group": "messages"
+    },
+    {
+      "id": "listInboxConversationAnalytics",
+      "name": "listInboxConversationAnalytics",
+      "method": "GET",
+      "path": "/v1/analytics/inbox/conversations",
+      "group": "messages"
+    },
+    {
+      "id": "listInboxConversations",
+      "name": "listInboxConversations",
+      "method": "GET",
+      "path": "/v1/inbox/conversations",
+      "group": "messages"
+    },
+    {
+      "id": "listSequenceEnrollments",
+      "name": "listSequenceEnrollments",
+      "method": "GET",
+      "path": "/v1/sequences/{sequenceId}/enrollments",
+      "group": "messages"
+    },
+    {
+      "id": "listSequences",
+      "name": "listSequences",
+      "method": "GET",
+      "path": "/v1/sequences",
+      "group": "messages"
+    },
+    {
+      "id": "listVoiceCalls",
+      "name": "listVoiceCalls",
+      "method": "GET",
+      "path": "/v1/voice/calls",
+      "group": "messages"
+    },
+    {
+      "id": "listWhatsAppCalls",
+      "name": "listWhatsAppCalls",
+      "method": "GET",
+      "path": "/v1/whatsapp/calls",
+      "group": "messages"
+    },
+    {
+      "id": "listWhatsAppFlowResponses",
+      "name": "listWhatsAppFlowResponses",
+      "method": "GET",
+      "path": "/v1/whatsapp/flow-responses",
+      "group": "messages"
+    },
+    {
+      "id": "listWhatsAppGroupChats",
+      "name": "listWhatsAppGroupChats",
+      "method": "GET",
+      "path": "/v1/whatsapp/wa-groups",
+      "group": "messages"
+    },
+    {
+      "id": "listWhatsAppGroupJoinRequests",
+      "name": "listWhatsAppGroupJoinRequests",
+      "method": "GET",
+      "path": "/v1/whatsapp/wa-groups/{groupId}/join-requests",
+      "group": "messages"
+    },
+    {
+      "id": "listWhatsAppSandboxSessions",
+      "name": "listWhatsAppSandboxSessions",
+      "method": "GET",
+      "path": "/v1/whatsapp/sandbox/sessions",
+      "group": "messages"
+    },
+    {
+      "id": "listWorkflowExecutionEvents",
+      "name": "listWorkflowExecutionEvents",
+      "method": "GET",
+      "path": "/v1/workflows/{workflowId}/executions/{executionId}/events",
+      "group": "messages"
+    },
+    {
+      "id": "listWorkflowExecutions",
+      "name": "listWorkflowExecutions",
+      "method": "GET",
+      "path": "/v1/workflows/{workflowId}/executions",
+      "group": "messages"
+    },
+    {
+      "id": "markConversationRead",
+      "name": "markConversationRead",
+      "method": "POST",
+      "path": "/v1/inbox/conversations/{conversationId}/read",
+      "group": "messages"
+    },
+    {
+      "id": "pauseSequence",
+      "name": "pauseSequence",
+      "method": "POST",
+      "path": "/v1/sequences/{sequenceId}/pause",
+      "group": "messages"
+    },
+    {
+      "id": "rejectWhatsAppGroupJoinRequests",
+      "name": "rejectWhatsAppGroupJoinRequests",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/wa-groups/{groupId}/join-requests",
+      "group": "messages"
+    },
+    {
+      "id": "removeMessageReaction",
+      "name": "removeMessageReaction",
+      "method": "DELETE",
+      "path": "/v1/inbox/conversations/{conversationId}/messages/{messageId}/reactions",
+      "group": "messages"
+    },
+    {
+      "id": "removeWhatsAppGroupParticipants",
+      "name": "removeWhatsAppGroupParticipants",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/wa-groups/{groupId}/participants",
+      "group": "messages"
+    },
+    {
+      "id": "scheduleBroadcast",
+      "name": "scheduleBroadcast",
+      "method": "POST",
+      "path": "/v1/broadcasts/{broadcastId}/schedule",
+      "group": "messages"
+    },
+    {
+      "id": "searchInboxConversations",
+      "name": "searchInboxConversations",
+      "method": "GET",
+      "path": "/v1/inbox/conversations/search",
+      "group": "messages"
+    },
+    {
+      "id": "sendBroadcast",
+      "name": "sendBroadcast",
+      "method": "POST",
+      "path": "/v1/broadcasts/{broadcastId}/send",
+      "group": "messages"
+    },
+    {
+      "id": "sendDiscordDirectMessage",
+      "name": "sendDiscordDirectMessage",
+      "method": "POST",
+      "path": "/v1/discord/dms",
+      "group": "messages"
+    },
+    {
+      "id": "sendInboxMessage",
+      "name": "sendInboxMessage",
+      "method": "POST",
+      "path": "/v1/inbox/conversations/{conversationId}/messages",
+      "group": "messages"
+    },
+    {
+      "id": "sendPrivateReplyToComment",
+      "name": "sendPrivateReplyToComment",
+      "method": "POST",
+      "path": "/v1/inbox/comments/{postId}/{commentId}/private-reply",
+      "group": "messages"
+    },
+    {
+      "id": "sendSms",
+      "name": "sendSms",
+      "method": "POST",
+      "path": "/v1/sms/messages",
+      "group": "messages"
+    },
+    {
+      "id": "sendTypingIndicator",
+      "name": "sendTypingIndicator",
+      "method": "POST",
+      "path": "/v1/inbox/conversations/{conversationId}/typing",
+      "group": "messages"
+    },
+    {
+      "id": "sendWhatsAppFlowMessage",
+      "name": "sendWhatsAppFlowMessage",
+      "method": "POST",
+      "path": "/v1/whatsapp/flows/send",
+      "group": "messages"
+    },
+    {
+      "id": "transferVoiceCall",
+      "name": "transferVoiceCall",
+      "method": "POST",
+      "path": "/v1/voice/calls/{id}/transfer",
+      "group": "messages"
+    },
+    {
+      "id": "triggerWorkflow",
+      "name": "triggerWorkflow",
+      "method": "POST",
+      "path": "/v1/workflows/{workflowId}/executions",
+      "group": "messages"
+    },
+    {
+      "id": "unenrollContact",
+      "name": "unenrollContact",
+      "method": "DELETE",
+      "path": "/v1/sequences/{sequenceId}/enroll/{contactId}",
+      "group": "messages"
+    },
+    {
+      "id": "updateBroadcast",
+      "name": "updateBroadcast",
+      "method": "PATCH",
+      "path": "/v1/broadcasts/{broadcastId}",
+      "group": "messages"
+    },
+    {
+      "id": "updateCommentAutomation",
+      "name": "updateCommentAutomation",
+      "method": "PATCH",
+      "path": "/v1/comment-automations/{automationId}",
+      "group": "messages"
+    },
+    {
+      "id": "updateInboxConversation",
+      "name": "updateInboxConversation",
+      "method": "PUT",
+      "path": "/v1/inbox/conversations/{conversationId}",
+      "group": "messages"
+    },
+    {
+      "id": "updateSequence",
+      "name": "updateSequence",
+      "method": "PATCH",
+      "path": "/v1/sequences/{sequenceId}",
+      "group": "messages"
+    },
+    {
+      "id": "updateWhatsAppGroupChat",
+      "name": "updateWhatsAppGroupChat",
+      "method": "POST",
+      "path": "/v1/whatsapp/wa-groups/{groupId}",
+      "group": "messages"
+    },
+    {
+      "id": "getInstagramFollowStatus",
+      "name": "getInstagramFollowStatus",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/follow-status/{userId}",
+      "group": "other"
+    },
+    {
+      "id": "likePost",
+      "name": "likePost",
+      "method": "POST",
+      "path": "/v1/inbox/posts/{postId}/like",
+      "group": "other"
+    },
+    {
+      "id": "listInstagramPages",
+      "name": "listInstagramPages",
+      "method": "GET",
+      "path": "/v1/connect/instagram/select-account",
+      "group": "other"
+    },
+    {
+      "id": "selectInstagramAccount",
+      "name": "selectInstagramAccount",
+      "method": "POST",
+      "path": "/v1/connect/instagram/select-account",
+      "group": "other"
+    },
+    {
+      "id": "unlikePost",
+      "name": "unlikePost",
+      "method": "DELETE",
+      "path": "/v1/inbox/posts/{postId}/like",
+      "group": "other"
+    },
+    {
+      "id": "getPendingOAuthData",
+      "name": "getPendingOAuthData",
+      "method": "GET",
+      "path": "/v1/connect/pending-data",
+      "group": "public"
+    },
+    {
+      "id": "listLinkedInOrganizations",
+      "name": "listLinkedInOrganizations",
+      "method": "GET",
+      "path": "/v1/connect/linkedin/organizations",
+      "group": "public"
+    },
+    {
+      "id": "verifyCredential",
+      "name": "verifyCredential",
+      "method": "GET",
+      "path": "/v1/auth/verify",
+      "group": "public"
+    },
+    {
+      "id": "bulkUploadPosts",
+      "name": "bulkUploadPosts",
+      "method": "POST",
+      "path": "/v1/posts/bulk-upload",
+      "group": "publishing"
+    },
+    {
+      "id": "createBlog",
+      "name": "createBlog",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/blogs",
+      "group": "publishing"
+    },
+    {
+      "id": "createBlogArticle",
+      "name": "createBlogArticle",
+      "method": "POST",
+      "path": "/v1/accounts/{accountId}/blogs/{blogId}/articles",
+      "group": "publishing"
+    },
+    {
+      "id": "createPost",
+      "name": "createPost",
+      "method": "POST",
+      "path": "/v1/posts",
+      "group": "publishing"
+    },
+    {
+      "id": "createQueueSlot",
+      "name": "createQueueSlot",
+      "method": "POST",
+      "path": "/v1/queue/slots",
+      "group": "publishing"
+    },
+    {
+      "id": "deleteBlog",
+      "name": "deleteBlog",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/blogs/{blogId}",
+      "group": "publishing"
+    },
+    {
+      "id": "deleteBlogArticle",
+      "name": "deleteBlogArticle",
+      "method": "DELETE",
+      "path": "/v1/accounts/{accountId}/blogs/{blogId}/articles/{articleId}",
+      "group": "publishing"
+    },
+    {
+      "id": "deletePost",
+      "name": "deletePost",
+      "method": "DELETE",
+      "path": "/v1/posts/{postId}",
+      "group": "publishing"
+    },
+    {
+      "id": "deleteQueueSlot",
+      "name": "deleteQueueSlot",
+      "method": "DELETE",
+      "path": "/v1/queue/slots",
+      "group": "publishing"
+    },
+    {
+      "id": "editPost",
+      "name": "editPost",
+      "method": "POST",
+      "path": "/v1/posts/{postId}/edit",
+      "group": "publishing"
+    },
+    {
+      "id": "getBlog",
+      "name": "getBlog",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/blogs/{blogId}",
+      "group": "publishing"
+    },
+    {
+      "id": "getBlogArticle",
+      "name": "getBlogArticle",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/blogs/{blogId}/articles/{articleId}",
+      "group": "publishing"
+    },
+    {
+      "id": "getMediaPresignedUrl",
+      "name": "getMediaPresignedUrl",
+      "method": "POST",
+      "path": "/v1/media/presign",
+      "group": "publishing"
+    },
+    {
+      "id": "getNextQueueSlot",
+      "name": "getNextQueueSlot",
+      "method": "GET",
+      "path": "/v1/queue/next-slot",
+      "group": "publishing"
+    },
+    {
+      "id": "getPost",
+      "name": "getPost",
+      "method": "GET",
+      "path": "/v1/posts/{postId}",
+      "group": "publishing"
+    },
+    {
+      "id": "listBlogArticles",
+      "name": "listBlogArticles",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/blogs/{blogId}/articles",
+      "group": "publishing"
+    },
+    {
+      "id": "listBlogs",
+      "name": "listBlogs",
+      "method": "GET",
+      "path": "/v1/accounts/{accountId}/blogs",
+      "group": "publishing"
+    },
+    {
+      "id": "listLogs",
+      "name": "listLogs",
+      "method": "GET",
+      "path": "/v1/logs",
+      "group": "publishing"
+    },
+    {
+      "id": "listPosts",
+      "name": "listPosts",
+      "method": "GET",
+      "path": "/v1/posts",
+      "group": "publishing"
+    },
+    {
+      "id": "listQueueSlots",
+      "name": "listQueueSlots",
+      "method": "GET",
+      "path": "/v1/queue/slots",
+      "group": "publishing"
+    },
+    {
+      "id": "previewQueue",
+      "name": "previewQueue",
+      "method": "GET",
+      "path": "/v1/queue/preview",
+      "group": "publishing"
+    },
+    {
+      "id": "retryPost",
+      "name": "retryPost",
+      "method": "POST",
+      "path": "/v1/posts/{postId}/retry",
+      "group": "publishing"
+    },
+    {
+      "id": "syncExternalPosts",
+      "name": "syncExternalPosts",
+      "method": "POST",
+      "path": "/v1/posts/sync-external",
+      "group": "publishing"
+    },
+    {
+      "id": "unpublishPost",
+      "name": "unpublishPost",
+      "method": "POST",
+      "path": "/v1/posts/{postId}/unpublish",
+      "group": "publishing"
+    },
+    {
+      "id": "updateBlog",
+      "name": "updateBlog",
+      "method": "PATCH",
+      "path": "/v1/accounts/{accountId}/blogs/{blogId}",
+      "group": "publishing"
+    },
+    {
+      "id": "updateBlogArticle",
+      "name": "updateBlogArticle",
+      "method": "PATCH",
+      "path": "/v1/accounts/{accountId}/blogs/{blogId}/articles/{articleId}",
+      "group": "publishing"
+    },
+    {
+      "id": "updatePost",
+      "name": "updatePost",
+      "method": "PUT",
+      "path": "/v1/posts/{postId}",
+      "group": "publishing"
+    },
+    {
+      "id": "updatePostMetadata",
+      "name": "updatePostMetadata",
+      "method": "POST",
+      "path": "/v1/posts/{postId}/update-metadata",
+      "group": "publishing"
+    },
+    {
+      "id": "updateQueueSlot",
+      "name": "updateQueueSlot",
+      "method": "PUT",
+      "path": "/v1/queue/slots",
+      "group": "publishing"
+    },
+    {
+      "id": "uploadMediaDirect",
+      "name": "uploadMediaDirect",
+      "method": "POST",
+      "path": "/v1/media/upload-direct",
+      "group": "publishing"
+    },
+    {
+      "id": "validateMedia",
+      "name": "validateMedia",
+      "method": "POST",
+      "path": "/v1/tools/validate/media",
+      "group": "publishing"
+    },
+    {
+      "id": "validatePost",
+      "name": "validatePost",
+      "method": "POST",
+      "path": "/v1/tools/validate/post",
+      "group": "publishing"
+    },
+    {
+      "id": "validatePostLength",
+      "name": "validatePostLength",
+      "method": "POST",
+      "path": "/v1/tools/validate/post-length",
+      "group": "publishing"
+    },
+    {
+      "id": "validateSubreddit",
+      "name": "validateSubreddit",
+      "method": "GET",
+      "path": "/v1/tools/validate/subreddit",
+      "group": "publishing"
+    },
+    {
+      "id": "appealSmsRegistration",
+      "name": "appealSmsRegistration",
+      "method": "POST",
+      "path": "/v1/sms/registrations/{id}/appeal",
+      "group": "telephony"
+    },
+    {
+      "id": "attachNumberToSipTrunk",
+      "name": "attachNumberToSipTrunk",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/sip-trunk",
+      "group": "telephony"
+    },
+    {
+      "id": "cancelPhoneNumberPortIn",
+      "name": "cancelPhoneNumberPortIn",
+      "method": "DELETE",
+      "path": "/v1/phone-numbers/port-in/{id}",
+      "group": "telephony"
+    },
+    {
+      "id": "checkPhoneNumberAvailability",
+      "name": "checkPhoneNumberAvailability",
+      "method": "GET",
+      "path": "/v1/phone-numbers/availability",
+      "group": "telephony"
+    },
+    {
+      "id": "checkPhoneNumberPortability",
+      "name": "checkPhoneNumberPortability",
+      "method": "POST",
+      "path": "/v1/phone-numbers/port-in/check",
+      "group": "telephony"
+    },
+    {
+      "id": "checkVerification",
+      "name": "checkVerification",
+      "method": "POST",
+      "path": "/v1/verify/verifications/{verificationId}/check",
+      "group": "telephony"
+    },
+    {
+      "id": "checkWhatsAppNumberAvailability",
+      "name": "checkWhatsAppNumberAvailability",
+      "method": "GET",
+      "path": "/v1/whatsapp/phone-numbers/availability",
+      "group": "telephony"
+    },
+    {
+      "id": "createPhoneNumberKycLink",
+      "name": "createPhoneNumberKycLink",
+      "method": "POST",
+      "path": "/v1/phone-numbers/kyc/share",
+      "group": "telephony"
+    },
+    {
+      "id": "createPhoneNumberPortIn",
+      "name": "createPhoneNumberPortIn",
+      "method": "POST",
+      "path": "/v1/phone-numbers/port-in",
+      "group": "telephony"
+    },
+    {
+      "id": "createPhoneNumberStockWatch",
+      "name": "createPhoneNumberStockWatch",
+      "method": "POST",
+      "path": "/v1/phone-numbers/stock-watches",
+      "group": "telephony"
+    },
+    {
+      "id": "createSipTrunk",
+      "name": "createSipTrunk",
+      "method": "POST",
+      "path": "/v1/phone-numbers/sip-trunks",
+      "group": "telephony"
+    },
+    {
+      "id": "createSmsSenderId",
+      "name": "createSmsSenderId",
+      "method": "POST",
+      "path": "/v1/sms/sender-ids",
+      "group": "telephony"
+    },
+    {
+      "id": "createVerification",
+      "name": "createVerification",
+      "method": "POST",
+      "path": "/v1/verify/verifications",
+      "group": "telephony"
+    },
+    {
+      "id": "createWhatsAppNumberKycLink",
+      "name": "createWhatsAppNumberKycLink",
+      "method": "POST",
+      "path": "/v1/whatsapp/phone-numbers/kyc/share",
+      "group": "telephony"
+    },
+    {
+      "id": "deactivateSmsRegistration",
+      "name": "deactivateSmsRegistration",
+      "method": "DELETE",
+      "path": "/v1/sms/registrations/{id}",
+      "group": "telephony"
+    },
+    {
+      "id": "deletePhoneNumberStockWatch",
+      "name": "deletePhoneNumberStockWatch",
+      "method": "DELETE",
+      "path": "/v1/phone-numbers/stock-watches/{id}",
+      "group": "telephony"
+    },
+    {
+      "id": "deleteSipTrunk",
+      "name": "deleteSipTrunk",
+      "method": "DELETE",
+      "path": "/v1/phone-numbers/sip-trunks/{id}",
+      "group": "telephony"
+    },
+    {
+      "id": "deleteSmsSenderId",
+      "name": "deleteSmsSenderId",
+      "method": "DELETE",
+      "path": "/v1/sms/sender-ids/{id}",
+      "group": "telephony"
+    },
+    {
+      "id": "detachNumberFromSipTrunk",
+      "name": "detachNumberFromSipTrunk",
+      "method": "DELETE",
+      "path": "/v1/phone-numbers/{id}/sip-trunk",
+      "group": "telephony"
+    },
+    {
+      "id": "disableSmsOnNumber",
+      "name": "disableSmsOnNumber",
+      "method": "DELETE",
+      "path": "/v1/phone-numbers/{id}/sms",
+      "group": "telephony"
+    },
+    {
+      "id": "disableVoiceOnNumber",
+      "name": "disableVoiceOnNumber",
+      "method": "DELETE",
+      "path": "/v1/phone-numbers/{id}/voice",
+      "group": "telephony"
+    },
+    {
+      "id": "disableWhatsAppCalling",
+      "name": "disableWhatsAppCalling",
+      "method": "DELETE",
+      "path": "/v1/phone-numbers/{id}/whatsapp/calling",
+      "group": "telephony"
+    },
+    {
+      "id": "disableWhatsAppCallingLegacy",
+      "name": "disableWhatsAppCallingLegacy",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/phone-numbers/{id}/calling",
+      "group": "telephony"
+    },
+    {
+      "id": "enableSmsOnNumber",
+      "name": "enableSmsOnNumber",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/sms",
+      "group": "telephony"
+    },
+    {
+      "id": "enableVoiceOnNumber",
+      "name": "enableVoiceOnNumber",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/voice",
+      "group": "telephony"
+    },
+    {
+      "id": "enableWhatsAppCalling",
+      "name": "enableWhatsAppCalling",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/whatsapp/calling",
+      "group": "telephony"
+    },
+    {
+      "id": "enableWhatsAppCallingLegacy",
+      "name": "enableWhatsAppCallingLegacy",
+      "method": "POST",
+      "path": "/v1/whatsapp/phone-numbers/{id}/calling",
+      "group": "telephony"
+    },
+    {
+      "id": "getPhoneNumber",
+      "name": "getPhoneNumber",
+      "method": "GET",
+      "path": "/v1/phone-numbers/{id}",
+      "group": "telephony"
+    },
+    {
+      "id": "getPhoneNumberKycForm",
+      "name": "getPhoneNumberKycForm",
+      "method": "GET",
+      "path": "/v1/phone-numbers/kyc",
+      "group": "telephony"
+    },
+    {
+      "id": "getPhoneNumberPortInOrderRequirements",
+      "name": "getPhoneNumberPortInOrderRequirements",
+      "method": "GET",
+      "path": "/v1/phone-numbers/port-in/{id}/requirements",
+      "group": "telephony"
+    },
+    {
+      "id": "getPhoneNumberPortInRequirements",
+      "name": "getPhoneNumberPortInRequirements",
+      "method": "GET",
+      "path": "/v1/phone-numbers/port-in/requirements",
+      "group": "telephony"
+    },
+    {
+      "id": "getPhoneNumberRemediation",
+      "name": "getPhoneNumberRemediation",
+      "method": "GET",
+      "path": "/v1/phone-numbers/{id}/remediate",
+      "group": "telephony"
+    },
+    {
+      "id": "getSipTrunk",
+      "name": "getSipTrunk",
+      "method": "GET",
+      "path": "/v1/phone-numbers/sip-trunks/{id}",
+      "group": "telephony"
+    },
+    {
+      "id": "getSmsRegistration",
+      "name": "getSmsRegistration",
+      "method": "GET",
+      "path": "/v1/sms/registrations/{id}",
+      "group": "telephony"
+    },
+    {
+      "id": "getVerification",
+      "name": "getVerification",
+      "method": "GET",
+      "path": "/v1/verify/verifications/{verificationId}",
+      "group": "telephony"
+    },
+    {
+      "id": "getWhatsAppCalling",
+      "name": "getWhatsAppCalling",
+      "method": "GET",
+      "path": "/v1/phone-numbers/{id}/whatsapp/calling",
+      "group": "telephony"
+    },
+    {
+      "id": "getWhatsAppNumberKycForm",
+      "name": "getWhatsAppNumberKycForm",
+      "method": "GET",
+      "path": "/v1/whatsapp/phone-numbers/kyc",
+      "group": "telephony"
+    },
+    {
+      "id": "getWhatsAppNumberRemediation",
+      "name": "getWhatsAppNumberRemediation",
+      "method": "GET",
+      "path": "/v1/whatsapp/phone-numbers/{id}/remediate",
+      "group": "telephony"
+    },
+    {
+      "id": "getWhatsAppPhoneNumber",
+      "name": "getWhatsAppPhoneNumber",
+      "method": "GET",
+      "path": "/v1/whatsapp/phone-numbers/{phoneNumberId}",
+      "group": "telephony"
+    },
+    {
+      "id": "getWhatsAppPhoneNumbers",
+      "name": "getWhatsAppPhoneNumbers",
+      "method": "GET",
+      "path": "/v1/whatsapp/phone-numbers",
+      "group": "telephony"
+    },
+    {
+      "id": "listPhoneNumberCountries",
+      "name": "listPhoneNumberCountries",
+      "method": "GET",
+      "path": "/v1/phone-numbers/countries",
+      "group": "telephony"
+    },
+    {
+      "id": "listPhoneNumberPortIns",
+      "name": "listPhoneNumberPortIns",
+      "method": "GET",
+      "path": "/v1/phone-numbers/port-in",
+      "group": "telephony"
+    },
+    {
+      "id": "listPhoneNumbers",
+      "name": "listPhoneNumbers",
+      "method": "GET",
+      "path": "/v1/phone-numbers",
+      "group": "telephony"
+    },
+    {
+      "id": "listPhoneNumberStockWatches",
+      "name": "listPhoneNumberStockWatches",
+      "method": "GET",
+      "path": "/v1/phone-numbers/stock-watches",
+      "group": "telephony"
+    },
+    {
+      "id": "listSipTrunks",
+      "name": "listSipTrunks",
+      "method": "GET",
+      "path": "/v1/phone-numbers/sip-trunks",
+      "group": "telephony"
+    },
+    {
+      "id": "listSmsRegistrations",
+      "name": "listSmsRegistrations",
+      "method": "GET",
+      "path": "/v1/sms/registrations",
+      "group": "telephony"
+    },
+    {
+      "id": "listSmsSenderIds",
+      "name": "listSmsSenderIds",
+      "method": "GET",
+      "path": "/v1/sms/sender-ids",
+      "group": "telephony"
+    },
+    {
+      "id": "listWhatsAppNumberCountries",
+      "name": "listWhatsAppNumberCountries",
+      "method": "GET",
+      "path": "/v1/whatsapp/phone-numbers/countries",
+      "group": "telephony"
+    },
+    {
+      "id": "lookupSmsNumber",
+      "name": "lookupSmsNumber",
+      "method": "GET",
+      "path": "/v1/sms/lookup",
+      "group": "telephony"
+    },
+    {
+      "id": "moveWhatsAppNumberToProfile",
+      "name": "moveWhatsAppNumberToProfile",
+      "method": "PATCH",
+      "path": "/v1/whatsapp/phone-numbers/{id}/profile",
+      "group": "telephony"
+    },
+    {
+      "id": "preflightSmsRegistration",
+      "name": "preflightSmsRegistration",
+      "method": "POST",
+      "path": "/v1/sms/registrations/preflight",
+      "group": "telephony"
+    },
+    {
+      "id": "purchasePhoneNumber",
+      "name": "purchasePhoneNumber",
+      "method": "POST",
+      "path": "/v1/phone-numbers/purchase",
+      "group": "telephony"
+    },
+    {
+      "id": "purchaseWhatsAppPhoneNumber",
+      "name": "purchaseWhatsAppPhoneNumber",
+      "method": "POST",
+      "path": "/v1/whatsapp/phone-numbers/purchase",
+      "group": "telephony"
+    },
+    {
+      "id": "releasePhoneNumber",
+      "name": "releasePhoneNumber",
+      "method": "DELETE",
+      "path": "/v1/phone-numbers/{id}",
+      "group": "telephony"
+    },
+    {
+      "id": "releaseWhatsAppPhoneNumber",
+      "name": "releaseWhatsAppPhoneNumber",
+      "method": "DELETE",
+      "path": "/v1/whatsapp/phone-numbers/{phoneNumberId}",
+      "group": "telephony"
+    },
+    {
+      "id": "remediatePhoneNumber",
+      "name": "remediatePhoneNumber",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/remediate",
+      "group": "telephony"
+    },
+    {
+      "id": "remediateWhatsAppNumber",
+      "name": "remediateWhatsAppNumber",
+      "method": "POST",
+      "path": "/v1/whatsapp/phone-numbers/{id}/remediate",
+      "group": "telephony"
+    },
+    {
+      "id": "replyToPhoneNumberReviewer",
+      "name": "replyToPhoneNumberReviewer",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/remediate/reply",
+      "group": "telephony"
+    },
+    {
+      "id": "requestSmsSenderIdLimitIncrease",
+      "name": "requestSmsSenderIdLimitIncrease",
+      "method": "POST",
+      "path": "/v1/sms/sender-ids/limit-request",
+      "group": "telephony"
+    },
+    {
+      "id": "resendSmsRegistrationOtp",
+      "name": "resendSmsRegistrationOtp",
+      "method": "POST",
+      "path": "/v1/sms/registrations/{id}/resend-otp",
+      "group": "telephony"
+    },
+    {
+      "id": "respondToPhoneNumberReviewer",
+      "name": "respondToPhoneNumberReviewer",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/remediate/respond",
+      "group": "telephony"
+    },
+    {
+      "id": "respondToSmsRegistrationReview",
+      "name": "respondToSmsRegistrationReview",
+      "method": "POST",
+      "path": "/v1/sms/registrations/{id}/respond",
+      "group": "telephony"
+    },
+    {
+      "id": "reuseSmsRegistrationForNumber",
+      "name": "reuseSmsRegistrationForNumber",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/sms/reuse-registration",
+      "group": "telephony"
+    },
+    {
+      "id": "reviewPhoneNumberKycPacket",
+      "name": "reviewPhoneNumberKycPacket",
+      "method": "POST",
+      "path": "/v1/phone-numbers/kyc/review-packet",
+      "group": "telephony"
+    },
+    {
+      "id": "rotateSipTrunkCredentials",
+      "name": "rotateSipTrunkCredentials",
+      "method": "POST",
+      "path": "/v1/phone-numbers/sip-trunks/{id}/rotate-credentials",
+      "group": "telephony"
+    },
+    {
+      "id": "searchAvailablePhoneNumbers",
+      "name": "searchAvailablePhoneNumbers",
+      "method": "GET",
+      "path": "/v1/phone-numbers/available",
+      "group": "telephony"
+    },
+    {
+      "id": "searchAvailableWhatsAppNumbers",
+      "name": "searchAvailableWhatsAppNumbers",
+      "method": "GET",
+      "path": "/v1/whatsapp/phone-numbers/available",
+      "group": "telephony"
+    },
+    {
+      "id": "shareSmsRegistration",
+      "name": "shareSmsRegistration",
+      "method": "POST",
+      "path": "/v1/sms/registrations/share",
+      "group": "telephony"
+    },
+    {
+      "id": "startSmsRegistration",
+      "name": "startSmsRegistration",
+      "method": "POST",
+      "path": "/v1/sms/registrations",
+      "group": "telephony"
+    },
+    {
+      "id": "startWhatsAppCallerIdVerification",
+      "name": "startWhatsAppCallerIdVerification",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/whatsapp/caller-id-verification",
+      "group": "telephony"
+    },
+    {
+      "id": "submitPhoneNumberKyc",
+      "name": "submitPhoneNumberKyc",
+      "method": "POST",
+      "path": "/v1/phone-numbers/kyc",
+      "group": "telephony"
+    },
+    {
+      "id": "submitWhatsAppNumberKyc",
+      "name": "submitWhatsAppNumberKyc",
+      "method": "POST",
+      "path": "/v1/whatsapp/phone-numbers/kyc",
+      "group": "telephony"
+    },
+    {
+      "id": "updateWhatsAppCalling",
+      "name": "updateWhatsAppCalling",
+      "method": "PATCH",
+      "path": "/v1/phone-numbers/{id}/whatsapp/calling",
+      "group": "telephony"
+    },
+    {
+      "id": "updateWhatsAppCallingLegacy",
+      "name": "updateWhatsAppCallingLegacy",
+      "method": "PATCH",
+      "path": "/v1/whatsapp/phone-numbers/{id}/calling",
+      "group": "telephony"
+    },
+    {
+      "id": "uploadPhoneNumberKycDocument",
+      "name": "uploadPhoneNumberKycDocument",
+      "method": "POST",
+      "path": "/v1/phone-numbers/kyc/upload-document",
+      "group": "telephony"
+    },
+    {
+      "id": "uploadPhoneNumberPortInDocument",
+      "name": "uploadPhoneNumberPortInDocument",
+      "method": "POST",
+      "path": "/v1/phone-numbers/port-in/documents",
+      "group": "telephony"
+    },
+    {
+      "id": "uploadWhatsAppNumberKycDocument",
+      "name": "uploadWhatsAppNumberKycDocument",
+      "method": "POST",
+      "path": "/v1/whatsapp/phone-numbers/kyc/upload-document",
+      "group": "telephony"
+    },
+    {
+      "id": "validatePhoneNumberKycAddress",
+      "name": "validatePhoneNumberKycAddress",
+      "method": "POST",
+      "path": "/v1/phone-numbers/kyc/validate-address",
+      "group": "telephony"
+    },
+    {
+      "id": "validateWhatsAppNumberKycAddress",
+      "name": "validateWhatsAppNumberKycAddress",
+      "method": "POST",
+      "path": "/v1/whatsapp/phone-numbers/kyc/validate-address",
+      "group": "telephony"
+    },
+    {
+      "id": "verifySmsRegistrationOtp",
+      "name": "verifySmsRegistrationOtp",
+      "method": "POST",
+      "path": "/v1/sms/registrations/{id}/verify-otp",
+      "group": "telephony"
+    },
+    {
+      "id": "verifyWhatsAppCallerId",
+      "name": "verifyWhatsAppCallerId",
+      "method": "POST",
+      "path": "/v1/phone-numbers/{id}/whatsapp/caller-id-verification/verify",
+      "group": "telephony"
+    },
+    {
+      "id": "viewPhoneNumberKycDocument",
+      "name": "viewPhoneNumberKycDocument",
+      "method": "GET",
+      "path": "/v1/phone-numbers/kyc/document/{documentId}",
+      "group": "telephony"
+    },
+    {
+      "id": "createWebhookSettings",
+      "name": "createWebhookSettings",
+      "method": "POST",
+      "path": "/v1/webhooks/settings",
+      "group": "webhooks"
+    },
+    {
+      "id": "deleteWebhookSettings",
+      "name": "deleteWebhookSettings",
+      "method": "DELETE",
+      "path": "/v1/webhooks/settings",
+      "group": "webhooks"
+    },
+    {
+      "id": "getWebhookLogs",
+      "name": "getWebhookLogs",
+      "method": "GET",
+      "path": "/v1/webhooks/logs",
+      "group": "webhooks"
+    },
+    {
+      "id": "getWebhookSettings",
+      "name": "getWebhookSettings",
+      "method": "GET",
+      "path": "/v1/webhooks/settings",
+      "group": "webhooks"
+    },
+    {
+      "id": "testWebhook",
+      "name": "testWebhook",
+      "method": "POST",
+      "path": "/v1/webhooks/test",
+      "group": "webhooks"
+    },
+    {
+      "id": "updateWebhookSettings",
+      "name": "updateWebhookSettings",
+      "method": "PUT",
+      "path": "/v1/webhooks/settings",
+      "group": "webhooks"
+    }
+  ],
+  "events": [
+    {
+      "name": "account.ads.initial_sync_completed",
+      "id": "onAccountAdsInitialSyncCompleted",
+      "summary": "Ads initial sync completed event"
+    },
+    {
+      "name": "account.connected",
+      "id": "onAccountConnected",
+      "summary": "Account connected event"
+    },
+    {
+      "name": "account.disconnected",
+      "id": "onAccountDisconnected",
+      "summary": "Account disconnected event"
+    },
+    {
+      "name": "ad.status_changed",
+      "id": "onAdStatusChanged",
+      "summary": "Ad status changed event"
+    },
+    {
+      "name": "call.ended",
+      "id": "onCallEnded",
+      "summary": "Call ended event"
+    },
+    {
+      "name": "call.failed",
+      "id": "onCallFailed",
+      "summary": "Call failed event"
+    },
+    {
+      "name": "call.permission_request",
+      "id": "onCallPermissionRequest",
+      "summary": "Call permission request reply event"
+    },
+    {
+      "name": "call.received",
+      "id": "onCallReceived",
+      "summary": "Call received event"
+    },
+    {
+      "name": "comment.received",
+      "id": "onCommentReceived",
+      "summary": "Comment received event"
+    },
+    {
+      "name": "conversation.started",
+      "id": "onConversationStarted",
+      "summary": "Conversation started event"
+    },
+    {
+      "name": "lead.received",
+      "id": "onLeadReceived",
+      "summary": "Lead received event"
+    },
+    {
+      "name": "message.deleted",
+      "id": "onMessageDeleted",
+      "summary": "Message deleted event"
+    },
+    {
+      "name": "message.delivered",
+      "id": "onMessageDelivered",
+      "summary": "Message delivered event"
+    },
+    {
+      "name": "message.edited",
+      "id": "onMessageEdited",
+      "summary": "Message edited event"
+    },
+    {
+      "name": "message.failed",
+      "id": "onMessageFailed",
+      "summary": "Message delivery failed event"
+    },
+    {
+      "name": "message.read",
+      "id": "onMessageRead",
+      "summary": "Message read event"
+    },
+    {
+      "name": "message.received",
+      "id": "onMessageReceived",
+      "summary": "Message received event"
+    },
+    {
+      "name": "message.sent",
+      "id": "onMessageSent",
+      "summary": "Message sent event"
+    },
+    {
+      "name": "phone_number.stock_available",
+      "id": "onPhoneNumberStockAvailable",
+      "summary": "Phone-number stock available event"
+    },
+    {
+      "name": "post.cancelled",
+      "id": "onPostCancelled",
+      "summary": "Post cancelled event"
+    },
+    {
+      "name": "post.external.created",
+      "id": "onPostExternalCreated",
+      "summary": "External post created event"
+    },
+    {
+      "name": "post.external.deleted",
+      "id": "onPostExternalDeleted",
+      "summary": "External post deleted event"
+    },
+    {
+      "name": "post.external.updated",
+      "id": "onPostExternalUpdated",
+      "summary": "External post updated event"
+    },
+    {
+      "name": "post.failed",
+      "id": "onPostFailed",
+      "summary": "Post failed event"
+    },
+    {
+      "name": "post.partial",
+      "id": "onPostPartial",
+      "summary": "Post partial event"
+    },
+    {
+      "name": "post.platform.deleted",
+      "id": "onPostPlatformDeleted",
+      "summary": "Post platform deleted event"
+    },
+    {
+      "name": "post.platform.failed",
+      "id": "onPostPlatformFailed",
+      "summary": "Post platform failed event"
+    },
+    {
+      "name": "post.platform.published",
+      "id": "onPostPlatformPublished",
+      "summary": "Post platform published event"
+    },
+    {
+      "name": "post.published",
+      "id": "onPostPublished",
+      "summary": "Post published event"
+    },
+    {
+      "name": "post.recycled",
+      "id": "onPostRecycled",
+      "summary": "Post recycled event"
+    },
+    {
+      "name": "post.scheduled",
+      "id": "onPostScheduled",
+      "summary": "Post scheduled event"
+    },
+    {
+      "name": "post.tiktok.url_resolved",
+      "id": "onPostTikTokUrlResolved",
+      "summary": "TikTok post URL resolved event"
+    },
+    {
+      "name": "reaction.received",
+      "id": "onReactionReceived",
+      "summary": "Reaction received event"
+    },
+    {
+      "name": "referral.received",
+      "id": "onReferralReceived",
+      "summary": "Referral received event"
+    },
+    {
+      "name": "review.new",
+      "id": "onReviewNew",
+      "summary": "Review new event"
+    },
+    {
+      "name": "review.updated",
+      "id": "onReviewUpdated",
+      "summary": "Review updated event"
+    },
+    {
+      "name": "verification.approved",
+      "id": "onVerificationApproved",
+      "summary": "Verification approved event"
+    },
+    {
+      "name": "verification.failed",
+      "id": "onVerificationFailed",
+      "summary": "Verification failed event"
+    },
+    {
+      "name": "webhook.test",
+      "id": "onWebhookTest",
+      "summary": "Webhook test event"
+    },
+    {
+      "name": "whatsapp.account.name_status_updated",
+      "id": "onWhatsAppAccountNameStatusUpdated",
+      "summary": "WhatsApp display-name review outcome event"
+    },
+    {
+      "name": "whatsapp.automatic_event",
+      "id": "onWhatsAppAutomaticEvent",
+      "summary": "WhatsApp automatic event detected"
+    },
+    {
+      "name": "whatsapp.number.action_required",
+      "id": "onWhatsAppNumberActionRequired",
+      "summary": "WhatsApp number action required event"
+    },
+    {
+      "name": "whatsapp.number.activated",
+      "id": "onWhatsAppNumberActivated",
+      "summary": "WhatsApp number activated event"
+    },
+    {
+      "name": "whatsapp.number.declined",
+      "id": "onWhatsAppNumberDeclined",
+      "summary": "WhatsApp number declined event"
+    },
+    {
+      "name": "whatsapp.number.kyc_submitted",
+      "id": "onWhatsAppNumberKycSubmitted",
+      "summary": "WhatsApp number KYC submitted event"
+    },
+    {
+      "name": "whatsapp.number.reactivated",
+      "id": "onWhatsAppNumberReactivated",
+      "summary": "WhatsApp number reactivated event"
+    },
+    {
+      "name": "whatsapp.number.released",
+      "id": "onWhatsAppNumberReleased",
+      "summary": "WhatsApp number released event"
+    },
+    {
+      "name": "whatsapp.number.suspended",
+      "id": "onWhatsAppNumberSuspended",
+      "summary": "WhatsApp number suspended event"
+    },
+    {
+      "name": "whatsapp.number.verification_required",
+      "id": "onWhatsAppNumberVerificationRequired",
+      "summary": "WhatsApp number verification-required event"
+    },
+    {
+      "name": "whatsapp.template.category_updated",
+      "id": "onWhatsAppTemplateCategoryUpdated",
+      "summary": "WhatsApp template category updated event"
+    },
+    {
+      "name": "whatsapp.template.status_updated",
+      "id": "onWhatsAppTemplateStatusUpdated",
+      "summary": "WhatsApp template status updated event"
+    }
+  ]
+}

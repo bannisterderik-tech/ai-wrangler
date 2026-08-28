@@ -23,6 +23,10 @@ const env = {
   // conversion from lead to customer is the point of the whole feature, and
   // "it refuses a forged webhook" is only half of proving it.
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || "whsec_test_only_not_a_real_secret",
+  // Set for the same reason as the Stripe one: "it refuses a forged webhook" is
+  // only half a proof. Without a secret the route refuses everything, and a
+  // suite that only ever sees refusals would pass with the verification gone.
+  ZERNIO_WEBHOOK_SECRET: process.env.ZERNIO_WEBHOOK_SECRET || "zwh_test_only_not_a_real_secret",
 };
 const base = `http://localhost:${env.PORT}`;
 env.TEST_BASE_URL = base;

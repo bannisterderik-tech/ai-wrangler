@@ -37,6 +37,7 @@ async function timed(f: () => Promise<Check>, id: string, label: string, costs: 
 
 const ok = (id: string, label: string, detail: string, costs: string): Check => ({ id, label, state: "ok", detail, costs });
 const off = (id: string, label: string, detail: string, costs: string): Check => ({ id, label, state: "off", detail, costs });
+const bad = (id: string, label: string, detail: string, costs: string): Check => ({ id, label, state: "fail", detail, costs });
 
 export async function selfTest(): Promise<Check[]> {
   const checks: Promise<Check>[] = [];
@@ -49,6 +50,36 @@ export async function selfTest(): Promise<Check[]> {
         return ok("database", "Postgres", `reachable, ${n} migrations applied`, "everything");
       },
       "database", "Postgres", "everything",
+    ),
+  );
+
+  /*
+   * Zernio — ask who we are.
+   *
+   * A real call, like everything else here. "ZERNIO_API_KEY is set" proves
+   * nothing: the key can be wrong, revoked, or on a plan without the Ads
+   * add-on, and all three look identical from the environment.
+   */
+  checks.push(
+    timed(
+      async () => {
+        if (!process.env.ZERNIO_API_KEY) {
+          return off("zernio", "Zernio", "no key set", "every ad and social screen. Google reports nothing.");
+        }
+        const res = await fetch("https://zernio.com/api/v1/ads/accounts?limit=1", {
+          headers: { Authorization: `Bearer ${process.env.ZERNIO_API_KEY}` },
+          signal: AbortSignal.timeout(15_000),
+        });
+        // 400 means it took the key and disliked the arguments — which is a
+        // working key, and the honest answer.
+        if (res.ok || res.status === 400) return ok("zernio", "Zernio", "the key works", "ads and social");
+        if (res.status === 401) return bad("zernio", "Zernio", "the key was rejected", "ads and social");
+        if (res.status === 403) {
+          return bad("zernio", "Zernio", "the plan does not include the Ads add-on", "ads");
+        }
+        return bad("zernio", "Zernio", `answered ${res.status}`, "ads and social");
+      },
+      "zernio", "Zernio", "ads and social",
     ),
   );
 

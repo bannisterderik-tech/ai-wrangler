@@ -8,6 +8,11 @@ const PUBLIC = [
   "/api/mcp",
   // The worker reporting what a pass cost. Bearer session token, same as
   // /api/mcp, and it can only add spend to a job its own session holds.
+  // What Zernio tells us happened: a call, a Local Services lead, a review, an
+  // account dropping its connection. Zernio has no session with us, so the
+  // HMAC signature on the raw body is the only wall — and the route refuses
+  // outright when no secret is set rather than trusting anything unsigned.
+  "/api/zernio/webhook",
   "/api/agent/spend",
   "/api/agent/next",
   // A worker reporting its own health, Bearer-authenticated like the rest.
