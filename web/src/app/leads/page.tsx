@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
+import { Proposals } from "@/components/os/Proposals";
 
 type Lead = {
   id: string; company: string; contact: string | null; phone: string | null; email: string | null;
@@ -25,6 +26,7 @@ export default function LeadsPage() {
   const [id, setId] = useState<string | null>(null);
   const [stage, setStage] = useState("all");
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState<"overview" | "proposals">("overview");
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ company: "", contact: "", phone: "", email: "", city: "", trade: "", source: "", value: "" });
   const [busy, setBusy] = useState(false);
@@ -142,7 +144,7 @@ export default function LeadsPage() {
                 on={open && x.id === l?.id}
                 title={x.company}
                 meta={`${[x.contact, x.city].filter(Boolean).join(" · ") || "no contact yet"} · ${x.stage}${x.value ? ` · ${money(x.value)}/mo` : ""}`}
-                onClick={() => setId(x.id)}
+                onClick={() => { setId(x.id); setTab("overview"); }}
               />
             ))
           )
@@ -177,8 +179,16 @@ export default function LeadsPage() {
                 {l.email ? <a className="btn-os no-underline" href={`mailto:${l.email}`}>Email</a> : null}
               </div>
             </div>
-            <Tabs tabs={[["overview", "Overview"]]} tab="overview" onTab={() => {}} />
-            <div className="min-h-0 flex-1 overflow-auto p-4">
+            <Tabs
+              tabs={[["overview", "Overview"], ["proposals", "Proposals"]]}
+              tab={tab}
+              onTab={(t) => setTab(t as "overview" | "proposals")}
+            />
+            <div className="min-h-0 flex-1 overflow-auto">
+              {tab === "proposals" ? (
+                <Proposals leadId={l.id} company={l.company} />
+              ) : (
+                <div className="p-4">
               <Kv
                 rows={[
                   ["Company", l.company],
@@ -193,6 +203,8 @@ export default function LeadsPage() {
                 ]}
               />
               {l.note ? <p className="mt-4 max-w-[62ch] text-[13.5px] leading-relaxed">{l.note}</p> : null}
+                </div>
+              )}
             </div>
           </>
         ) : null}
