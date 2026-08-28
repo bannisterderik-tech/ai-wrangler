@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { DeskBar, Dossier, Kv, RollItem } from "@/components/os/Dossier";
+import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
+import { CustomerWork } from "@/components/os/CustomerWork";
 
 type Customer = {
   id: string; name: string;
@@ -15,6 +16,7 @@ export default function CustomersPage() {
   const [rows, setRows] = useState<Customer[] | null>(null);
   const [id, setId] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState<"overview" | "work">("overview");
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -87,7 +89,7 @@ export default function CustomersPage() {
                 on={open && x.id === c?.id}
                 title={x.name}
                 meta={`${x.github?.bound ? `${x.github.bound} repo${x.github.bound > 1 ? "s" : ""}` : "no repo bound"} · ${x.vercel?.connected ? "Vercel connected" : "no Vercel"}`}
-                onClick={() => setId(x.id)}
+                onClick={() => { setId(x.id); setTab("overview"); }}
               />
             ))
           )
@@ -116,17 +118,28 @@ export default function CustomersPage() {
               <h3 className="mt-1 mb-1 text-[24px] leading-tight">{c.name}</h3>
               <div className="font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{c.id}</div>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto p-4">
-              <Kv
-                rows={[
-                  ["Repos", c.github?.repos?.length ? <span key="r" className="font-mono">{c.github.repos.join(", ")}</span> : "none bound"],
-                  ["Vercel", c.vercel?.connected ? `connected (${c.vercel.mode ?? "token"})${c.vercel.bound ? ` · ${c.vercel.bound} project` : ""}` : "not connected"],
-                ]}
-              />
-              <p className="mt-4 max-w-[62ch] text-[12.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                A repo belongs to exactly one customer and the database refuses a second claim on it. An agent for
-                this project can read what is bound here and nothing else.
-              </p>
+            <Tabs
+              tabs={[["overview", "Overview"], ["work", "Work"]]}
+              tab={tab}
+              onTab={(t) => setTab(t as "overview" | "work")}
+            />
+            <div className="min-h-0 flex-1 overflow-auto">
+              {tab === "work" ? (
+                <CustomerWork customerId={c.id} customerName={c.name} />
+              ) : (
+                <div className="p-4">
+                  <Kv
+                    rows={[
+                      ["Repos", c.github?.repos?.length ? <span key="r" className="font-mono">{c.github.repos.join(", ")}</span> : "none bound"],
+                      ["Vercel", c.vercel?.connected ? `connected (${c.vercel.mode ?? "token"})${c.vercel.bound ? ` · ${c.vercel.bound} project` : ""}` : "not connected"],
+                    ]}
+                  />
+                  <p className="mt-4 max-w-[62ch] text-[12.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                    A repo belongs to exactly one customer and the database refuses a second claim on it. An agent for
+                    this project can read what is bound here and nothing else.
+                  </p>
+                </div>
+              )}
             </div>
           </>
         ) : null}

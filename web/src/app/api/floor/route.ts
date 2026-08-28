@@ -27,7 +27,14 @@ export async function GET() {
 
   return NextResponse.json({
     customers: custs.map((c) => ({ id: c.id, name: c.name })),
-    people: crew.map((p) => ({ id: p.id, name: p.name, handle: p.handle, status: p.status })),
+    people: crew.map((p) => ({
+      id: p.id,
+      name: p.name,
+      handle: p.handle,
+      status: p.status,
+      kind: p.kind,
+      customerId: p.customerId,
+    })),
     jobs: rows.map((j) => {
       const gate = gates.find((a) => a.jobId === j.id && a.status === "pending") ?? gates.find((a) => a.jobId === j.id);
       const diff = diffs.find((c) => c.repo && j.repo && c.repo === j.repo && c.branch === j.branch);

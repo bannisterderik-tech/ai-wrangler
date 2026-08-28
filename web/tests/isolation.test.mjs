@@ -1913,3 +1913,52 @@ describe("a client-facing page never wears the agency shell", () => {
     }
   });
 });
+
+describe("assigning work to the right hands", () => {
+  before(async () => {
+    await sql`DELETE FROM people WHERE id IN ('A_pick_acme','A_pick_globex')`;
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, status) VALUES
+        ('A_pick_acme','acme-builder','acme-builder','agent','acme','connected'),
+        ('A_pick_globex','globex-builder','globex-builder','agent','globex','connected')`;
+  });
+
+  test("the floor says which people are agents and whose project they are on", async () => {
+    const { body } = await api("/api/floor");
+    const agents = body.people.filter((p) => p.kind === "agent");
+    assert.ok(agents.length >= 2, "agents have to be identifiable as agents");
+    // Without these two fields every "is this agent on this project?" filter in
+    // the UI passes for everyone, and the New job form offers a customer every
+    // other customer's agent.
+    for (const a of agents) {
+      assert.ok("customerId" in a, `${a.name} has no customerId, so it cannot be filtered by project`);
+    }
+    const acme = agents.find((a) => a.id === "A_pick_acme");
+    assert.equal(acme.customerId, "acme");
+  });
+
+  test("handing a job to another project's agent is still refused server-side", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Wrong hands", customerId: "acme", budgetDollars: 5, ownerId: "A_pick_globex",
+      }),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /different project/);
+  });
+
+  test("handing it to this project's agent works and claims it", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({
+        title: "Right hands", customerId: "acme", budgetDollars: 5, ownerId: "A_pick_acme", tier: "haiku",
+      }),
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT owner_id, status, tier FROM jobs WHERE id = ${res.body.id}`;
+    assert.equal(row.owner_id, "A_pick_acme");
+    assert.equal(row.status, "thinking");
+    assert.equal(row.tier, "haiku");
+  });
+});

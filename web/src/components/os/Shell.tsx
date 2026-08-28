@@ -28,10 +28,8 @@ export function Shell({ children }: { children: React.ReactNode }) {
     path.startsWith("/p/");
 
   useEffect(() => {
-    const stored = localStorage.getItem("wrangler-theme") as "dark" | "light" | null;
-    const t = stored || "dark";
-    setTheme(t);
-    document.documentElement.setAttribute("data-theme", t);
+    const applied = document.documentElement.getAttribute("data-theme");
+    setTheme(applied === "light" ? "light" : "dark");
   }, []);
 
   useEffect(() => {
