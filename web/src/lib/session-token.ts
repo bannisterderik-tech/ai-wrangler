@@ -35,6 +35,10 @@ export type McpSession = {
   handle: string;
   /** operator = a teammate, scoped to a list. agent = one project, one customer. */
   kind: string;
+  /** Which agency account this session acts inside. Never widened by a tool. */
+  tenantId: string;
+  /** owner | admin | operator — what they may do within it. */
+  tenantRole: string;
   approver: boolean;
   status: string;
   scope: string[];
@@ -71,6 +75,10 @@ export async function sessionFromHeader(header: string | null): Promise<McpSessi
     name: row.name,
     handle: row.handle,
     kind: row.kind,
+    // From the row, so a token cannot name its own account. This is what makes
+    // platform tools safe to grant: they are always inside one tenant.
+    tenantId: row.tenantId,
+    tenantRole: row.tenantRole,
     approver: row.approver,
     status: row.status,
     scope,

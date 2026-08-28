@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { fail, guard, operator } from "@/lib/api";
 import { audit, jobs, people, personScopes, personTools } from "@/lib/schema";
 import { TOOLS } from "@/lib/mcp-tools";
+import { PLATFORM_TOOLS } from "@/lib/mcp-platform";
 import { slug } from "@/lib/crypto";
 import { getCustomer } from "@/lib/customers";
 import { isAgentKind } from "@/lib/connectors";
@@ -27,7 +28,9 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
+    // Both sets, so the grants screen can offer the platform tools too. What a
+    // session may actually call is still its own grant list.
+    tools: [...TOOLS, ...PLATFORM_TOOLS].map((t) => ({ name: t.name, description: t.description })),
     people: rows.map((p) => ({
       id: p.id,
       name: p.name,

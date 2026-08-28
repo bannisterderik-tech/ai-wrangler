@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { IsolationError } from "@/lib/isolation";
 import { callTool, ToolError, toolsFor } from "@/lib/mcp-tools";
+import {
+  PLATFORM_TOOLS,
+  PLATFORM_TOOL_NAMES,
+  PlatformError,
+  callPlatformTool,
+  mayUsePlatform,
+} from "@/lib/mcp-platform";
 import { sessionFromHeader, touchSession, type McpSession } from "@/lib/session-token";
 
 /**
@@ -105,20 +112,37 @@ async function handle(msg: Rpc, session: McpSession): Promise<Record<string, unk
     case "ping":
       return isNotification ? null : reply({});
 
-    case "tools/list":
-      return reply({ tools: toolsFor(session).map((t) => ({ ...t })) });
+    case "tools/list": {
+      // The build tools work one customer's repository; the platform tools work
+      // the agency itself. Both are still filtered by what this session was
+      // granted, so connecting a Claude Code does not widen anything.
+      const platform = mayUsePlatform(session)
+        ? PLATFORM_TOOLS.filter((t) => session.tools.includes(t.name))
+        : [];
+      return reply({ tools: [...toolsFor(session), ...platform].map((t) => ({ ...t })) });
+    }
 
     case "tools/call": {
       const name = String(params?.name || "");
       const args = (params?.arguments as Record<string, unknown>) || {};
       if (!name) return fail(-32602, "tools/call requires a name");
       try {
-        const text = await callTool(session, name, args);
+        const text = PLATFORM_TOOL_NAMES.includes(name)
+          ? await (async () => {
+              if (!mayUsePlatform(session)) {
+                throw new PlatformError("refused: the platform tools are for people, not for build agents.");
+              }
+              if (!session.tools.includes(name)) {
+                throw new PlatformError(`refused: this session was not granted ${name}.`);
+              }
+              return callPlatformTool(session, name, args);
+            })()
+          : await callTool(session, name, args);
         return reply({ content: [{ type: "text", text }], isError: false });
       } catch (e) {
         // Refusals and wall hits are results, so the model can read them and
         // change course rather than seeing an opaque transport error.
-        if (e instanceof ToolError || e instanceof IsolationError) {
+        if (e instanceof ToolError || e instanceof PlatformError || e instanceof IsolationError) {
           return reply({ content: [{ type: "text", text: (e as Error).message }], isError: true });
         }
         console.error("[wrangler mcp]", e);

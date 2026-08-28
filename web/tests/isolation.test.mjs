@@ -3114,3 +3114,121 @@ describe("only the house administers the platform", () => {
     assert.equal(t.status, "active");
   });
 });
+
+/**
+ * Van's own Claude Code, acting across the platform.
+ *
+ * The build tools work one customer's repository; these work the agency itself.
+ * What makes them safe to grant is that every query is pinned to the tenant on
+ * the person's row — a tool that accepted an account id would be a tool for
+ * reading somebody else's business.
+ */
+describe("the platform over MCP", () => {
+  const token = "wr_sess_platform000000000000000000";
+  let leadId = "";
+
+  before(async () => {
+    await sql`DELETE FROM people WHERE id = 'U_mcpvan'`;
+    await sql`DELETE FROM agency_leads WHERE company IN ('MCP Test Shop','Other Tenant Shop')`;
+    await sql`DELETE FROM tenants WHERE id = 'other-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build) VALUES ('other-agency','Other Agency', false)`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(token).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role, token_hash, status)
+      VALUES ('U_mcpvan','MCP Van','mcpvan','mcpvan@aiwrangler.co','operator','ai-wrangler','owner',${hash},'connected')`;
+    await sql`
+      INSERT INTO person_tools (person_id, tool) VALUES
+        ('U_mcpvan','list_leads'),('U_mcpvan','read_lead'),('U_mcpvan','add_lead'),
+        ('U_mcpvan','move_lead'),('U_mcpvan','draft_proposal')`;
+    // A lead belonging to a different agency entirely.
+    await sql`
+      INSERT INTO agency_leads (id, tenant_id, company, stage, value_cents)
+      VALUES ('L_other','other-agency','Other Tenant Shop','new',999)`;
+  });
+
+  const call = async (name, args = {}, tok = token) => {
+    const r = await fetch(`${BASE}/api/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${tok}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+    });
+    const d = await r.json();
+    return { text: d.result?.content?.[0]?.text ?? "", isError: Boolean(d.result?.isError) };
+  };
+
+  test("only granted tools are offered", async () => {
+    const r = await fetch(`${BASE}/api/mcp`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    const names = (await r.json()).result.tools.map((t) => t.name);
+    assert.ok(names.includes("list_leads"));
+    assert.ok(!names.includes("list_customers"), "not granted, so not offered");
+  });
+
+  test("a tool that was not granted is refused even if it exists", async () => {
+    const out = await call("list_customers");
+    assert.ok(out.isError);
+    assert.match(out.text, /not granted/);
+  });
+
+  test("it can add a lead, and the row is stamped with the session's tenant", async () => {
+    const out = await call("add_lead", { company: "MCP Test Shop", contact: "Ray", value_monthly: "1200" });
+    assert.ok(!out.isError, out.text);
+    const [row] = await sql`SELECT id, tenant_id, value_cents, stage FROM agency_leads WHERE company = 'MCP Test Shop'`;
+    leadId = row.id;
+    assert.equal(row.tenant_id, "ai-wrangler", "never from an argument");
+    assert.equal(row.value_cents, 120000);
+    assert.equal(row.stage, "new");
+  });
+
+  test("a proposal drafted over MCP is a draft with no live link", async () => {
+    const out = await call("draft_proposal", {
+      lead_id: leadId, title: "Rebuild", once_dollars: "6500", monthly_dollars: "1200",
+    });
+    assert.ok(!out.isError, out.text);
+    const [q] = await sql`SELECT status, token, once_cents, monthly_cents FROM proposals WHERE lead_id = ${leadId}`;
+    assert.equal(q.status, "draft");
+    // Sending is a human decision, because a sent proposal is signable.
+    assert.equal(q.token, null);
+    assert.equal(q.once_cents, 650000);
+  });
+
+  test("another agency's lead is refused exactly like one that does not exist", async () => {
+    const theirs = await call("read_lead", { lead_id: "L_other" });
+    const missing = await call("read_lead", { lead_id: "L_does_not_exist" });
+    assert.ok(theirs.isError && missing.isError);
+    // Byte-identical but for the id, so a pipeline cannot be enumerated by
+    // watching which error comes back.
+    assert.equal(theirs.text.replace("L_other", "X"), missing.text.replace("L_does_not_exist", "X"));
+  });
+
+  test("nor can it be moved, or listed", async () => {
+    const moved = await call("move_lead", { lead_id: "L_other", stage: "won" });
+    assert.ok(moved.isError);
+    const [row] = await sql`SELECT stage FROM agency_leads WHERE id = 'L_other'`;
+    assert.equal(row.stage, "new", "another agency's pipeline must not move");
+    const listed = await call("list_leads", { q: "Other Tenant" });
+    assert.ok(!listed.text.includes("Other Tenant Shop"));
+  });
+
+  test("a build agent is refused the platform tools outright", async () => {
+    const agentTok = "wr_sess_agentnoplatform0000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(agentTok).digest("hex");
+    await sql`DELETE FROM people WHERE id = 'A_noplat'`;
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, tenant_id, token_hash, status)
+      VALUES ('A_noplat','noplat','noplat','agent','acme','ai-wrangler',${hash},'connected')`;
+    await sql`INSERT INTO person_tools (person_id, tool) VALUES ('A_noplat','list_leads')`;
+    const out = await call("list_leads", {}, agentTok);
+    assert.ok(out.isError);
+    assert.match(out.text, /for people, not for build agents/);
+  });
+});
