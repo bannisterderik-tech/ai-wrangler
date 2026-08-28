@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { jobs } from "@/lib/schema";
 import { sessionFromHeader } from "@/lib/session-token";
@@ -22,6 +22,9 @@ import { brainFromTier } from "@/lib/brains";
 export async function GET(req: Request) {
   const session = await sessionFromHeader(req.headers.get("authorization"));
   if (!session) return NextResponse.json({ error: "unknown session" }, { status: 401 });
+  if (session.kind !== "agent") {
+    return NextResponse.json({ error: "only a project agent asks for work this way" }, { status: 403 });
+  }
   if (!session.scope.length) return NextResponse.json({ job: null, reason: "no customers in scope" });
 
   const rows = await db
@@ -35,7 +38,7 @@ export async function GET(req: Request) {
         inArray(jobs.status, ["queued", "working", "thinking"]),
       ),
     )
-    .orderBy(asc(jobs.createdAt));
+    .orderBy(desc(jobs.createdAt));
 
   // A job at its cap is not work — claim_job refuses it. Offering it here would
   // start a pass whose only possible outcome is a refusal.

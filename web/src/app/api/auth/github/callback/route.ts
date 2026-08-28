@@ -1,8 +1,15 @@
+import { guardOperator } from "@/lib/api";
 import { NextRequest, NextResponse } from "next/server";
 import { saveAgencyGithub } from "@/lib/github";
 import { publicOrigin } from "@/lib/origin";
 
 export async function GET(req: NextRequest) {
+  // Connecting a Vercel or GitHub account rewrites agency-wide credentials and
+  // bindings. The middleware lets client sessions reach /api/auth/*, so this
+  // route has to refuse them itself.
+  const denied = await guardOperator();
+  if (denied) return denied;
+
   const origin = publicOrigin(req);
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state");

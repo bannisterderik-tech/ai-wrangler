@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE, readSession, type Session } from "./auth";
+import { SESSION_COOKIE, isClient, readSession, type Session } from "./auth";
 import { IsolationError } from "./isolation";
 
 /** Who is driving. The middleware already gated this request; routes check again anyway. */
@@ -13,6 +13,22 @@ export async function guard(): Promise<NextResponse | null> {
   const session = await operator();
   if (session) return null;
   return NextResponse.json({ error: "sign in first" }, { status: 401 });
+}
+
+/**
+ * Operator only — a signed-in client is refused.
+ *
+ * guard() asks whether anyone is signed in, not whether they are staff, and a
+ * client session satisfies it. That is fine on the routes the middleware keeps
+ * clients away from, and it was not fine on /api/auth/*, which the middleware
+ * deliberately lets clients reach so they can sign in and out. Anything under
+ * there that changes agency state has to say so itself.
+ */
+export async function guardOperator(): Promise<NextResponse | null> {
+  const session = await operator();
+  if (!session) return NextResponse.json({ error: "sign in first" }, { status: 401 });
+  if (isClient(session)) return NextResponse.json({ error: "not yours" }, { status: 403 });
+  return null;
 }
 
 /**

@@ -1,8 +1,15 @@
+import { guardOperator } from "@/lib/api";
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { publicOrigin } from "@/lib/origin";
 
 export async function GET(req: NextRequest) {
+  // Connecting a Vercel or GitHub account rewrites agency-wide credentials and
+  // bindings. The middleware lets client sessions reach /api/auth/*, so this
+  // route has to refuse them itself.
+  const denied = await guardOperator();
+  if (denied) return denied;
+
   const clientId = process.env.GITHUB_OAUTH_CLIENT_ID;
   if (!clientId) {
     return NextResponse.redirect(

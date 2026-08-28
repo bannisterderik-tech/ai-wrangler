@@ -491,3 +491,94 @@ export const callLog = pgTable(
   },
   (t) => [index("call_log_recent").on(t.at)],
 );
+
+/**
+ * Quote to cash.
+ *
+ * A lead gets a proposal; they accept, sign, and pay a deposit. The deposit is
+ * the conversion event — money changing hands is the only signal worth trusting
+ * to turn a lead into a customer.
+ */
+export const proposals = pgTable(
+  "proposals",
+  {
+    id: text("id").primaryKey(),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => agencyLeads.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    summary: text("summary"),
+    /** The contract body as sent. Frozen once it leaves the building. */
+    terms: text("terms"),
+    /** draft | sent | viewed | signed | paid | declined | void */
+    status: text("status").notNull().default("draft"),
+    currency: text("currency").notNull().default("usd"),
+    onceCents: integer("once_cents").notNull().default(0),
+    monthlyCents: integer("monthly_cents").notNull().default(0),
+    /** percent | flat */
+    depositKind: text("deposit_kind").notNull().default("percent"),
+    depositPct: integer("deposit_pct").notNull().default(50),
+    depositCents: integer("deposit_cents").notNull().default(0),
+    token: text("token").unique(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    viewedAt: timestamp("viewed_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    declinedAt: timestamp("declined_at", { withTimezone: true }),
+    declineReason: text("decline_reason"),
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    createdBy: text("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("proposals_lead_idx").on(t.leadId, t.createdAt)],
+);
+
+export const proposalItems = pgTable(
+  "proposal_items",
+  {
+    id: text("id").primaryKey(),
+    proposalId: text("proposal_id")
+      .notNull()
+      .references(() => proposals.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    detail: text("detail"),
+    /** once | monthly — a build and a retainer are not the same line. */
+    cadence: text("cadence").notNull().default("once"),
+    qty: integer("qty").notNull().default(1),
+    unitCents: integer("unit_cents").notNull().default(0),
+    sort: integer("sort").notNull().default(0),
+  },
+  (t) => [index("proposal_items_idx").on(t.proposalId, t.sort)],
+);
+
+/**
+ * The evidence. ESIGN/UETA want intent, attribution and an unaltered record, so
+ * we keep a hash of the exact document shown, who typed their name, from where,
+ * and when. A signature not tied to a document version proves nothing.
+ */
+export const signatures = pgTable("signatures", {
+  id: text("id").primaryKey(),
+  proposalId: text("proposal_id")
+    .notNull()
+    .unique()
+    .references(() => proposals.id, { onDelete: "cascade" }),
+  typedName: text("typed_name").notNull(),
+  email: text("email"),
+  ip: text("ip"),
+  userAgent: text("user_agent"),
+  documentHash: text("document_hash").notNull(),
+  signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const proposalPayments = pgTable("proposal_payments", {
+  id: text("id").primaryKey(),
+  proposalId: text("proposal_id")
+    .notNull()
+    .references(() => proposals.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull().default("stripe"),
+  sessionId: text("session_id"),
+  intentId: text("intent_id"),
+  amountCents: integer("amount_cents").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

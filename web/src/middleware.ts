@@ -49,7 +49,14 @@ export async function middleware(req: NextRequest) {
         pathname === "/client" ||
         pathname.startsWith("/client/") ||
         pathname.startsWith("/api/client/") ||
-        pathname.startsWith("/api/auth/");
+        // NOT all of /api/auth/. That prefix also holds the Vercel and GitHub
+        // OAuth routes, which rewrite agency-wide credentials and bindings for
+        // any customer id the caller names — so a signed-in client could bind
+        // another tenant's Vercel account to themselves. A client needs to sign
+        // in and sign out, and nothing else under here.
+        pathname === "/api/auth/logout" ||
+        pathname === "/api/auth/me" ||
+        pathname.startsWith("/api/auth/magic/");
       if (!theirs) {
         if (isApi) return NextResponse.json({ error: "not yours" }, { status: 403 });
         return NextResponse.redirect(new URL("/client", req.nextUrl.origin));

@@ -1362,3 +1362,177 @@ describe("memory is searched, not just listed", () => {
     assert.ok(!texts.includes("globex booking form"), "recall leaked across customers");
   });
 });
+
+/**
+ * The client wall had a door in it marked "auth".
+ *
+ * middleware.ts let any signed-in client session reach the whole of
+ * /api/auth/*, so they could sign in and out. But that prefix also holds the
+ * Vercel and GitHub OAuth routes, and none of the four checked authorization at
+ * all — guard() only asks whether SOMEBODY is signed in, and a client satisfies
+ * it. A client could therefore start a Vercel connect flow naming another
+ * customer, complete it against their own Vercel account, and have the callback
+ * overwrite that customer's stored deploy token and rebind their projects.
+ */
+describe("a client cannot reach the agency's OAuth routes", () => {
+  let clientCookie = "";
+  // Local copies: the originals are scoped to the client-CRM block above.
+  async function signInAs(email) {
+    const raw = `wr_sess_wall_${email.replace(/\W/g, "")}_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, ${email}, now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const value = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    return { cookie: value ? `wrangler_session=${value}` : "" };
+  }
+  const as = (cookie, path, init = {}) =>
+    fetch(`${BASE}${path}`, {
+      ...init,
+      redirect: "manual",
+      headers: { "Content-Type": "application/json", cookie, ...(init.headers || {}) },
+    });
+
+  before(async () => {
+    await sql`DELETE FROM people WHERE email = 'wall@acme.test'`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, customer_id)
+      VALUES ('p-wall','Wall Tester','walltester','wall@acme.test','client','acme')`;
+    clientCookie = (await signInAs("wall@acme.test")).cookie;
+    assert.ok(clientCookie, "the client signed in");
+  });
+
+  for (const path of [
+    "/api/auth/vercel/start?customerId=globex",
+    "/api/auth/vercel/callback?code=x&state=y",
+    "/api/auth/github/start",
+    "/api/auth/github/callback?code=x&state=y",
+  ]) {
+    test(`refuses a client at ${path.split("?")[0]}`, async () => {
+      const res = await as(clientCookie, path);
+      assert.ok(
+        res.status === 403 || res.status === 404 || (res.status >= 300 && res.status < 400 && !/vercel\.com|github\.com/.test(res.headers.get("location") ?? "")),
+        `a client reached ${path} and got ${res.status}`,
+      );
+      assert.notEqual(res.status, 200, "a client must never get a 200 from an agency OAuth route");
+    });
+  }
+
+  test("and the start route did not create a customer row on the way through", async () => {
+    await as(clientCookie, "/api/auth/vercel/start?customerId=invented-by-a-client");
+    const [row] = await sql`SELECT count(*)::int AS n FROM customers WHERE id = 'invented-by-a-client'`;
+    assert.equal(row.n, 0, "a refused route must not have written a customer first");
+  });
+
+  test("the client can still sign out — the door they actually need is open", async () => {
+    const res = await as(clientCookie, "/api/auth/logout", { method: "POST" });
+    assert.ok(res.status < 400, `logout should work for a client, got ${res.status}`);
+  });
+});
+
+/**
+ * Tables created after 0002 do not inherit its revokes. On Supabase, new public
+ * tables are granted to anon/authenticated by default, so a table shipped
+ * without RLS is readable through PostgREST — and these hold signing evidence
+ * (email, IP, user agent) and the capability token that lets its holder sign.
+ */
+describe("every table is walled", () => {
+  test("no table in public is missing row level security", async () => {
+    const rows = await sql`
+      SELECT relname FROM pg_class c
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity
+        AND relname <> '_wrangler_migrations'`;
+    assert.deepEqual(
+      rows.map((r) => r.relname),
+      [],
+      "these tables have no RLS — a migration added them and forgot the wall",
+    );
+  });
+});
+
+/**
+ * Spend has to land on the job that was worked.
+ *
+ * It was attributed to "whatever this session most recently claimed, if it is
+ * still open", which had two holes big enough to make the cap decorative:
+ *
+ *  - post_step(kind:"done") sets a job to 'done' and release_job clears its
+ *    owner, and neither matched the lookup — so every pass that FINISHED its
+ *    work recorded nothing. Only crashes were billed.
+ *  - open_work inserts a job with claimedAt=now, which is always the newest
+ *    claim, so an agent following its own brief could move the bill onto a
+ *    fresh $0 budget and do it again next pass.
+ */
+describe("spend lands on the job that was worked", () => {
+  let token = "";
+  before(async () => {
+    await sql`DELETE FROM jobs WHERE title LIKE 'Attrib %'`;
+    await sql`DELETE FROM people WHERE id = 'A_attrib'`;
+    token = "wr_sess_attrib000000000000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(token).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, token_hash, status)
+      VALUES ('A_attrib','attrib-bot','attrib-bot','agent','acme',${hash},'connected')`;
+  });
+
+  const spend = (usd, jobId) =>
+    fetch(`${BASE}/api/agent/spend`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ usd, jobId }),
+    }).then(async (r) => ({ status: r.status, body: await r.json() }));
+
+  test("a finished job is still billed for the pass that finished it", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Attrib done", customerId: "acme", budgetDollars: 5 }),
+    });
+    const id = res.body.id;
+    await sql`UPDATE jobs SET status = 'done', owner_id = NULL WHERE id = ${id}`;
+    const r = await spend(2.5, id);
+    assert.equal(r.body.attributed, true, "a completed job must still take the bill");
+    const [row] = await sql`SELECT spent_cents FROM jobs WHERE id = ${id}`;
+    assert.equal(row.spent_cents, 250);
+  });
+
+  test("an agent cannot move its bill onto a different customer's job", async () => {
+    const [other] = await sql`
+      INSERT INTO jobs (id, customer_id, title, status, budget_cents)
+      VALUES ('J_notmine','globex','Attrib elsewhere','queued',10000) RETURNING id`;
+    const r = await spend(3, other.id);
+    const [row] = await sql`SELECT spent_cents FROM jobs WHERE id = 'J_notmine'`;
+    assert.equal(row.spent_cents, 0, "out of scope: that job must not be touched");
+    assert.notEqual(r.body.job, "J_notmine");
+  });
+
+  test("spend adds up instead of overwriting when two reports race", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Attrib race", customerId: "acme", budgetDollars: 50 }),
+    });
+    const id = res.body.id;
+    await Promise.all([spend(1, id), spend(1, id), spend(1, id), spend(1, id)]);
+    const [row] = await sql`SELECT spent_cents FROM jobs WHERE id = ${id}`;
+    assert.equal(row.spent_cents, 400, "four concurrent $1 reports are $4, not $1");
+  });
+
+  test("a teammate's session cannot report spend at all", async () => {
+    await sql`DELETE FROM people WHERE id = 'P_human'`;
+    const raw = "wr_sess_human0000000000000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, token_hash, status)
+      VALUES ('P_human','A Teammate','teammate','operator',${hash},'connected')`;
+    const r = await fetch(`${BASE}/api/agent/spend`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${raw}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ usd: 9999 }),
+    });
+    assert.equal(r.status, 403);
+  });
+});

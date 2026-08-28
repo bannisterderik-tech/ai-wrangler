@@ -39,7 +39,19 @@ if (!TOKENS.length) {
   process.exit(1);
 }
 const WORKSPACE = process.env.WORKSPACE_DIR || "/work";
-const INTERVAL = Number(process.env.POLL_SECONDS || 120);
+const INTERVAL = (() => {
+  const raw = process.env.POLL_SECONDS;
+  if (raw === undefined || raw === "") return 120;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    // "120s" and "2m" both read as obviously correct and both parse to NaN.
+    // Math.max(30, NaN) is NaN, setTimeout(NaN) fires in 1ms, and the worker
+    // then starts a paid pass as fast as it can spawn one. Refuse to boot.
+    console.error(`[agent] POLL_SECONDS="${raw}" is not a number of seconds. Use POLL_SECONDS=120.`);
+    process.exit(1);
+  }
+  return n;
+})();
 const ONCE = process.env.RUN_ONCE === "1";
 /**
  * The fallback only. Normally the floor names the model for the next job, so a
@@ -174,12 +186,24 @@ if (!ALLOWED.some((t) => t.startsWith("Bash(node"))) {
  * starts, and a hardening change must not be able to break every pass.
  */
 const BARE = (() => {
-  try {
-    const r = spawnSync("claude", ["--help"], { encoding: "utf8", timeout: 20_000 });
-    return `${r.stdout || ""}${r.stderr || ""}`.includes("--bare");
-  } catch {
+  const r = spawnSync("claude", ["--help"], { encoding: "utf8", timeout: 20_000 });
+  // spawnSync does not throw on a missing binary, it returns .error — so the
+  // old try/catch here was dead code and ENOENT read as "no --bare support".
+  if (r.error) {
+    console.error(`[agent] cannot run claude: ${r.error.message}`);
+    process.exit(1);
+  }
+  const has = `${r.stdout || ""}${r.stderr || ""}`.includes("--bare");
+  if (!has) return false;
+  // In bare mode Claude Code never reads OAuth credentials or the keychain; it
+  // needs ANTHROPIC_API_KEY. Passing --bare without one turns every pass into an
+  // auth failure — a hardening flag that switches the whole fleet off.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn("[agent] --bare is available but ANTHROPIC_API_KEY is not set; running without it.");
+    console.warn("[agent] the checkout's own .claude/ hooks and CLAUDE.md WILL load. Set the key to close that.");
     return false;
   }
+  return true;
 })();
 
 /**
@@ -193,17 +217,24 @@ async function nextBrain(token) {
     const res = await fetch(new URL("/api/agent/next", MCP_URL), {
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (!res.ok) return null;
+    // 401 is not a hiccup. The token was revoked, and every MCP call this pass
+    // would make is going to be refused — so the pass can only burn money to
+    // discover that. Revocation must make an agent cheaper, not dearer.
+    if (res.status === 401 || res.status === 403) return { fatal: true };
+    if (!res.ok) return { unreachable: true, why: `floor returned ${res.status}` };
     return await res.json();
-  } catch {
-    return null;
+  } catch (e) {
+    return { unreachable: true, why: e?.message || "network error" };
   }
 }
 
-function runOnce(dir, model) {
+/** Hard ceiling on one pass, so a stuck agent cannot bill for hours. */
+const MAX_PASS_MS = Math.max(60, Number(process.env.MAX_PASS_SECONDS) || 1800) * 1000;
+
+function runOnce(dir, model, brief) {
   return new Promise((resolve) => {
     const args = [
-      "-p", BRIEF,
+      "-p", brief,
       ...(BARE ? ["--bare"] : []),
       "--model", model,
       "--permission-mode", "acceptEdits",
@@ -220,31 +251,49 @@ function runOnce(dir, model) {
     const child = spawn("claude", args, {
       cwd: dir,
       stdio: ["ignore", "pipe", "inherit"],
-      env: process.env,
+      // NOT process.env. WRANGLER_SESSION_TOKENS holds every project's token,
+      // and this child has arbitrary code execution. One agent's process has no
+      // business holding another project's credentials.
+      env: {
+        PATH: process.env.PATH,
+        HOME: process.env.HOME,
+        LANG: process.env.LANG,
+        ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
+      },
     });
+
+    let killed = false;
+    const killer = setTimeout(() => {
+      killed = true;
+      console.error(`[agent] pass exceeded ${Math.round(MAX_PASS_MS / 1000)}s — killing it.`);
+      child.kill("SIGKILL");
+    }, MAX_PASS_MS);
+
     let out = "";
     child.stdout.on("data", (b) => {
       out += b;
     });
     child.on("error", (e) => {
+      clearTimeout(killer);
       console.error("[agent] could not start claude:", e.message);
-      resolve({ code: 1, usd: 0 });
+      resolve({ code: 1, usd: NaN });
     });
     child.on("exit", (code) => {
-      let usd = 0;
+      clearTimeout(killer);
+      let usd = NaN;
       let text = "";
       try {
         const r = JSON.parse(out);
-        usd = Number(r.total_cost_usd) || 0;
+        // An absent field is unknown, not zero. `Number(undefined) || 0` quietly
+        // recorded every such pass as free.
+        usd = "total_cost_usd" in r ? Number(r.total_cost_usd) : NaN;
+        if (!Number.isFinite(usd)) usd = NaN;
         text = String(r.result ?? "").trim();
       } catch {
-        // Never let an unreadable result swallow the pass. A cost we could not
-        // read is reported as unknown, not as zero-and-carry-on.
-        if (out.trim()) console.log(out.trim());
-        usd = NaN;
+        if (out.trim()) console.log(out.trim().slice(0, 4000));
       }
       if (text) console.log(text);
-      resolve({ code: code ?? 0, usd });
+      resolve({ code: code ?? 0, usd, killed });
     });
   });
 }
@@ -253,18 +302,21 @@ function runOnce(dir, model) {
  * Tell the floor what the pass cost. The floor decides whether that puts the
  * job over its cap and holds it if so — the container does not get a vote.
  */
-async function reportSpend(token, usd) {
-  if (!Number.isFinite(usd) || usd <= 0) return null;
+async function reportSpend(token, usd, jobId) {
+  if (!Number.isFinite(usd) || usd <= 0) return { failed: true, why: "cost unknown" };
   try {
     const res = await fetch(new URL("/api/agent/spend", MCP_URL), {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ usd }),
+      // The job is named, not inferred. Attributing to "whatever this session
+      // most recently claimed" let open_work redirect the bill onto a fresh
+      // $0 job, and lost the cost entirely once a job was finished or released.
+      body: JSON.stringify({ usd, jobId: jobId ?? null }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { failed: true, why: `floor returned ${res.status}` };
     return await res.json();
-  } catch {
-    return null;
+  } catch (e) {
+    return { failed: true, why: e?.message || "network error" };
   }
 }
 
@@ -348,42 +400,74 @@ async function main() {
 
   do {
     for (const a of agents) {
+      if (a.dead) continue;
       const started = Date.now();
       console.log(`[agent] --- ${a.label} ---`);
 
       const next = await nextBrain(a.token);
-      if (next && !next.job) {
-        // Nothing claimable. Starting a session to be told that costs real money
-        // for a guaranteed "nothing to do".
-        console.log(`[agent] ${a.label}: ${next.reason}. Skipping this pass.`);
+      if (next?.fatal) {
+        console.error(`[agent] ${a.label}: the floor refused this token. Not running it again.`);
+        a.dead = true;
         continue;
       }
-      const model = next?.model || MODEL;
-      if (next?.job) {
-        console.log(
-          `[agent] ${a.label}: ${next.job.id} "${next.job.title}" — ${next.brain} (${model}), ` +
-            `$${Number(next.remaining).toFixed(2)} left on its cap`,
-        );
-      } else {
-        console.log(`[agent] ${a.label}: floor unreachable, falling back to ${model}`);
+      if (next?.unreachable) {
+        // Fail closed. A pass is only safe to start when the floor confirmed
+        // there is work AND is available to receive the bill.
+        a.misses = (a.misses || 0) + 1;
+        console.warn(`[agent] ${a.label}: ${next.why} — skipping (${a.misses} in a row).`);
+        continue;
       }
+      a.misses = 0;
+      if (!next?.job) {
+        console.log(`[agent] ${a.label}: ${next?.reason ?? "nothing to do"}. Skipping this pass.`);
+        continue;
+      }
+      const model = next.model || MODEL;
+      console.log(
+        `[agent] ${a.label}: ${next.job.id} "${next.job.title}" — ${next.brain} (${model}), ` +
+          `$${Number(next.remaining).toFixed(2)} left on its cap`,
+      );
 
-      const { code, usd } = await runOnce(a.dir, model);
+      // The model is started at this job's tier, so it has to be told which job
+      // that is. list_jobs may well show a different one first, and a Haiku
+      // session attempting an Opus rebuild burns the pass and produces a mess.
+      const brief =
+        `${BRIEF}\n\nThis session was sized for ${next.job.id} — "${next.job.title}".` +
+        `\nClaim that job and no other. If it is already taken, say so and stop:` +
+        ` a different job may need a different model than the one you are running.`;
+      const { code, usd, killed } = await runOnce(a.dir, model, brief);
       const secs = Math.round((Date.now() - started) / 1000);
       const cost = Number.isFinite(usd) ? `$${usd.toFixed(2)}` : "cost unknown";
       console.log(`[agent] ${a.label}: ${secs}s  ${cost}  (exit ${code})`);
       if (!Number.isFinite(usd)) {
         console.warn(`[agent] ${a.label}: could not read the pass cost — the cap cannot see this one.`);
       }
-      const spend = await reportSpend(a.token, usd);
+      const spend = await reportSpend(a.token, usd, next.job.id);
       if (spend?.attributed) {
+        a.unbilled = 0;
         console.log(`[agent] ${a.label}: ${spend.job} now $${spend.spent.toFixed(2)} of $${spend.budget.toFixed(2)}`);
         if (spend.over) {
-          console.warn(`[agent] ${a.label}: ${spend.job} is at its cap and has been held. It will not be worked again until a human raises it.`);
+          console.warn(`[agent] ${a.label}: ${spend.job} is at its cap and has been held until someone raises it.`);
+        }
+      } else {
+        // A worker that cannot record what it spent must not keep spending.
+        a.unbilled = (a.unbilled || 0) + 1;
+        console.error(
+          `[agent] ${a.label}: SPEND NOT RECORDED (${spend?.why ?? spend?.reason ?? "no job matched"}) ` +
+            `— ${a.unbilled} pass(es) unbilled.`,
+        );
+        if (a.unbilled >= 2) {
+          console.error(`[agent] ${a.label}: stopping this agent. Two passes in a row went unbilled; the cap is blind.`);
+          a.dead = true;
         }
       }
+      if (killed) console.error(`[agent] ${a.label}: that pass was killed on the time limit.`);
     }
     if (ONCE) process.exit(0);
+    if (agents.every((a) => a.dead)) {
+      console.error("[agent] every agent is stopped. Nothing left to run.");
+      process.exit(1);
+    }
     // A crashed pass must not become a hot loop against the API.
     await new Promise((r) => setTimeout(r, Math.max(30, INTERVAL) * 1000));
   } while (true);
