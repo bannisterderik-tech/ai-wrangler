@@ -5,6 +5,7 @@ import { jobs } from "@/lib/schema";
 import { sessionFromHeader } from "@/lib/session-token";
 import { brainFromTier } from "@/lib/brains";
 import { agentsPaused } from "@/lib/switches";
+import { customerKey } from "@/lib/customer-keys";
 
 /**
  * Which job this session would pick up next, and how much brain it asked for.
@@ -62,7 +63,16 @@ export async function GET(req: Request) {
   }
 
   const b = brainFromTier(job.tier);
+  // If this customer brought their own Anthropic key, the pass runs on it: the
+  // cost lands where they wanted it, and the container carries only their key
+  // rather than the agency key that bills for everybody. It is returned to the
+  // worker over the same Bearer-authenticated channel that already carries the
+  // session token, to a container that already holds the agency key — so this
+  // narrows what a compromised checkout can take, it does not widen it.
+  const theirs = await customerKey(job.customerId);
   return NextResponse.json({
+    apiKey: theirs ?? null,
+    billedTo: theirs ? "customer" : "agency",
     job: { id: job.id, title: job.title, held: job.ownerId === session.id },
     brain: b.id,
     model: b.model,

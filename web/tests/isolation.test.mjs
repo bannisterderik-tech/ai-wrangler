@@ -2648,3 +2648,74 @@ describe("inviting a customer, and removing them", () => {
     assert.equal(after.status, 403, "the cookie is still signed and unexpired — the row is what decides");
   });
 });
+
+/**
+ * A customer can bring their own Anthropic key.
+ *
+ * Not their Claude subscription: `--bare`, which stops their own repository
+ * injecting hooks and CLAUDE.md into the agent, never reads OAuth or the
+ * keychain, so a subscription means giving up that wall — and a consumer
+ * subscription is not priced for unattended automation resold as a service.
+ *
+ * A key also shrinks the blast radius. The agent container has arbitrary code
+ * execution and used to hold the agency key, which bills for every customer. A
+ * pass carrying one customer's key can leak one customer's key.
+ */
+describe("a customer's own model key", () => {
+  test("a malformed key never reaches Anthropic", async () => {
+    const res = await api("/api/customers/acme/anthropic", {
+      method: "POST",
+      body: JSON.stringify({ key: "hunter2" }),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /sk-ant-/);
+  });
+
+  test("a well-formed but rejected key is not stored", async () => {
+    const res = await api("/api/customers/acme/anthropic", {
+      method: "POST",
+      body: JSON.stringify({ key: "sk-ant-deliberately-invalid" }),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /rejected/i);
+    // A stored key that does not work is worse than none: every pass for that
+    // customer fails on it instead of falling back.
+    const [row] = await sql`
+      SELECT count(*)::int AS n FROM connections WHERE customer_id = 'acme' AND provider = 'anthropic'`;
+    assert.equal(row.n, 0);
+  });
+
+  test("the key itself is never returned by the API", async () => {
+    const res = await api("/api/customers/acme/anthropic");
+    assert.equal(res.status, 200);
+    const said = JSON.stringify(res.body);
+    assert.ok(!said.includes("sk-ant-"), "only a prefix, never the key");
+  });
+
+  test("with no customer key the agency pays, and the floor says so", async () => {
+    await sql`DELETE FROM people WHERE id = 'A_bill'`;
+    await sql`DELETE FROM jobs WHERE title = 'Billing job'`;
+    const token = "wr_sess_billing00000000000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(token).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, token_hash, status)
+      VALUES ('A_bill','bill-bot','bill-bot','agent','acme',${hash},'connected')`;
+    await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Billing job", customerId: "acme", budgetDollars: 5 }),
+    });
+    const r = await fetch(`${BASE}/api/agent/next`, { headers: { Authorization: `Bearer ${token}` } });
+    const body = await r.json();
+    assert.equal(body.billedTo, "agency");
+    assert.equal(body.apiKey, null, "no customer key means none is handed to the container");
+  });
+
+  test("a stranger cannot read whether a customer brought a key", async () => {
+    const saved = cookie;
+    cookie = "";
+    const res = await api("/api/customers/acme/anthropic");
+    cookie = saved;
+    assert.equal(res.status, 401);
+  });
+});

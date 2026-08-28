@@ -102,6 +102,8 @@ export function CustomerAccess({ customerId, customerName }: { customerId: strin
         </div>
       )}
 
+      <CustomerAnthropicKey customerId={customerId} customerName={customerName} />
+
       <div className="rounded-lg p-3" style={{ background: "var(--surface-raised)" }}>
         <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
           Where to send them
@@ -115,6 +117,85 @@ export function CustomerAccess({ customerId, customerName }: { customerId: strin
           Sending it needs a working Resend key — check Settings if nothing arrives.
         </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Their own Anthropic key, so the model cost lands on them.
+ *
+ * Not their Claude subscription. Claude Code can sign in with a Pro or Max
+ * login, but `--bare` — the flag that stops their own repository injecting
+ * hooks and CLAUDE.md into the agent — never reads OAuth or the keychain, so
+ * using a subscription means giving that wall up. And a consumer subscription
+ * is priced for a person using it, not for unattended automation in a
+ * datacenter resold as part of a service; the account suspended for that would
+ * be theirs, in the middle of an engagement.
+ */
+function CustomerAnthropicKey({ customerId, customerName }: { customerId: string; customerName: string }) {
+  const [state, setState] = useState<{ set: boolean; prefix: string | null; ok?: boolean; why?: string } | null>(null);
+  const [key, setKey] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/customers/${customerId}/anthropic`, { cache: "no-store" });
+    if (res.ok) setState(await res.json());
+  }, [customerId]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function submit(body: Record<string, unknown>) {
+    setBusy(true);
+    setError("");
+    const res = await fetch(`/api/customers/${customerId}/anthropic`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const out = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(out.error || "that did not work");
+    setKey("");
+    await load();
+  }
+
+  return (
+    <div className="rounded-lg p-3" style={{ background: "var(--surface-raised)" }}>
+      <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+        Who pays for the thinking
+      </div>
+      <p className="mt-1 mb-2 max-w-[64ch] text-[12.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+        {state?.set
+          ? `Work for ${customerName} runs on their own Anthropic key (${state.prefix}), so the model cost is theirs and they can see their own usage.`
+          : `Work for ${customerName} runs on the agency key, so you pay for it. Paste their own key here to move the cost to them.`}
+        {" "}It has to be an API key from their Anthropic Console — not their Claude subscription, which cannot be
+        used for unattended automation and would mean giving up the sandbox flag.
+      </p>
+      {state?.set && state.ok === false ? (
+        <p className="mb-2 text-[12.5px]" style={{ color: "var(--state-stop)" }}>
+          Anthropic is rejecting it: {state.why}. Every pass for them will fail until it is replaced.
+        </p>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          className="btn-os min-w-[240px]"
+          type="password"
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          placeholder={state?.set ? "replace it…" : "sk-ant-…"}
+        />
+        <button className="btn-os brand" disabled={busy || !key.trim()} onClick={() => submit({ key })}>
+          {state?.set ? "Replace" : "Use their key"}
+        </button>
+        {state?.set ? (
+          <button className="btn-os" disabled={busy} onClick={() => submit({ remove: true })}>
+            Back to ours
+          </button>
+        ) : null}
+      </div>
+      {error ? <p className="mt-2 text-[12.5px]" style={{ color: "var(--state-stop)" }}>{error}</p> : null}
     </div>
   );
 }

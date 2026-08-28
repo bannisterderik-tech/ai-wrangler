@@ -276,7 +276,7 @@ let spentThisBoot = 0;
  */
 const RESUME_LIMIT = Math.max(1, Number(process.env.MAX_RESUMES) || 8);
 
-function runOnce(dir, model, brief, resumeId) {
+function runOnce(dir, model, brief, resumeId, apiKey) {
   return new Promise((resolve) => {
     const args = [
       "-p", brief,
@@ -304,7 +304,12 @@ function runOnce(dir, model, brief, resumeId) {
         PATH: process.env.PATH,
         HOME: process.env.HOME,
         LANG: process.env.LANG,
-        ...(process.env.ANTHROPIC_API_KEY ? { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } : {}),
+        // The customer's own key when they brought one, otherwise the agency's.
+        // A pass that works for one customer should carry one customer's
+        // billing, not the key that pays for everybody.
+        ...(apiKey || process.env.ANTHROPIC_API_KEY
+          ? { ANTHROPIC_API_KEY: apiKey || process.env.ANTHROPIC_API_KEY }
+          : {}),
       },
     });
 
@@ -525,7 +530,7 @@ async function main() {
       const model = next.model || MODEL;
       console.log(
         `[agent] ${a.label}: ${next.job.id} "${next.job.title}" — ${next.brain} (${model}), ` +
-          `$${Number(next.remaining).toFixed(2)} left on its cap`,
+          `$${Number(next.remaining).toFixed(2)} left on its cap, billed to ${next.billedTo ?? "agency"}`,
       );
 
       // A new job means a clean head. Carrying one job's reasoning into another
@@ -553,7 +558,7 @@ async function main() {
           `\nClaim that job and no other. If it is already taken, say so and stop:` +
           ` a different job may need a different model than the one you are running.`;
 
-      const { code, usd, killed, sessionId } = await runOnce(a.dir, model, brief, resumeId);
+      const { code, usd, killed, sessionId } = await runOnce(a.dir, model, brief, resumeId, next.apiKey);
       if (code !== 0 && resumeId) {
         // Most likely the session is gone: the container restarted, or the file
         // was cleaned up. Drop it so the next pass starts clean instead of

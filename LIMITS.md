@@ -78,6 +78,15 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
 - **`ask()` has no call sites.** The whole model layer, including the prompt
   caching in it, is unreachable. It saves nothing until something calls it.
 - **No AI receptionist, blog or CMS.** Asked for, not built.
+- **A customer's Claude subscription cannot run their agent.** Claude Code can
+  sign in with a Pro or Max login, but `--bare` — which stops their own
+  repository injecting hooks and CLAUDE.md into the agent — never reads OAuth or
+  the keychain, so a subscription means giving up that wall. Separately, a
+  consumer subscription is priced for a person using it, not for unattended
+  automation in a datacenter resold as part of a service, and the account
+  suspended for that would be the customer's. Their own API key does the same
+  job with neither problem; confirm the current terms with Anthropic rather than
+  taking this file's word for them.
 - **`metrics` has a reader and no writer.** The performance numbers an agent
   reads are from a table nothing fills.
 
