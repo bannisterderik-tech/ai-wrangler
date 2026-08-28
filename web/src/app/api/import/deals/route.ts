@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { fail, guard, operator } from "@/lib/api";
 import { agencyLeads, audit, customers, memories, partners, proposalItems, proposals } from "@/lib/schema";
 import { planImport, slugName, type Plan } from "@/lib/import-deals";
+import { looksLikeXlsx, readXlsx } from "@/lib/xlsx";
 
 const cash = (c: number) => `$${(c / 100).toLocaleString()}`;
 
@@ -20,11 +21,32 @@ export async function POST(req: Request) {
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
-    const csv = String(body.csv || "");
-    if (!csv.trim()) return NextResponse.json({ error: "no file" }, { status: 400 });
-    if (csv.length > 8_000_000) return NextResponse.json({ error: "that file is too big" }, { status: 413 });
 
-    const planned = planImport(csv, String(body.peopleCsv || "") || undefined);
+    /**
+     * A CRM export is Excel more often than CSV — and frequently named .csv
+     * while being Excel, which is exactly how this failed the first time: the
+     * name said csv, the bytes said PK. So the format is decided by the bytes.
+     */
+    const asText = (field: string, b64: string) => {
+      const raw = String(body[b64] || "");
+      if (raw) {
+        const buf = Buffer.from(raw, "base64");
+        if (looksLikeXlsx(buf)) {
+          return readXlsx(buf)
+            .map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(","))
+            .join("\n");
+        }
+        return buf.toString("utf8");
+      }
+      return String(body[field] || "");
+    };
+
+    const csv = asText("csv", "csvB64");
+    if (!csv.trim()) return NextResponse.json({ error: "no file" }, { status: 400 });
+    if (csv.length > 20_000_000) return NextResponse.json({ error: "that file is too big" }, { status: 413 });
+    const peopleCsv = asText("peopleCsv", "peopleB64");
+
+    const planned = planImport(csv, peopleCsv || undefined);
     if ("error" in planned) return NextResponse.json({ error: planned.error }, { status: 400 });
     const plan: Plan = planned;
 

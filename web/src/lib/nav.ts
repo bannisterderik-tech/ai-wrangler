@@ -1,16 +1,18 @@
 export const NAV = [
   { section: "FUNNEL", items: [
+    // Inbox first: it is where the day starts and where somebody is waiting.
+    { href: "/inbox", id: "inbox", label: "Inbox" },
     { href: "/", id: "command", label: "Command" },
     { href: "/leads", id: "leads", label: "Leads" },
     { href: "/prospects", id: "prospects", label: "Prospects" },
     { href: "/dialer", id: "dialer", label: "Dialer" },
-    { href: "/inbox", id: "inbox", label: "Inbox" },
-    { href: "/ads", id: "ads", label: "Ads" },
     { href: "/partners", id: "partners", label: "Partners" },
   ]},
   { section: "CLIENTS", items: [
     { href: "/customers", id: "customers", label: "Customers" },
     { href: "/billing", id: "billing", label: "Billing" },
+    // Ads are run for a customer, not for the funnel — they belong with them.
+    { href: "/ads", id: "ads", label: "Ads" },
   ]},
   { section: "BUILD", items: [
     { href: "/work", id: "work", label: "The floor" },

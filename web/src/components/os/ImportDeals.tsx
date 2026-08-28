@@ -26,12 +26,24 @@ export function ImportDeals({ onDone }: { onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  /**
+   * Send the bytes, base64, and let the server decide what the file is.
+   *
+   * Reading it as text here was the bug: a CRM export named .csv is very often
+   * Excel, and file.text() on a zip produces the mojibake that came back as
+   * "that does not look like a deals export".
+   */
   async function read(file: File | undefined, set: (s: string) => void, setName: (s: string) => void) {
     if (!file) return;
     setError("");
     setPreview(null);
     setWrote(null);
-    set(await file.text());
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    }
+    set(btoa(bin));
     setName(file.name);
   }
 
@@ -41,7 +53,7 @@ export function ImportDeals({ onDone }: { onDone: () => void }) {
     const res = await fetch("/api/import/deals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ csv: deals, peopleCsv: people || undefined, write }),
+      body: JSON.stringify({ csvB64: deals, peopleB64: people || undefined, write }),
     });
     const out = await res.json().catch(() => ({}));
     setBusy(false);
@@ -64,10 +76,10 @@ export function ImportDeals({ onDone }: { onDone: () => void }) {
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1">
           <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-            Deals export (required)
+            Deals export — CSV or Excel (required)
           </span>
           <input
-            type="file" accept=".csv,text/csv"
+            type="file" accept=".csv,.xlsx,text/csv"
             className="btn-os max-w-[260px] text-[12px]"
             onChange={(e) => read(e.target.files?.[0], setDeals, setDealsName)}
           />
@@ -77,7 +89,7 @@ export function ImportDeals({ onDone }: { onDone: () => void }) {
             Contacts export (optional)
           </span>
           <input
-            type="file" accept=".csv,text/csv"
+            type="file" accept=".csv,.xlsx,text/csv"
             className="btn-os max-w-[260px] text-[12px]"
             onChange={(e) => read(e.target.files?.[0], setPeople, setPeopleName)}
           />

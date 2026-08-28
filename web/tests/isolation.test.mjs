@@ -2820,3 +2820,108 @@ describe("a CRM export can be imported from the OS", () => {
     assert.equal(res.status, 401);
   });
 });
+
+/**
+ * A CRM export is Excel more often than CSV — and frequently named .csv while
+ * being Excel. That is exactly how the first import failed: the name said csv,
+ * the bytes said PK, and the user got a screenful of zip mojibake.
+ */
+describe("the importer reads Excel, not just CSV", () => {
+  // A minimal real .xlsx, built here rather than fetched, so the test proves the
+  // reader against the actual format.
+  let deflateRawSync;
+  before(async () => {
+    ({ deflateRawSync } = await import("node:zlib"));
+  });
+
+  function makeXlsx(rows) {
+    const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const col = (n) => {
+      let s = "";
+      for (n += 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+      return s;
+    };
+    const sheet =
+      `<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>` +
+      rows
+        .map(
+          (r, i) =>
+            `<row r="${i + 1}">` +
+            r.map((c, j) => `<c r="${col(j)}${i + 1}" t="inlineStr"><is><t>${esc(c)}</t></is></c>`).join("") +
+            `</row>`,
+        )
+        .join("") +
+      `</sheetData></worksheet>`;
+
+    const files = [["xl/worksheets/sheet1.xml", Buffer.from(sheet, "utf8")]];
+    const locals = [];
+    const central = [];
+    let offset = 0;
+    for (const [name, content] of files) {
+      const body = deflateRawSync(content);
+      const nameBuf = Buffer.from(name, "utf8");
+      const lh = Buffer.alloc(30);
+      lh.writeUInt32LE(0x04034b50, 0); lh.writeUInt16LE(20, 4); lh.writeUInt16LE(8, 8);
+      lh.writeUInt32LE(0, 14); lh.writeUInt32LE(body.length, 18);
+      lh.writeUInt32LE(content.length, 22); lh.writeUInt16LE(nameBuf.length, 26);
+      locals.push(lh, nameBuf, body);
+      const ch = Buffer.alloc(46);
+      ch.writeUInt32LE(0x02014b50, 0); ch.writeUInt16LE(20, 6); ch.writeUInt16LE(8, 10);
+      ch.writeUInt32LE(body.length, 20); ch.writeUInt32LE(content.length, 24);
+      ch.writeUInt16LE(nameBuf.length, 28); ch.writeUInt32LE(offset, 42);
+      central.push(ch, nameBuf);
+      offset += lh.length + nameBuf.length + body.length;
+    }
+    const localBuf = Buffer.concat(locals);
+    const centralBuf = Buffer.concat(central);
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(files.length, 8); eocd.writeUInt16LE(files.length, 10);
+    eocd.writeUInt32LE(centralBuf.length, 12); eocd.writeUInt32LE(localBuf.length, 16);
+    return Buffer.concat([localBuf, centralBuf, eocd]);
+  }
+
+  const rows = [
+    ["Record ID", "record", "Deal stage", "Deal value", "Deal MRR Value", "Product"],
+    ["x-1", "Excel Won Co", "Won 🎉", "4000", "4000", "AI Engineering"],
+    ["x-2", "Excel Lead Co", "Offer Sent", "2000", "", "Website"],
+  ];
+
+  before(async () => {
+    await sql`DELETE FROM agency_leads WHERE id LIKE 'L\\_x-%'`;
+    await sql`DELETE FROM customers WHERE id = 'excel-won-co'`;
+  });
+
+  test("an .xlsx is detected by its bytes and read", async () => {
+    const b64 = makeXlsx(rows).toString("base64");
+    const res = await api("/api/import/deals", { method: "POST", body: JSON.stringify({ csvB64: b64 }) });
+    assert.equal(res.status, 200, `preview failed: ${JSON.stringify(res.body).slice(0, 200)}`);
+    assert.equal(res.body.preview.total, 2);
+    assert.equal(res.body.preview.customers, 1);
+    assert.equal(res.body.preview.leads, 1);
+  });
+
+  test("a plain CSV still works through the same field", async () => {
+    const csv = rows.map((r) => r.join(",")).join("\n");
+    const b64 = Buffer.from(csv, "utf8").toString("base64");
+    const res = await api("/api/import/deals", { method: "POST", body: JSON.stringify({ csvB64: b64 }) });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.preview.total, 2);
+  });
+
+  test("a file with no rows says so", async () => {
+    const b64 = Buffer.from("just some words, not a spreadsheet", "utf8").toString("base64");
+    const res = await api("/api/import/deals", { method: "POST", body: JSON.stringify({ csvB64: b64 }) });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /no rows/);
+  });
+
+  test("a real CSV of the wrong shape is refused with the columns it found", async () => {
+    const b64 = Buffer.from("name,favourite colour\nBob,blue\nAnn,red", "utf8").toString("base64");
+    const res = await api("/api/import/deals", { method: "POST", body: JSON.stringify({ csvB64: b64 }) });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /does not look like a deals export/);
+    // Naming what it saw is the difference between a dead end and a next step.
+    assert.match(res.body.error, /favourite colour/);
+  });
+});
