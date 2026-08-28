@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
 import Link from "next/link";
 import { AgentConnections } from "@/components/os/AgentConnections";
+import { AgentMaintenance } from "@/components/os/AgentMaintenance";
 
 type Person = {
   id: string; name: string; handle: string; role: string; approver: boolean;
@@ -286,14 +287,19 @@ export default function SessionsPage() {
         <Tabs
           tabs={
             (who.agentKind ?? "build") === "copilot"
-              ? [["reach", "What it can reach"], ["connect", "Connect"], ["tools", "Tools"], ["scope", "Scope"]]
-              : [["connect", "Connect"], ["reach", "What it can reach"], ["tools", "Tools"], ["scope", "Scope"]]
+              ? [["reach", "What it can reach"], ["health", "Health"], ["connect", "Connect"], ["tools", "Tools"], ["scope", "Scope"]]
+              : [["health", "Health"], ["connect", "Connect"], ["reach", "What it can reach"], ["tools", "Tools"], ["scope", "Scope"]]
           }
           tab={tab}
           onTab={setTab}
         />
 
         <div className="min-h-0 flex-1 overflow-auto p-4">
+          {tab === "health" ? (
+            <div className="-m-4">
+              <AgentMaintenance personId={who.id} agentName={who.name} />
+            </div>
+          ) : null}
           {tab === "reach" ? (
             <div className="-m-4">
               {who.brief ? (

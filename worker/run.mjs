@@ -355,6 +355,104 @@ function runOnce(dir, model, brief, resumeId, apiKey) {
 }
 
 /**
+ * Maintenance the floor has queued for this agent.
+ *
+ * A fixed set of verbs. The only one that takes an argument is `update`, and
+ * that argument is matched against a semver pattern before it goes anywhere
+ * near a command line — a version string taken on trust is a shell injection
+ * with extra steps, and this runs on a client's box.
+ */
+const SEMVER = /^[0-9]+\.[0-9]+\.[0-9]+$/;
+
+async function takeCommands(a) {
+  let list = [];
+  try {
+    const res = await fetch(new URL("/api/agent/commands", MCP_URL), {
+      headers: { Authorization: `Bearer ${a.token}` },
+    });
+    if (!res.ok) return;
+    list = (await res.json()).commands ?? [];
+  } catch {
+    return;
+  }
+
+  for (const c of list) {
+    let ok = true;
+    let result = "";
+    try {
+      switch (c.command) {
+        case "pause":
+          a.paused = true;
+          result = "paused; still running, not taking work";
+          break;
+        case "resume":
+          a.paused = false;
+          a.dead = false;
+          result = "taking work again";
+          break;
+        case "run_now":
+          a.runNow = true;
+          result = "will do a pass without waiting for the next cycle";
+          break;
+        case "reload":
+          // Settings already come from the floor on every cycle, so this is a
+          // no-op by design rather than by omission. Saying so beats pretending.
+          result = "nothing to reload: the model, the job and the cap are read fresh every cycle";
+          break;
+        case "diagnose":
+          result =
+            `claude ${VERSION} on ${HOST} · up ${Math.round(process.uptime())}s · ` +
+            `bare=${BARE} resume=${CAN_RESUME} · $${spentThisBoot.toFixed(2)} of $${MAX_SPEND_USD.toFixed(2)} · ` +
+            `poll ${INTERVAL}s · pass ceiling ${Math.round(MAX_PASS_MS / 1000)}s`;
+          break;
+        case "update": {
+          const want = String(c.args || "").trim();
+          if (want && !SEMVER.test(want)) throw new Error(`"${want}" is not a version number`);
+          const target = want ? `@anthropic-ai/claude-code@${want}` : "@anthropic-ai/claude-code@latest";
+          const r = spawnSync("npm", ["install", "-g", target], { encoding: "utf8", timeout: 300_000 });
+          if (r.status !== 0) throw new Error((r.stderr || "npm failed").slice(0, 300));
+          const v = spawnSync("claude", ["--version"], { encoding: "utf8", timeout: 20_000 });
+          result = `updated to ${(v.stdout || "").trim() || target}; restarting`;
+          await reportCommand(a, c.id, true, result);
+          console.log(`[agent] ${a.label}: ${result}`);
+          process.exit(0);
+          break;
+        }
+        case "restart":
+          result = "restarting";
+          await reportCommand(a, c.id, true, result);
+          console.log(`[agent] ${a.label}: told to restart`);
+          // The supervisor brings it back. Exiting is the whole mechanism, and
+          // it is why the worker must run under systemd, pm2 or a container
+          // that restarts.
+          process.exit(0);
+          break;
+        default:
+          ok = false;
+          result = `unknown command ${c.command}`;
+      }
+    } catch (e) {
+      ok = false;
+      result = e?.message ?? String(e);
+    }
+    console.log(`[agent] ${a.label}: ${c.command} — ${result}`);
+    await reportCommand(a, c.id, ok, result);
+  }
+}
+
+async function reportCommand(a, id, ok, result) {
+  try {
+    await fetch(new URL("/api/agent/commands", MCP_URL), {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${a.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ok, result }),
+    });
+  } catch {
+    /* the floor will see it did not come back */
+  }
+}
+
+/**
  * Say what this worker is doing, so the OS knows without asking a provider.
  *
  * Outbound on purpose: it works from a Hostinger VPS, a Railway container or a
@@ -521,7 +619,7 @@ async function main() {
     writeFileSync(marker, mine, { mode: 0o600 });
 
     writeMcpConfig(dir, token);
-    agents.push({ dir, label: who.label, token, jobId: null, sessionId: null, resumes: 0, passes: 0 });
+    agents.push({ dir, label: who.label, token, jobId: null, sessionId: null, resumes: 0, passes: 0, paused: false, runNow: false });
     console.log(`[agent] ${i + 1}. ${who.label}  workspace ${dir}`);
   }
 
@@ -535,6 +633,14 @@ async function main() {
       if (a.dead) continue;
       const started = Date.now();
       console.log(`[agent] --- ${a.label} ---`);
+
+      // Maintenance first: a restart or an update should not wait behind a pass.
+      await takeCommands(a);
+      if (a.dead) continue;
+      if (a.paused) {
+        await heartbeat(a.token, { state: "stopped", detail: "paused from the OS" });
+        continue;
+      }
 
       await heartbeat(a.token, { state: "ok", passes: a.passes || 0, detail: "checking for work" });
 
@@ -671,7 +777,11 @@ async function main() {
       process.exit(1);
     }
     // A crashed pass must not become a hot loop against the API.
-    await new Promise((r) => setTimeout(r, Math.max(30, INTERVAL) * 1000));
+    // run_now shortens the wait rather than skipping it, so a stuck queue
+    // cannot turn into a hot loop.
+    const wait = agents.some((a) => a.runNow) ? 5 : Math.max(30, INTERVAL);
+    for (const a of agents) a.runNow = false;
+    await new Promise((r) => setTimeout(r, wait * 1000));
   } while (true);
 }
 

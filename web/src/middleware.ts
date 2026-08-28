@@ -12,6 +12,8 @@ const PUBLIC = [
   "/api/agent/next",
   // A worker reporting its own health, Bearer-authenticated like the rest.
   "/api/agent/heartbeat",
+  // A worker collecting its maintenance queue and reporting how it went.
+  "/api/agent/commands",
   // Stripe posts here with its own signature; there is no session to have.
   "/api/stripe/webhook",
   // Called from a customer's own deployed site. Write-only, key-authenticated,

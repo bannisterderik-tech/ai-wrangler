@@ -3356,3 +3356,96 @@ describe("the feedback widget stays on our side of the product", () => {
     assert.ok(bareReturn > -1 && widget > bareReturn, "the bare branch returns before the widget");
   });
 });
+
+/**
+ * Maintaining a client's agent without a terminal.
+ *
+ * A managed agent runs on somebody else's behalf, on a box the client never
+ * sees, and keeping it alive is our job. The verbs are a fixed set on purpose:
+ * a channel that can run arbitrary shell on a client's machine is a backdoor
+ * that keeps a nice log.
+ */
+describe("a client's agent can be maintained from the OS", () => {
+  const token = "wr_sess_maint00000000000000000000000";
+  before(async () => {
+    await sql`DELETE FROM agent_commands WHERE person_id IN ('A_maint','A_other')`;
+    await sql`DELETE FROM people WHERE id IN ('A_maint','A_other')`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(token).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, tenant_id, token_hash, status, agent_kind)
+      VALUES ('A_maint','maint-box','maint-box','agent','acme','ai-wrangler',${hash},'connected','copilot')`;
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, tenant_id, status, agent_kind)
+      VALUES ('A_other','other-box','other-box','agent','globex','ai-wrangler','connected','build')`;
+  });
+
+  const queue = (command, args) =>
+    api("/api/agent/commands", { method: "POST", body: JSON.stringify({ agent: "A_maint", command, args }) });
+  const collect = () =>
+    fetch(`${BASE}/api/agent/commands`, { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json());
+
+  test("only the listed verbs are accepted", async () => {
+    const ok = await queue("restart");
+    assert.equal(ok.status, 200);
+    for (const bad of ["rm -rf /", "exec", "; reboot", ""]) {
+      const res = await queue(bad);
+      assert.equal(res.status, 400, `"${bad}" must not be queueable`);
+    }
+  });
+
+  test("the worker collects them once, so a second worker does not repeat them", async () => {
+    const first = await collect();
+    assert.ok(first.commands.length >= 1);
+    const second = await collect();
+    assert.equal(second.commands.length, 0, "taken means taken");
+  });
+
+  test("it reports how it went, and only on its own commands", async () => {
+    await queue("diagnose");
+    const [cmd] = (await collect()).commands;
+    const mine = await fetch(`${BASE}/api/agent/commands`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: cmd.id, ok: true, result: "up 900s" }),
+    });
+    assert.equal(mine.status, 200);
+
+    await sql`
+      INSERT INTO agent_commands (id, person_id, command, issued_by)
+      VALUES ('X_notmine','A_other','restart','someone')`;
+    const theirs = await fetch(`${BASE}/api/agent/commands`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "X_notmine", ok: true, result: "not mine" }),
+    });
+    assert.equal(theirs.status, 404);
+    const [row] = await sql`SELECT status FROM agent_commands WHERE id = 'X_notmine'`;
+    assert.equal(row.status, "queued", "another agent's queue must not be answerable");
+  });
+
+  test("an update version is a version, not a command line", async () => {
+    // The worker only ever runs `npm install -g @anthropic-ai/claude-code@<arg>`,
+    // and it checks the arg against a semver pattern first — a version taken on
+    // trust is shell injection with extra steps, on a client's machine.
+    const worker = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../../worker/run.mjs", import.meta.url), "utf8"),
+    );
+    assert.match(worker, /SEMVER\s*=\s*\/\^\[0-9\]\+\\\.\[0-9\]\+\\\.\[0-9\]\+\$\//);
+    assert.match(worker, /SEMVER\.test\(want\)/);
+    // And nothing anywhere runs a shell string from a command.
+    assert.ok(!/exec\(|execSync\(/.test(worker), "no shell string execution in the worker");
+  });
+
+  test("an agent on another account cannot be commanded", async () => {
+    await sql`DELETE FROM tenants WHERE id = 'notmine-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build) VALUES ('notmine-agency','Not Mine', true)`;
+    await sql`UPDATE people SET tenant_id = 'notmine-agency' WHERE id = 'A_other'`;
+    const res = await api("/api/agent/commands", {
+      method: "POST",
+      body: JSON.stringify({ agent: "A_other", command: "restart" }),
+    });
+    assert.equal(res.status, 404, "same refusal as one that does not exist");
+    await sql`UPDATE people SET tenant_id = 'ai-wrangler' WHERE id = 'A_other'`;
+  });
+});
