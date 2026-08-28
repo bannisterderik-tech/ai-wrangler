@@ -370,3 +370,28 @@ export const leadEvents = pgTable(
   },
   (t) => [index("lead_events_timeline").on(t.customerId, t.leadId, t.at)],
 );
+
+/**
+ * The agency's own pipeline — shops buying web and technology from us. Not the
+ * same thing as `leads`, which is a customer's own callers.
+ */
+export const agencyLeads = pgTable(
+  "agency_leads",
+  {
+    id: text("id").primaryKey(),
+    company: text("company").notNull(),
+    contact: text("contact"),
+    phone: text("phone"),
+    email: text("email"),
+    city: text("city"),
+    trade: text("trade"),
+    source: text("source"),
+    stage: text("stage").notNull().default("new"),
+    valueCents: integer("value_cents").notNull().default(0),
+    note: text("note"),
+    ownerId: text("owner_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastTouchAt: timestamp("last_touch_at", { withTimezone: true }),
+  },
+  (t) => [index("agency_leads_board").on(t.stage, t.createdAt)],
+);
