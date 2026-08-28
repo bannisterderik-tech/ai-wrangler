@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, operatorAllowlist, sessionCookieOptions, signSession } from "@/lib/auth";
+import { publicOrigin } from "@/lib/origin";
 
 export async function GET(req: NextRequest) {
-  const origin = req.nextUrl.origin;
+  const origin = publicOrigin(req);
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state");
   const expected = req.cookies.get("wrangler_login_state")?.value;

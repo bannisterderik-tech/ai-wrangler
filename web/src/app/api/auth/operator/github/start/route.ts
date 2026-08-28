@@ -1,9 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { githubLoginConfigured, operatorAllowlist } from "@/lib/auth";
+import { publicOrigin } from "@/lib/origin";
 
 export async function GET(req: NextRequest) {
-  const origin = req.nextUrl.origin;
+  const origin = publicOrigin(req);
   if (!githubLoginConfigured()) {
     return NextResponse.redirect(
       new URL(`/login?error=${encodeURIComponent("GitHub login is not configured on this deploy.")}`, origin),

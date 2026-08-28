@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { ensureCustomer } from "@/lib/customers";
+import { publicOrigin } from "@/lib/origin";
 
 /** Send this customer to Vercel to pick which of *their* projects Wrangler may touch. */
 export async function GET(req: NextRequest) {
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
         `/connect?error=${encodeURIComponent(
           "Create a Vercel Integration, then set VERCEL_INTEGRATION_CLIENT_ID / SECRET / SLUG. Until then paste a project-scoped token.",
         )}`,
-        req.nextUrl.origin,
+        publicOrigin(req),
       ),
     );
   }

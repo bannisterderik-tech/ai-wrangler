@@ -6,13 +6,14 @@ import { db } from "@/lib/db";
 import { audit, connections } from "@/lib/schema";
 import { bindResources } from "@/lib/binding";
 import { listCustomerProjects } from "@/lib/vercel";
+import { publicOrigin } from "@/lib/origin";
 
 /**
  * Vercel Integration callback. The customer installs on *their* Vercel account,
  * and we store the resulting token against exactly one customer — never shared.
  */
 export async function GET(req: NextRequest) {
-  const origin = req.nextUrl.origin;
+  const origin = publicOrigin(req);
   const bail = (msg: string) =>
     NextResponse.redirect(new URL(`/connect?error=${encodeURIComponent(msg)}`, origin));
 

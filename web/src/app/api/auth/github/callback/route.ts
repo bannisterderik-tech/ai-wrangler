@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveAgencyGithub } from "@/lib/github";
+import { publicOrigin } from "@/lib/origin";
 
 export async function GET(req: NextRequest) {
-  const origin = req.nextUrl.origin;
+  const origin = publicOrigin(req);
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state");
   const stored = req.cookies.get("gh_oauth_state")?.value;

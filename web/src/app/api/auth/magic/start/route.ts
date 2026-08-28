@@ -5,6 +5,7 @@ import { isOperatorEmail, magicLinkConfigured } from "@/lib/auth";
 import { audit, loginLinks, people } from "@/lib/schema";
 import { mailConfigured, sendMagicLink } from "@/lib/mail";
 import { hashToken, mintToken } from "@/lib/session-token";
+import { publicOrigin } from "@/lib/origin";
 
 const TTL_MINUTES = 15;
 const MAX_PER_WINDOW = 5;
@@ -79,7 +80,7 @@ export async function POST(req: Request) {
   }
 
   const { raw } = mintToken();
-  const origin = new URL(req.url).origin;
+  const origin = publicOrigin(req);
   const url = `${origin}/api/auth/magic/callback?token=${encodeURIComponent(raw)}`;
 
   await db.insert(loginLinks).values({

@@ -4,13 +4,17 @@ import { db } from "@/lib/db";
 import { SESSION_COOKIE, isOperatorEmail, sessionCookieOptions, signSession } from "@/lib/auth";
 import { audit, loginLinks, people } from "@/lib/schema";
 import { hashToken } from "@/lib/session-token";
+import { publicOrigin } from "@/lib/origin";
 
 /** Redeem a sign-in link. One use, then it is dead. */
 export async function GET(req: Request) {
   const url = new URL(req.url);
+  // Redirect back to where the browser actually is, not to the container's bind
+  // address — otherwise signing in lands you on https://0.0.0.0:8080.
+  const origin = publicOrigin(req);
   const token = url.searchParams.get("token") || "";
   const bail = (msg: string) =>
-    NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(msg)}`, url.origin));
+    NextResponse.redirect(new URL(`/login?error=${encodeURIComponent(msg)}`, origin));
 
   if (!token) return bail("That link is missing its token.");
 
@@ -55,7 +59,7 @@ export async function GET(req: Request) {
   const next = url.searchParams.get("next");
   const wanted = next && next.startsWith("/") && !next.startsWith("//") ? next : home;
   const dest = who?.customerId && !wanted.startsWith("/client") ? home : wanted;
-  const res = NextResponse.redirect(new URL(dest, url.origin));
+  const res = NextResponse.redirect(new URL(dest, origin));
   res.cookies.set(SESSION_COOKIE, session, sessionCookieOptions());
   return res;
 }
