@@ -3449,3 +3449,103 @@ describe("a client's agent can be maintained from the OS", () => {
     await sql`UPDATE people SET tenant_id = 'ai-wrangler' WHERE id = 'A_other'`;
   });
 });
+
+/**
+ * A customer's own credentials, and why a copilot earns its own machine.
+ *
+ * agent_connections recorded WHICH systems a copilot needs and had nowhere to
+ * put the secret that actually reaches them — so a copilot could be fully
+ * mapped and unable to read a single email.
+ *
+ * A copilot holds a business's mail, calendar and books. On a shared app server
+ * one bug exposes every customer's; on its own box a compromise stops at the
+ * one it belongs to. That is the argument for the box, and this is the wall
+ * that makes it mean something.
+ */
+describe("connector credentials reach one copilot and nothing else", () => {
+  const mineTok = "wr_sess_credmine0000000000000000000";
+  const theirsTok = "wr_sess_credtheirs00000000000000000";
+  let rowId = "";
+
+  before(async () => {
+    await sql`DELETE FROM agent_connections WHERE person_id IN ('A_credmine','A_credtheirs')`;
+    await sql`DELETE FROM people WHERE id IN ('A_credmine','A_credtheirs')`;
+    const { createHash } = await import("node:crypto");
+    const h = (t) => createHash("sha256").update(t).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, tenant_id, token_hash, status, agent_kind) VALUES
+        ('A_credmine','mine','mine','agent','acme','ai-wrangler',${h(mineTok)},'connected','copilot'),
+        ('A_credtheirs','theirs','theirs','agent','globex','ai-wrangler',${h(theirsTok)},'connected','copilot')`;
+    const res = await api("/api/people/A_credmine/connections", {
+      method: "POST",
+      body: JSON.stringify({ provider: "odoo", label: "Accounting" }),
+    });
+    assert.equal(res.status, 200);
+    const listed = await api("/api/people/A_credmine/connections");
+    rowId = listed.body.connections[0].id;
+  });
+
+  const collect = (tok) =>
+    fetch(`${BASE}/api/agent/credentials`, { headers: { Authorization: `Bearer ${tok}` } }).then((r) => r.json());
+
+  test("a stored credential never comes back out of the API", async () => {
+    const set = await api("/api/people/A_credmine/connections", {
+      method: "PATCH",
+      body: JSON.stringify({ id: rowId, secret: "odoo-secret-value-xyz", secretKind: "token" }),
+    });
+    assert.equal(set.status, 200);
+    const listed = await api("/api/people/A_credmine/connections");
+    assert.ok(!JSON.stringify(listed.body).includes("odoo-secret-value-xyz"), "only ever a boolean");
+    assert.equal(listed.body.connections[0].hasSecret, true);
+  });
+
+  test("it is stored encrypted, not in the clear", async () => {
+    const [row] = await sql`SELECT encrypted_secret FROM agent_connections WHERE id = ${rowId}`;
+    assert.ok(row.encrypted_secret);
+    assert.ok(!row.encrypted_secret.includes("odoo-secret-value-xyz"), "the column must not hold the plaintext");
+  });
+
+  test("only a connection marked connected is delivered", async () => {
+    // It is still "needed": mapping a system is not the same as wiring it up,
+    // and half-configured credentials must not reach a box.
+    const before = await collect(mineTok);
+    assert.equal(before.connections.length, 0);
+    await api("/api/people/A_credmine/connections", {
+      method: "PATCH",
+      body: JSON.stringify({ id: rowId, status: "connected", iConnectedItMyself: true }),
+    });
+    const after = await collect(mineTok);
+    assert.equal(after.connections.length, 1);
+    assert.equal(after.connections[0].secret, "odoo-secret-value-xyz");
+  });
+
+  test("another copilot's token gets none of it", async () => {
+    const theirs = await collect(theirsTok);
+    assert.deepEqual(theirs.connections, [], "the query is keyed on the session, not on an argument");
+  });
+
+  test("an operator cannot call the delivery route at all", async () => {
+    const res = await api("/api/agent/credentials");
+    assert.equal(res.status, 401);
+  });
+
+  test("replacing a credential marks it undelivered again", async () => {
+    const [before] = await sql`SELECT delivered_at FROM agent_connections WHERE id = ${rowId}`;
+    assert.ok(before.delivered_at, "it was delivered a moment ago");
+    await api("/api/people/A_credmine/connections", {
+      method: "PATCH",
+      body: JSON.stringify({ id: rowId, secret: "a-new-value", secretKind: "token" }),
+    });
+    const [after] = await sql`SELECT delivered_at FROM agent_connections WHERE id = ${rowId}`;
+    assert.equal(after.delivered_at, null, "a new credential has not reached the box, whatever the old one did");
+  });
+
+  test("the audit trail records the provider, never the value", async () => {
+    const rows = await sql`
+      SELECT target FROM audit WHERE action = 'stored a credential for an agent' ORDER BY at DESC LIMIT 3`;
+    assert.ok(rows.length);
+    for (const r of rows) {
+      assert.ok(!/odoo-secret-value|a-new-value/.test(r.target ?? ""), "a secret must not land in the audit trail");
+    }
+  });
+});

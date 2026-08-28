@@ -14,6 +14,9 @@ const PUBLIC = [
   "/api/agent/heartbeat",
   // A worker collecting its maintenance queue and reporting how it went.
   "/api/agent/commands",
+  // A copilot collecting the credentials for its own connections, and only
+  // its own — the query is keyed on the session, not on an argument.
+  "/api/agent/credentials",
   // Stripe posts here with its own signature; there is no session to have.
   "/api/stripe/webhook",
   // Called from a customer's own deployed site. Write-only, key-authenticated,

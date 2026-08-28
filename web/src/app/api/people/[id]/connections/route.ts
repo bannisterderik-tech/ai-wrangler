@@ -5,6 +5,7 @@ import { fail, guard, operator } from "@/lib/api";
 import { agentConnections, audit, people } from "@/lib/schema";
 import { newId } from "@/lib/customers";
 import { CATEGORIES, CONNECTORS, connector } from "@/lib/connectors";
+import { encrypt } from "@/lib/crypto";
 
 const STATUSES = ["needed", "connected", "blocked", "dropped"];
 
@@ -36,6 +37,12 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/people/[id]/con
           label: r.label,
           status: r.status,
           note: r.note,
+          // Whether a credential exists, never the credential. The only place
+          // it is ever decrypted is on its way to that copilot's own machine.
+          hasSecret: Boolean(r.encryptedSecret),
+          secretKind: r.secretKind,
+          secretSetAt: r.secretSetAt,
+          deliveredAt: r.deliveredAt,
         };
       }),
     });
@@ -94,6 +101,41 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/people/[id]/co
       await db.delete(agentConnections).where(and(eq(agentConnections.id, rowId), eq(agentConnections.personId, id)));
       return NextResponse.json({ ok: true });
     }
+    // Storing the credential that actually reaches the system.
+    if (typeof body.secret === "string") {
+      const [row] = await db.select().from(agentConnections).where(eq(agentConnections.id, rowId)).limit(1);
+      if (!row || row.personId !== id) return NextResponse.json({ error: "no such connection" }, { status: 404 });
+      const secret = body.secret.trim();
+      if (!secret) {
+        await db
+          .update(agentConnections)
+          .set({ encryptedSecret: null, secretKind: null, secretSetAt: null, deliveredAt: null })
+          .where(eq(agentConnections.id, rowId));
+        return NextResponse.json({ ok: true, hasSecret: false });
+      }
+      await db
+        .update(agentConnections)
+        .set({
+          encryptedSecret: encrypt(secret),
+          secretKind: ["token", "password", "oauth_refresh", "json"].includes(String(body.secretKind))
+            ? String(body.secretKind)
+            : "token",
+          secretSetAt: new Date(),
+          // A new credential has not reached the box yet, whatever the old one did.
+          deliveredAt: null,
+        })
+        .where(eq(agentConnections.id, rowId));
+      await db.insert(audit).values({
+        customerId: null,
+        actor: (await operator())?.name || "you",
+        action: "stored a credential for an agent",
+        // The provider, never the value.
+        target: `${row.provider}${row.label ? ` · ${row.label}` : ""}`,
+        at: new Date(),
+      });
+      return NextResponse.json({ ok: true, hasSecret: true });
+    }
+
     const status = String(body.status || "");
     if (!STATUSES.includes(status)) return NextResponse.json({ error: "unknown status" }, { status: 400 });
     const [row] = await db.select().from(agentConnections).where(eq(agentConnections.id, rowId)).limit(1);

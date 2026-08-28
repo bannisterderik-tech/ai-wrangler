@@ -230,6 +230,9 @@ export const people = pgTable(
   agentKind: text("agent_kind"),
   /** What a copilot is for, in the customer's words. */
   brief: text("brief"),
+  /** Which machine runs this agent, and who provides it. */
+  hostId: text("host_id"),
+  hostProvider: text("host_provider"),
     /** Set on client rows only. This column is the tenancy. */
     customerId: text("customer_id"),
     role: text("role").notNull().default("Build wrangler"),
@@ -650,6 +653,16 @@ export const agentConnections = pgTable(
     /** needed | connected | blocked | dropped */
     status: text("status").notNull().default("needed"),
     note: text("note"),
+    /**
+     * The credential that actually reaches this system, encrypted with the same
+     * vault as every customer token. Never returned by an API, never rendered,
+     * and delivered to exactly one machine: the one running this copilot.
+     */
+    encryptedSecret: text("encrypted_secret"),
+    /** token | password | oauth_refresh | json — what shape it is. */
+    secretKind: text("secret_kind"),
+    secretSetAt: timestamp("secret_set_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("agent_connections_person").on(t.personId, t.status)],
