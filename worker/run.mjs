@@ -182,12 +182,23 @@ async function main() {
   for (let i = 0; i < TOKENS.length; i++) {
     const token = TOKENS[i];
     const who = await whoAmI(token);
-    if (!who.ok) console.warn(`[agent] ${who.label}: the floor did not recognise this token`);
+    if (!who.ok) {
+      // A revoked agent's token stays in the worker's list — the OS never keeps
+      // the plaintext, so it cannot go and remove it. It does not need to: a
+      // token the floor no longer recognises is simply skipped.
+      console.warn(`[agent] skipping ${who.label}: the floor does not recognise this token (revoked?)`);
+      continue;
+    }
     // A workspace each: two agents must never share a checkout.
     const dir = join(WORKSPACE, `agent-${i + 1}`);
     writeMcpConfig(dir, token);
     agents.push({ dir, label: who.label });
     console.log(`[agent] ${i + 1}. ${who.label}  workspace ${dir}`);
+  }
+
+  if (!agents.length) {
+    console.error("[agent] no token on this worker is recognised by the floor. Nothing to run.");
+    process.exit(1);
   }
 
   do {

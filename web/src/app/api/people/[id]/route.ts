@@ -6,6 +6,8 @@ import { audit, jobs, people, personScopes, personTools } from "@/lib/schema";
 import { mintToken } from "@/lib/session-token";
 import { TOOLS } from "@/lib/mcp-tools";
 import { getCustomer } from "@/lib/customers";
+import { attachAgent } from "@/lib/railway";
+import { publicOrigin } from "@/lib/origin";
 
 /**
  * One person's session. Everything here is an operator action:
@@ -48,10 +50,35 @@ export async function POST(req: Request, ctx: RouteContext<"/api/people/[id]">) 
         target: who.handle,
         at: new Date(),
       });
+      // An agent's token is not for a person to copy — it is for the worker to
+      // run as. Hand it straight to Railway so nobody opens that dashboard.
+      let deploy: Record<string, unknown> = { deployed: false, why: "Not an agent." };
+      if (who.kind === "agent") {
+        try {
+          deploy = await attachAgent(
+            raw,
+            process.env.WORKER_REPO || "bannisterderik-tech/ai-wrangler",
+            publicOrigin(req),
+          );
+        } catch (e) {
+          deploy = { deployed: false, why: (e as Error).message };
+        }
+        await db.insert(audit).values({
+          customerId: who.customerId,
+          actor,
+          action: deploy.deployed ? "deployed agent to the worker" : "agent token minted, not deployed",
+          target: who.handle,
+          at: new Date(),
+        });
+      }
       return NextResponse.json({
         ok: true,
         token: raw,
-        note: "Copy this now. It is stored as a hash and cannot be shown again.",
+        deploy,
+        note:
+          who.kind === "agent"
+            ? "Handed to the worker. Copy it only if you want to run this agent somewhere else."
+            : "Copy this now. It is stored as a hash and cannot be shown again.",
       });
     }
 
@@ -117,6 +144,10 @@ export async function POST(req: Request, ctx: RouteContext<"/api/people/[id]">) 
     }
 
     if (action === "revoke") {
+      // Nothing to unwind on Railway. We never keep the plaintext, so we could
+      // not find it in the worker's list anyway — and we do not need to: the
+      // token is dead the moment the hash is cleared, and the worker skips any
+      // token the floor no longer recognises.
       // Kill the token, then put everything they were holding back on the board.
       await db
         .update(people)

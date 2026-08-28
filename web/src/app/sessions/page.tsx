@@ -12,6 +12,7 @@ type Person = {
 };
 type Payload = { people: Person[]; tools: { name: string; description: string }[] };
 type Customer = { id: string; name: string };
+type Railway = { connected: boolean; serviceId: string | null; blocked?: string; anthropic: boolean };
 
 const TONE: Record<string, string> = {
   connected: "var(--state-go)", idle: "var(--state-thinking)",
@@ -33,14 +34,19 @@ export default function SessionsPage() {
   const [newName, setNewName] = useState("");
   const [newCustomer, setNewCustomer] = useState("");
   const [addError, setAddError] = useState("");
+  const [railway, setRailway] = useState<Railway | null>(null);
+  const [rwToken, setRwToken] = useState("");
+  const [deployNote, setDeployNote] = useState("");
 
   const load = useCallback(async () => {
-    const [a, b] = await Promise.all([
+    const [a, b, r] = await Promise.all([
       fetch("/api/people", { cache: "no-store" }),
       fetch("/api/floor", { cache: "no-store" }),
+      fetch("/api/railway", { cache: "no-store" }),
     ]);
     if (a.ok) setData(await a.json());
     if (b.ok) setCustomers((await b.json()).customers ?? []);
+    if (r.ok) setRailway(await r.json());
   }, []);
 
   useEffect(() => {
@@ -81,6 +87,15 @@ export default function SessionsPage() {
     });
     const out = await res.json().catch(() => ({}));
     if (out.token) setRevealed((r) => ({ ...r, [id]: out.token }));
+    if (out.deploy) {
+      setDeployNote(
+        out.deploy.deployed
+          ? out.deploy.created
+            ? "Worker service created on Railway and deploying now."
+            : `Handed to the worker — ${out.deploy.agents} agent(s) running. Redeploying.`
+          : `Not deployed: ${out.deploy.why}`,
+      );
+    }
     setBusy(false);
     await load();
   }
@@ -230,7 +245,80 @@ export default function SessionsPage() {
         />
 
         <div className="min-h-0 flex-1 overflow-auto p-4">
-          {tab === "connect" ? (
+          {tab === "connect" && who.kind === "agent" ? (
+            <>
+              <p className="mb-3 max-w-[62ch] text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                An agent has no laptop. Minting its token hands it straight to the worker on Railway and
+                redeploys — you do not open that dashboard.
+              </p>
+              {railway?.connected ? (
+                <div
+                  className="rounded-lg border px-3 py-2.5 text-[12.5px] leading-relaxed"
+                  style={{ borderColor: "color-mix(in srgb, var(--state-go) 40%, var(--hairline))" }}
+                >
+                  Railway is connected{railway.serviceId ? " and the worker exists" : " — the worker will be created on the first agent"}.
+                  {railway.anthropic ? null : (
+                    <div className="mt-1" style={{ color: "var(--state-blocked)" }}>
+                      ANTHROPIC_API_KEY is not set on this service, so an agent could not think yet.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <div
+                    className="rounded-lg border px-3 py-2.5 text-[12.5px] leading-relaxed"
+                    style={{ borderColor: "color-mix(in srgb, var(--state-blocked) 40%, var(--hairline))" }}
+                  >
+                    {railway?.blocked ?? "Railway is not connected."} Paste a Railway API token once
+                    (railway.com → Account → Tokens) and agents deploy themselves from here after that.
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="password"
+                      value={rwToken}
+                      onChange={(e) => setRwToken(e.target.value)}
+                      placeholder="Railway API token"
+                      className="btn-os min-w-[240px]"
+                    />
+                    <button
+                      className="btn-os brand"
+                      disabled={busy || !rwToken.trim()}
+                      onClick={async () => {
+                        setBusy(true);
+                        const res = await fetch("/api/railway", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ token: rwToken }),
+                        });
+                        const out = await res.json().catch(() => ({}));
+                        setDeployNote(res.ok ? "Railway connected." : out.error || "could not connect");
+                        setRwToken("");
+                        setBusy(false);
+                        await load();
+                      }}
+                    >
+                      Connect Railway
+                    </button>
+                  </div>
+                </div>
+              )}
+              {deployNote ? (
+                <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>{deployNote}</p>
+              ) : null}
+              <div className="mt-5">
+                <Kv
+                  rows={[
+                    ["Project", customers.find((c) => c.id === who.customerId)?.name ?? who.customerId ?? "—"],
+                    ["Token", who.hasToken ? "installed on the worker" : "not minted yet"],
+                    ["Last seen", who.connectedAt ? new Date(who.connectedAt).toLocaleString() : "never"],
+                    ["Claimed", `${who.claimed} job${who.claimed === 1 ? "" : "s"}`],
+                  ]}
+                />
+              </div>
+            </>
+          ) : null}
+
+          {tab === "connect" && who.kind !== "agent" ? (
             <>
               <p className="mb-3 max-w-[62ch] text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
                 {who.name.split(" ")[0]} runs this once on their own laptop. Their Claude Code then sees the board,

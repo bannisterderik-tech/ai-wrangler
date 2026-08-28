@@ -760,3 +760,70 @@ describe("an agent belongs to exactly one project", () => {
     assert.equal(rows.n, 1);
   });
 });
+
+/**
+ * Minting an agent's token should deploy it. When Railway is not connected that
+ * has to degrade into a clear sentence, not a 500 — the token is still valid and
+ * the agent can still be run by hand.
+ */
+describe("agents deploy themselves, and say so when they cannot", () => {
+  before(async () => {
+    await sql`DELETE FROM agency_connections WHERE provider = 'railway'`;
+    await sql`DELETE FROM people WHERE id = 'A_deploy-test'`;
+    await api("/api/people", {
+      method: "POST",
+      body: JSON.stringify({ name: "deploy test", kind: "agent", customerId: "acme" }),
+    });
+  });
+
+  test("with Railway unconnected, minting still works and explains itself", async () => {
+    const res = await api("/api/people/A_deploy-test", {
+      method: "POST",
+      body: JSON.stringify({ action: "token" }),
+    });
+    assert.equal(res.status, 200);
+    assert.ok(res.body.token.startsWith("wr_sess_"), "the token is still minted");
+    assert.equal(res.body.deploy.deployed, false);
+    assert.match(res.body.deploy.why, /Railway|token/i, `got: ${res.body.deploy.why}`);
+  });
+
+  test("and the token it minted actually works on the floor", async () => {
+    const minted = await api("/api/people/A_deploy-test", {
+      method: "POST",
+      body: JSON.stringify({ action: "token" }),
+    });
+    const res = await fetch(`${BASE}/api/mcp`, {
+      headers: { Authorization: `Bearer ${minted.body.token}` },
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual((await res.json()).scope, ["acme"]);
+  });
+
+  test("the Railway status endpoint is honest about what is missing", async () => {
+    const res = await api("/api/railway");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.connected, false);
+    assert.ok(res.body.blocked, "it says why");
+  });
+
+  test("a bad Railway token is refused before it is stored", async () => {
+    const res = await api("/api/railway", {
+      method: "POST",
+      body: JSON.stringify({ token: "" }),
+    });
+    assert.equal(res.status, 400);
+    const [row] = await sql`SELECT count(*)::int AS n FROM agency_connections WHERE provider = 'railway'`;
+    assert.equal(row.n, 0, "nothing was stored");
+  });
+
+  test("minting for a teammate does not try to deploy anything", async () => {
+    await sql`DELETE FROM people WHERE id = 'U_deploy-mate'`;
+    await api("/api/people", { method: "POST", body: JSON.stringify({ name: "deploy mate" }) });
+    const res = await api("/api/people/U_deploy-mate", {
+      method: "POST",
+      body: JSON.stringify({ action: "token" }),
+    });
+    assert.equal(res.body.deploy.deployed, false);
+    assert.match(res.body.deploy.why, /Not an agent/);
+  });
+});
