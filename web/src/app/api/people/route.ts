@@ -70,17 +70,38 @@ export async function POST(req: Request) {
     const name = String(body.name || "").trim();
     if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
 
-    const kind = body.kind === "agent" ? "agent" : "operator";
+    // Three kinds. "client" was missing entirely, which meant the customer-facing
+    // desk and copilot existed and no customer could be given a way in — the
+    // only way to create one was raw SQL.
+    const kind = body.kind === "agent" ? "agent" : body.kind === "client" ? "client" : "operator";
     const customerId = String(body.customerId || "").trim();
-    if (kind === "agent" && !customerId) {
-      return NextResponse.json({ error: "an agent belongs to one customer — pick the project" }, { status: 400 });
+    const email = String(body.email || "").trim().toLowerCase();
+
+    if ((kind === "agent" || kind === "client") && !customerId) {
+      return NextResponse.json(
+        { error: kind === "agent" ? "an agent belongs to one customer — pick the project" : "which customer is this person from?" },
+        { status: 400 },
+      );
     }
-    if (kind === "agent" && !(await getCustomer(customerId))) {
+    if ((kind === "agent" || kind === "client") && !(await getCustomer(customerId))) {
       return NextResponse.json({ error: "no such customer" }, { status: 404 });
+    }
+    // A client signs in by magic link and has no other route in, so an address
+    // is not optional for them the way it is for a teammate.
+    if (kind === "client" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return NextResponse.json({ error: "a client signs in by email — give a real address" }, { status: 400 });
+    }
+    if (email) {
+      const [taken] = await db
+        .select()
+        .from(people)
+        .where(sql`lower(${people.email}) = ${email}`)
+        .limit(1);
+      if (taken) return NextResponse.json({ error: `${email} is already on the floor` }, { status: 409 });
     }
 
     const handle = slug(String(body.handle || name)).slice(0, 24) || "teammate";
-    const id = kind === "agent" ? `A_${handle}` : `U_${handle}`;
+    const id = kind === "agent" ? `A_${handle}` : kind === "client" ? `C_${handle}` : `U_${handle}`;
 
     const [existing] = await db.select().from(people).where(eq(people.handle, handle)).limit(1);
     if (existing) return NextResponse.json({ error: `${handle} is already on the floor` }, { status: 409 });
@@ -90,7 +111,10 @@ export async function POST(req: Request) {
       name,
       handle,
       kind,
-      customerId: kind === "agent" ? customerId : null,
+      // A client belongs to a customer just as firmly as an agent does — it is
+      // what pins their session and every row they can read.
+      customerId: kind === "agent" || kind === "client" ? customerId : null,
+      email: email || null,
       // build works a repo; copilot works the customer's own business.
       agentKind: kind === "agent" ? (isAgentKind(String(body.agentKind)) ? String(body.agentKind) : "build") : null,
       brief: String(body.brief || "").trim() || null,
@@ -99,7 +123,9 @@ export async function POST(req: Request) {
           ? String(body.agentKind) === "copilot"
             ? "Customer copilot"
             : "Build agent"
-          : String(body.role || "Build wrangler"),
+          : kind === "client"
+            ? "Customer"
+            : String(body.role || "Build wrangler"),
       approver: false,
       machine: "not connected yet",
       status: "invited",
@@ -112,11 +138,14 @@ export async function POST(req: Request) {
     // first thing anyone did was grant them by hand. checkout hands out a
     // credential, but one scoped to a repo this session is already allowed to
     // work on — the wall is the binding, not the grant.
-    const grants = ["list_jobs", "claim_job", "read_bound_repo", "read_project", "post_step"];
+    const grants =
+      kind === "client"
+        ? []
+        : ["list_jobs", "claim_job", "read_bound_repo", "read_project", "post_step"];
     // Only a build agent gets a push credential. A copilot has no repository to
     // push to, and handing it one would be a capability nobody asked for.
     if (kind === "agent" && String(body.agentKind) !== "copilot") grants.push("checkout");
-    await db.insert(personTools).values(grants.map((tool) => ({ personId: id, tool })));
+    if (grants.length) await db.insert(personTools).values(grants.map((tool) => ({ personId: id, tool })));
     await db.insert(audit).values({ customerId: null, actor, action: "added teammate", target: handle, at: new Date() });
     return NextResponse.json({ ok: true, id });
   } catch (e) {

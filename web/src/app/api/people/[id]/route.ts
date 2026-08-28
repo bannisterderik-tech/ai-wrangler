@@ -173,3 +173,33 @@ export async function POST(req: Request, ctx: RouteContext<"/api/people/[id]">) 
     return fail(e);
   }
 }
+
+/**
+ * Remove somebody's access.
+ *
+ * For a client this bites on their very next request, because client routes
+ * re-check the row rather than trusting the cookie. For an operator it does
+ * not: their session is a signed cookie with no server-side state and stays
+ * valid until it expires. That gap is real and is written down in LIMITS.md.
+ */
+export async function DELETE(_req: Request, ctx: RouteContext<"/api/people/[id]">) {
+  const denied = await guard();
+  if (denied) return denied;
+  const actor = (await operator())?.name || "you";
+  try {
+    const { id } = await ctx.params;
+    const [person] = await db.select().from(people).where(eq(people.id, id)).limit(1);
+    if (!person) return NextResponse.json({ error: "no such person" }, { status: 404 });
+    await db.delete(people).where(eq(people.id, id));
+    await db.insert(audit).values({
+      customerId: person.customerId,
+      actor,
+      action: `removed a ${person.kind}`,
+      target: `${person.name}${person.email ? ` · ${person.email}` : ""}`,
+      at: new Date(),
+    });
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return fail(e);
+  }
+}

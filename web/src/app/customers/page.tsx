@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
 import { CustomerWork } from "@/components/os/CustomerWork";
+import { CustomerAccess } from "@/components/os/CustomerAccess";
 
 type Customer = {
   id: string; name: string;
@@ -16,7 +17,7 @@ export default function CustomersPage() {
   const [rows, setRows] = useState<Customer[] | null>(null);
   const [id, setId] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<"overview" | "work">("overview");
+  const [tab, setTab] = useState<"overview" | "work" | "access">("overview");
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -119,12 +120,14 @@ export default function CustomersPage() {
               <div className="font-mono text-xs" style={{ color: "var(--text-secondary)" }}>{c.id}</div>
             </div>
             <Tabs
-              tabs={[["overview", "Overview"], ["work", "Work"]]}
+              tabs={[["overview", "Overview"], ["work", "Work"], ["access", "Their access"]]}
               tab={tab}
-              onTab={(t) => setTab(t as "overview" | "work")}
+              onTab={(t) => setTab(t as "overview" | "work" | "access")}
             />
             <div className="min-h-0 flex-1 overflow-auto">
-              {tab === "work" ? (
+              {tab === "access" ? (
+                <CustomerAccess customerId={c.id} customerName={c.name} />
+              ) : tab === "work" ? (
                 <CustomerWork customerId={c.id} customerName={c.name} />
               ) : (
                 <div className="p-4">

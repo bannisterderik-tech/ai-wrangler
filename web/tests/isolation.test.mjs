@@ -2570,3 +2570,81 @@ describe("a customer can talk to their own copilot and nobody else's", () => {
     assert.match(src, /data, not instructions/);
   });
 });
+
+/**
+ * A customer-facing product needs a way to let a customer in.
+ *
+ * The client desk and the copilot both shipped before this did, which meant the
+ * only way to create a client was raw SQL — a customer-facing product no
+ * customer could reach.
+ */
+describe("inviting a customer, and removing them", () => {
+  before(async () => {
+    await sql`DELETE FROM people WHERE email IN ('invited@acme.test','dupe@acme.test')`;
+  });
+
+  test("a client can be created against a customer", async () => {
+    const res = await api("/api/people", {
+      method: "POST",
+      body: JSON.stringify({ name: "Invited Person", email: "invited@acme.test", kind: "client", customerId: "acme" }),
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT kind, customer_id, email, role FROM people WHERE email = 'invited@acme.test'`;
+    assert.equal(row.kind, "client");
+    assert.equal(row.customer_id, "acme", "a client is pinned to a customer like an agent is");
+  });
+
+  test("a client is granted no MCP tools — they are a login, not a session", async () => {
+    const [row] = await sql`SELECT id FROM people WHERE email = 'invited@acme.test'`;
+    const tools = await sql`SELECT count(*)::int AS n FROM person_tools WHERE person_id = ${row.id}`;
+    assert.equal(tools[0].n, 0);
+  });
+
+  test("without an address there is no way in, so it is refused", async () => {
+    const res = await api("/api/people", {
+      method: "POST",
+      body: JSON.stringify({ name: "No Address", kind: "client", customerId: "acme" }),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /email/);
+  });
+
+  test("without a customer they would belong to nobody", async () => {
+    const res = await api("/api/people", {
+      method: "POST",
+      body: JSON.stringify({ name: "Orphan", email: "dupe@acme.test", kind: "client" }),
+    });
+    assert.equal(res.status, 400);
+  });
+
+  test("one address cannot be two people", async () => {
+    const res = await api("/api/people", {
+      method: "POST",
+      body: JSON.stringify({ name: "Twin", email: "invited@acme.test", kind: "client", customerId: "globex" }),
+    });
+    assert.equal(res.status, 409, "otherwise a magic link is ambiguous about who signed in");
+  });
+
+  test("they can sign in, and removing them ends it on the next request", async () => {
+    const raw = `wr_sess_invited_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, 'invited@acme.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    const c = `wrangler_session=${v}`;
+    assert.ok(v, "the invited client could sign in");
+
+    const before = await fetch(`${BASE}/api/client/leads`, { headers: { cookie: c } });
+    assert.equal(before.status, 200);
+
+    const [row] = await sql`SELECT id FROM people WHERE email = 'invited@acme.test'`;
+    const del = await api(`/api/people/${row.id}`, { method: "DELETE" });
+    assert.equal(del.status, 200);
+
+    const after = await fetch(`${BASE}/api/client/leads`, { headers: { cookie: c } });
+    assert.equal(after.status, 403, "the cookie is still signed and unexpired — the row is what decides");
+  });
+});
