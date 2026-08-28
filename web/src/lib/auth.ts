@@ -10,9 +10,34 @@ const MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
 export type Session = {
   sub: string;
   name: string;
-  via: "password" | "github";
+  via: "password" | "github" | "email";
   exp: number;
 };
+
+/**
+ * Who may run this agency. Emails, because that is what a magic link is
+ * addressed to. Override with OPERATOR_EMAILS (comma separated) — the default is
+ * the two people who actually run it.
+ */
+const DEFAULT_OPERATORS = ["derik@aiwrangler.co", "van@aiwrangler.co"];
+
+export function operatorEmails() {
+  const configured = (process.env.OPERATOR_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return configured.length ? configured : DEFAULT_OPERATORS;
+}
+
+/** Case-insensitive, whitespace-tolerant. Anything not on the list is not an admin. */
+export function isOperatorEmail(email: string) {
+  return operatorEmails().includes(String(email || "").trim().toLowerCase());
+}
+
+/** Magic link works as long as we can sign a token; delivery is a separate question. */
+export function magicLinkConfigured() {
+  return Boolean(secret()) && operatorEmails().length > 0;
+}
 
 function secret() {
   return process.env.AUTH_SECRET || process.env.TOKEN_ENCRYPTION_KEY || "";
@@ -21,7 +46,8 @@ function secret() {
 /** Is there any way to sign in at all? If not, the OS refuses to open rather than sitting wide open. */
 export function authConfigured() {
   return Boolean(
-    process.env.OPERATOR_PASSWORD ||
+    magicLinkConfigured() ||
+      process.env.OPERATOR_PASSWORD ||
       (process.env.GITHUB_OAUTH_CLIENT_ID && process.env.GITHUB_OAUTH_CLIENT_SECRET),
   );
 }

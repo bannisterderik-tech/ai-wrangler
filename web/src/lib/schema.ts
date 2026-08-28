@@ -248,3 +248,20 @@ export const jobSteps = pgTable(
   },
   (t) => [index("job_steps_job").on(t.jobId, t.id)],
 );
+
+/**
+ * One row per magic link handed out. Burned on redemption so a link that leaks
+ * out of a mailbox is worth nothing the second time.
+ */
+export const loginLinks = pgTable(
+  "login_links",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    email: text("email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    requestedFrom: text("requested_from"),
+  },
+  (t) => [index("login_links_email").on(t.email, t.createdAt)],
+);

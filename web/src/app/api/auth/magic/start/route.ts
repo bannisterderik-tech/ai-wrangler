@@ -1,0 +1,100 @@
+import { NextResponse } from "next/server";
+import { and, gt, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { isOperatorEmail, magicLinkConfigured } from "@/lib/auth";
+import { audit, loginLinks } from "@/lib/schema";
+import { mailConfigured, sendMagicLink } from "@/lib/mail";
+import { hashToken, mintToken } from "@/lib/session-token";
+
+const TTL_MINUTES = 15;
+const MAX_PER_WINDOW = 5;
+const WINDOW_MINUTES = 15;
+
+/**
+ * Ask for a sign-in link.
+ *
+ * The response is the same whether or not the address is an operator. Telling a
+ * stranger "that email is not an admin here" hands them half the login, and the
+ * only person who needs to know the difference is the one holding the mailbox.
+ */
+export async function POST(req: Request) {
+  if (!magicLinkConfigured()) {
+    return NextResponse.json(
+      { error: "Magic link is not configured on this deploy. AUTH_SECRET must be set." },
+      { status: 503 },
+    );
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const email = String(body.email || "").trim().toLowerCase();
+  // Byte-identical for an operator and a stranger. `delivered` describes this
+  // deploy's mail wiring, not this address, so it is safe on both — and it has to
+  // be on both, or its presence alone answers the question we refuse to answer.
+  const same = {
+    ok: true,
+    message: "If that address can sign in here, a link is on its way.",
+    delivered: mailConfigured(),
+  };
+
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return NextResponse.json({ error: "That does not look like an email address." }, { status: 400 });
+  }
+  if (!isOperatorEmail(email)) {
+    // Deliberately indistinguishable from success, but recorded, because a
+    // stranger guessing at admin addresses is worth seeing in the trail.
+    await db.insert(audit).values({
+      customerId: null,
+      actor: email,
+      action: "sign-in link refused — not an operator",
+      target: null,
+      at: new Date(),
+    });
+    return NextResponse.json(same);
+  }
+
+  // Throttle by email, not by IP: the address is the thing being protected and,
+  // unlike X-Forwarded-For, the caller cannot make up a new one per request.
+  const [recent] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(loginLinks)
+    .where(
+      and(
+        sql`${loginLinks.email} = ${email}`,
+        gt(loginLinks.createdAt, new Date(Date.now() - WINDOW_MINUTES * 60_000)),
+      ),
+    );
+  if ((recent?.n ?? 0) >= MAX_PER_WINDOW) {
+    return NextResponse.json(
+      { error: `Too many links requested. Wait ${WINDOW_MINUTES} minutes.` },
+      { status: 429 },
+    );
+  }
+
+  const { raw } = mintToken();
+  const origin = new URL(req.url).origin;
+  const url = `${origin}/api/auth/magic/callback?token=${encodeURIComponent(raw)}`;
+
+  await db.insert(loginLinks).values({
+    tokenHash: hashToken(raw),
+    email,
+    expiresAt: new Date(Date.now() + TTL_MINUTES * 60_000),
+    requestedFrom: req.headers.get("user-agent")?.slice(0, 120) ?? null,
+  });
+
+  try {
+    await sendMagicLink(email, url, TTL_MINUTES);
+  } catch (e) {
+    console.error("[wrangler] magic link send failed", e);
+    return NextResponse.json({ error: "Could not send the email. Check the mail provider." }, { status: 502 });
+  }
+
+  await db.insert(audit).values({
+    customerId: null,
+    actor: email,
+    action: "sign-in link sent",
+    target: mailConfigured() ? "email" : "server log (no mail provider)",
+    at: new Date(),
+  });
+
+  return NextResponse.json(same);
+}

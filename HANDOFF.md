@@ -25,9 +25,13 @@ which is why the deploy target is a box, not a function.
 
 ## The four walls (do not weaken)
 
-1. **The door.** `web/src/middleware.ts`. No operator session → no page, no API. Only `/api/health`
-   and the login routes are public. With no login method configured the OS seals itself rather
-   than falling open.
+1. **The door.** `web/src/middleware.ts`. No operator session → no page, no API. Only `/api/health`,
+   `/api/mcp` (which carries its own Bearer auth) and the login routes are public. With no login
+   method configured the OS seals itself rather than falling open.
+   Sign in is a **magic link**: `OPERATOR_EMAILS` (default `derik@aiwrangler.co`,
+   `van@aiwrangler.co`) is the allowlist, links are single use, expire in 15 minutes, and only the
+   SHA-256 is stored. Asking for a link returns a byte-identical response whether or not the
+   address is an operator — the refusal is recorded in `audit`, not returned to the caller.
 2. **The route.** A job may only name a repo or Vercel project bound to its own customer
    (`assertBoundToCustomer`). Someone else's → 403. Nothing bound yet → 409.
 3. **The database.** RLS on every tenant table. Customer-scoped work runs through `withCustomer()`

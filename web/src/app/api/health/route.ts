@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
-import { authConfigured, githubLoginConfigured, operatorAllowlist, passwordLoginConfigured } from "@/lib/auth";
+import {
+  authConfigured,
+  githubLoginConfigured,
+  magicLinkConfigured,
+  operatorAllowlist,
+  operatorEmails,
+  passwordLoginConfigured,
+} from "@/lib/auth";
+import { mailConfigured } from "@/lib/mail";
 import { db } from "@/lib/db";
 
 /**
@@ -24,8 +32,12 @@ export async function GET() {
     database,
     vault: { configured: /^[0-9a-fA-F]{64}$/.test((process.env.TOKEN_ENCRYPTION_KEY || "").trim()) },
     integration: Boolean(process.env.VERCEL_INTEGRATION_CLIENT_ID && process.env.VERCEL_INTEGRATION_SLUG),
+    mail: { configured: mailConfigured() },
     login: {
       configured: authConfigured(),
+      email: magicLinkConfigured(),
+      // A count, not the addresses — this endpoint is public.
+      operators: operatorEmails().length,
       password: passwordLoginConfigured(),
       github: githubLoginConfigured() && operatorAllowlist().length > 0,
       allowlist: operatorAllowlist().length > 0,

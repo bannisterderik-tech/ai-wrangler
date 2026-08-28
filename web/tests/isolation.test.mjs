@@ -336,3 +336,113 @@ describe("a session over MCP cannot reach past its scope", () => {
     assert.equal(job.owner_id, null, "its claimed work went back on the board");
   });
 });
+
+/**
+ * The door, by email. A magic link is a credential sitting in a mailbox, so it
+ * has to be single use, short lived, and only ever issued to an operator.
+ */
+describe("magic-link sign in", () => {
+  const ADMIN = "derik@aiwrangler.co";
+  const STRANGER = "someone@example.com";
+
+  async function ask(email) {
+    const res = await fetch(`${BASE}/api/auth/magic/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    return { status: res.status, body: await res.json().catch(() => ({})) };
+  }
+  /** The link is only ever in the email; the test reads the row it was minted from. */
+  async function latestTokenHash(email) {
+    const [row] = await sql`
+      SELECT token_hash FROM login_links WHERE email = ${email} ORDER BY created_at DESC LIMIT 1`;
+    return row?.token_hash ?? null;
+  }
+  before(async () => {
+    await sql`DELETE FROM login_links`;
+  });
+
+  test("a stranger gets the same answer an operator does", async () => {
+    const mine = await ask(ADMIN);
+    const theirs = await ask(STRANGER);
+    assert.equal(mine.status, 200);
+    assert.equal(theirs.status, 200);
+    // Byte-for-byte, not just the same message: an extra field on one of them is
+    // enough to tell an attacker which addresses are admins.
+    assert.deepEqual(theirs.body, mine.body, "the responses must be indistinguishable");
+    assert.equal(JSON.stringify(theirs.body), JSON.stringify(mine.body));
+  });
+
+  test("but no link is minted for a stranger", async () => {
+    assert.equal(await latestTokenHash(STRANGER), null);
+    assert.ok(await latestTokenHash(ADMIN), "the operator did get one");
+  });
+
+  test("the refusal is still recorded, so guessing is visible", async () => {
+    const [row] = await sql`
+      SELECT action FROM audit WHERE actor = ${STRANGER} ORDER BY at DESC LIMIT 1`;
+    assert.match(row.action, /not an operator/);
+  });
+
+  test("the token is stored as a digest, never in the clear", async () => {
+    const hash = await latestTokenHash(ADMIN);
+    assert.match(hash, /^[0-9a-f]{64}$/);
+    const [row] = await sql`SELECT * FROM login_links WHERE token_hash = ${hash}`;
+    assert.ok(!Object.values(row).some((v) => typeof v === "string" && v.startsWith("wr_sess_")));
+  });
+
+  test("a made-up token is refused and sets no cookie", async () => {
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=not-a-real-token`, { redirect: "manual" });
+    assert.equal(res.status, 307);
+    assert.match(res.headers.get("location"), /\/login\?error=/);
+    assert.ok(!(res.headers.get("set-cookie") || "").includes("wrangler_session"));
+  });
+
+  test("a link works exactly once", async () => {
+    // Mint one directly so the test holds the plaintext, the way the mailbox would.
+    const raw = "wr_sess_test_single_use_token";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, ${ADMIN}, now() + interval '15 minutes')`;
+
+    const first = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    assert.equal(first.status, 307);
+    assert.ok((first.headers.get("set-cookie") || "").includes("wrangler_session"), "first click signs in");
+
+    const second = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    assert.match(decodeURIComponent(second.headers.get("location")), /already used/);
+    assert.ok(!(second.headers.get("set-cookie") || "").includes("wrangler_session"), "second click does not");
+  });
+
+  test("an expired link is refused even though it was never used", async () => {
+    const raw = "wr_sess_test_expired_token";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, ${ADMIN}, now() - interval '1 minute')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    assert.match(decodeURIComponent(res.headers.get("location")), /expired/);
+    assert.ok(!(res.headers.get("set-cookie") || "").includes("wrangler_session"));
+  });
+
+  test("the session a link mints actually opens the door", async () => {
+    const raw = "wr_sess_test_working_token";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, ${ADMIN}, now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const setCookie = res.headers.get("set-cookie") || "";
+    const value = /wrangler_session=([^;]+)/.exec(setCookie)?.[1];
+    assert.ok(value, "a session cookie was set");
+    const me = await fetch(`${BASE}/api/auth/me`, { headers: { cookie: `wrangler_session=${value}` } });
+    assert.equal(me.status, 200);
+    const body = await me.json();
+    assert.equal(body.session?.sub ?? body.sub, ADMIN);
+  });
+});

@@ -6,6 +6,8 @@ const PUBLIC = [
   "/login",
   "/api/health",
   "/api/mcp",
+  "/api/auth/magic/start",
+  "/api/auth/magic/callback",
   "/api/auth/operator/password",
   "/api/auth/operator/github/start",
   "/api/auth/operator/github/callback",
