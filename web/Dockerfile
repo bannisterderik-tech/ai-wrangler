@@ -23,6 +23,12 @@ COPY --from=build --chown=wrangler:nodejs /app/public ./public
 COPY --from=build --chown=wrangler:nodejs /app/drizzle ./drizzle
 COPY --from=build --chown=wrangler:nodejs /app/scripts ./scripts
 
+# scripts/migrate.mjs is not part of the Next build, so Next's standalone trace
+# does not carry the driver it needs — the server's copy is bundled, not left as
+# a resolvable package. Copy the real one. `postgres` has no dependencies of its
+# own, so this is the whole of it.
+COPY --from=deps --chown=wrangler:nodejs /app/node_modules/postgres ./node_modules/postgres
+
 USER wrangler
 EXPOSE 3000
 ENV PORT=3000 HOSTNAME=0.0.0.0
