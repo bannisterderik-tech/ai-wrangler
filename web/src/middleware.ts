@@ -6,6 +6,10 @@ const PUBLIC = [
   "/login",
   "/api/health",
   "/api/mcp",
+  // Called from a customer's own deployed site. Write-only, key-authenticated,
+  // and it cannot read anything — see the route.
+  "/api/ingest/error",
+  "/api/ingest/request",
   "/api/auth/magic/start",
   "/api/auth/magic/callback",
   "/api/auth/operator/password",

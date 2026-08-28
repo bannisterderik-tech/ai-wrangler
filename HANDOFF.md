@@ -64,12 +64,23 @@ walls). Keep it green.
 - Agency GitHub connect (OAuth / PAT / explicit gh import — never auto-picked)
 - Repo binding with overlap refusal, in code and in the schema
 - OS shell and screens; the floor (`/work`) and Sessions (`/sessions`) run on live Postgres
-- **The MCP server** (`/api/mcp`) — streamable HTTP, Bearer auth, seven tools:
-  `list_jobs`, `claim_job`, `release_job`, `read_bound_repo`, `open_branch`, `post_step`,
-  `request_approval`. Connect with:
+- **The MCP server** (`/api/mcp`) — streamable HTTP, Bearer auth, ten tools:
+  `list_jobs`, `claim_job`, `release_job`, `read_bound_repo`, `read_project`, `next_work`,
+  `open_work`, `open_branch`, `post_step`, `request_approval`. Connect with:
   `claude mcp add wrangler --transport http <host>/api/mcp --header "Authorization: Bearer <token>"`
 - Session tokens stored as SHA-256 with a display prefix; shown once, rotatable, revocable
 - Per-session customer scope and per-session tool grants, enforced in the server
+
+## The agent runner
+
+Managed Agents was considered and rejected: it is beta, gated, Anthropic-only (so
+no model choice), and it would mean running a second orchestration system beside
+the one already here. The plan is **Claude Code headless in the Railway
+container** — the same agent the team already uses, pointed at `/api/mcp`, so the
+walls, the audit trail and the approval gate are the ones already tested.
+
+A blog or a CMS change does **not** need that sandbox — content is rows and a
+renderer. Only work that edits a customer's repo does.
 
 ## What's still fake
 

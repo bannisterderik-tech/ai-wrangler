@@ -16,6 +16,8 @@ export const customers = pgTable("customers", {
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   profileJson: text("profile_json"),
+  /** SHA-256 of the write-only key their site posts errors with. */
+  ingestKeyHash: text("ingest_key_hash"),
 });
 
 /** Agency-level (not per-customer): which GitHub account Wrangler uses. */
@@ -264,4 +266,60 @@ export const loginLinks = pgTable(
     requestedFrom: text("requested_from"),
   },
   (t) => [index("login_links_email").on(t.email, t.createdAt)],
+);
+
+/** An update request from the client. Becomes a job. */
+export const clientRequests = pgTable(
+  "client_requests",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    fromName: text("from_name"),
+    fromEmail: text("from_email"),
+    kind: text("kind").notNull().default("request"),
+    body: text("body").notNull(),
+    status: text("status").notNull().default("new"),
+    jobId: text("job_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("client_requests_open").on(t.customerId, t.status, t.createdAt)],
+);
+
+/** One row per distinct error on a customer's site. The count is what moves. */
+export const siteErrors = pgTable(
+  "site_errors",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    fingerprint: text("fingerprint").notNull(),
+    message: text("message").notNull(),
+    url: text("url"),
+    stack: text("stack"),
+    count: integer("count").notNull().default(1),
+    status: text("status").notNull().default("open"),
+    jobId: text("job_id"),
+    firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
+    lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("site_errors_fingerprint").on(t.customerId, t.fingerprint)],
+);
+
+/** Ads and performance as one flat series, so context is one query not one per vendor. */
+export const metrics = pgTable(
+  "metrics",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    name: text("name").notNull(),
+    value: text("value").notNull(),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("metrics_recent").on(t.customerId, t.source, t.name, t.at)],
 );

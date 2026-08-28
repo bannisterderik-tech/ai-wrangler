@@ -2,7 +2,19 @@ import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "./db";
 import { newId } from "./customers";
 import { assertBoundToCustomer, boundIds, IsolationError } from "./isolation";
-import { approvals, audit, boundResources, changes, jobs, jobSteps } from "./schema";
+import {
+  approvals,
+  audit,
+  boundResources,
+  changes,
+  clientRequests,
+  customers,
+  jobs,
+  jobSteps,
+  memories,
+  metrics,
+  siteErrors,
+} from "./schema";
 import type { McpSession } from "./session-token";
 
 /**
@@ -67,6 +79,47 @@ export const TOOLS: ToolDef[] = [
       type: "object",
       properties: { job_id: str("The job whose customer you want the bindings for.") },
       required: ["job_id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "read_project",
+    description:
+      "Everything known about a job's customer in one call: what is bound, what the agent is allowed to touch, their house rules, what is on fire, what the ads and the site are doing, and what has shipped lately. Read this before you plan anything.",
+    inputSchema: {
+      type: "object",
+      properties: { job_id: str("Any job belonging to the customer you want context on.") },
+      required: ["job_id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "next_work",
+    description:
+      "The intake: update requests from the client and errors from their live site that nobody has turned into a job yet. Use open_work to promote one.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        job_id: str("Any job belonging to the customer whose intake you want."),
+        kind: str("Optional: requests or errors. Omit for both."),
+      },
+      required: ["job_id"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "open_work",
+    description:
+      "Turn one intake item into a job you own, so the work has a budget, a transcript and an approval gate like everything else. Refused if it is already jobbed.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        job_id: str("Any job belonging to that customer — this is how scope is proven."),
+        item_id: str("The request or error id from next_work."),
+        title: str("What the new job is called."),
+        budget_dollars: { type: "number", description: "Spend cap for the new job. Defaults to 10." },
+      },
+      required: ["job_id", "item_id", "title"],
       additionalProperties: false,
     },
   },
@@ -237,6 +290,141 @@ export async function callTool(session: McpSession, name: string, args: Args): P
         `vercel projects: ${projects.join(", ") || "none bound"}`,
         `You may read and branch these and nothing else. Naming another customer's repo returns a 403.`,
       ].join("\n");
+    }
+
+    case "read_project": {
+      const job = await jobInScope(session, s(args.job_id));
+      const cid = job.customerId;
+      const [[customer], bound, notes, openJobs, shipped, requests, errors, series] = await Promise.all([
+        db.select().from(customers).where(eq(customers.id, cid)).limit(1),
+        db.select().from(boundResources).where(eq(boundResources.customerId, cid)),
+        db.select().from(memories).where(eq(memories.customerId, cid)).orderBy(desc(memories.createdAt)).limit(30),
+        db.select().from(jobs).where(eq(jobs.customerId, cid)),
+        db.select().from(changes).where(eq(changes.customerId, cid)).orderBy(desc(changes.createdAt)).limit(8),
+        db.select().from(clientRequests).where(and(eq(clientRequests.customerId, cid), eq(clientRequests.status, "new"))),
+        db.select().from(siteErrors).where(and(eq(siteErrors.customerId, cid), eq(siteErrors.status, "open"))).orderBy(desc(siteErrors.count)).limit(10),
+        db.select().from(metrics).where(eq(metrics.customerId, cid)).orderBy(desc(metrics.at)).limit(40),
+      ]);
+
+      // Latest value wins per source/name, so the agent reads a state of the
+      // world rather than a stream it has to reduce itself.
+      const latest = new Map<string, { value: string; at: Date }>();
+      for (const m of series) {
+        const key = `${m.source}.${m.name}`;
+        if (!latest.has(key)) latest.set(key, { value: m.value, at: m.at });
+      }
+
+      const lines = [
+        `# ${customer?.name ?? cid}`,
+        "",
+        "## What you may touch",
+        ...bound.map((b) => `- ${b.provider}: ${b.resourceId}`),
+        bound.length ? "" : "- nothing is bound yet; a human has to bind a repo before you can write code",
+        "Naming anything not on that list returns a 403. This is the whole list.",
+        "",
+        "## House rules — these outrank your own judgement",
+        ...(notes.length ? notes.map((n) => `- ${n.text}`) : ["- none recorded"]),
+        "",
+        "## On fire",
+        ...(errors.length
+          ? errors.map((e) => `- [${e.id}] ×${e.count} ${e.message}${e.url ? ` (${e.url})` : ""}`)
+          : ["- nothing reported"]),
+        "",
+        "## Waiting on us",
+        ...(requests.length
+          ? requests.map((r) => `- [${r.id}] ${r.kind}: ${r.body.slice(0, 160)}`)
+          : ["- nothing open"]),
+        "",
+        "## How they are doing",
+        ...(latest.size
+          ? [...latest.entries()].map(([k, v]) => `- ${k}: ${v.value}`)
+          : ["- no metrics yet"]),
+        "",
+        "## Work in flight",
+        ...openJobs
+          .filter((j) => j.status !== "done")
+          .map((j) => `- ${j.id} [${j.status}] ${j.title}${j.ownerId === session.id ? " (yours)" : ""}`),
+        "",
+        "## Shipped lately",
+        ...(shipped.length ? shipped.map((c) => `- ${c.branch ?? "?"} — ${c.title} [${c.status}]`) : ["- nothing yet"]),
+      ];
+      return lines.join("\n");
+    }
+
+    case "next_work": {
+      const job = await jobInScope(session, s(args.job_id));
+      const want = s(args.kind).toLowerCase();
+      const out: string[] = [];
+      if (want !== "errors") {
+        const rows = await db
+          .select()
+          .from(clientRequests)
+          .where(and(eq(clientRequests.customerId, job.customerId), eq(clientRequests.status, "new")))
+          .orderBy(asc(clientRequests.createdAt));
+        out.push(
+          ...rows.map((r) => `${r.id}  request/${r.kind}  from ${r.fromName || r.fromEmail || "the client"}\n    ${r.body.slice(0, 300)}`),
+        );
+      }
+      if (want !== "requests") {
+        const rows = await db
+          .select()
+          .from(siteErrors)
+          .where(and(eq(siteErrors.customerId, job.customerId), eq(siteErrors.status, "open")))
+          .orderBy(desc(siteErrors.count));
+        out.push(...rows.map((e) => `${e.id}  error ×${e.count}  ${e.message}\n    ${e.url ?? ""}`));
+      }
+      return out.length ? out.join("\n") : "Intake is empty. Nothing is waiting.";
+    }
+
+    case "open_work": {
+      const ref = await jobInScope(session, s(args.job_id));
+      const itemId = s(args.item_id);
+      const title = s(args.title);
+      if (!itemId || !title) throw new ToolError("item_id and title are required.");
+
+      const [request] = await db.select().from(clientRequests).where(eq(clientRequests.id, itemId)).limit(1);
+      const [failure] = request
+        ? [null]
+        : await db.select().from(siteErrors).where(eq(siteErrors.id, itemId)).limit(1);
+      const item = request ?? failure;
+      if (!item) throw new ToolError(`refused: no intake item ${itemId} on this customer.`);
+      // Scope again on the item itself: a job id proves scope, an item id does not.
+      if (item.customerId !== ref.customerId) {
+        throw new ToolError(`refused: intake item ${itemId} belongs to another customer.`);
+      }
+      if (item.status !== "new" && item.status !== "open") {
+        throw new ToolError(`refused: ${itemId} is already ${item.status}.`);
+      }
+
+      const budget = Math.round(Math.max(1, Math.min(100, Number(args.budget_dollars) || 10)) * 100);
+      const id = newId();
+      await db.insert(jobs).values({
+        id,
+        customerId: ref.customerId,
+        title,
+        status: "thinking",
+        ownerId: session.id,
+        claimedAt: new Date(),
+        agent: session.handle,
+        repo: ref.repo,
+        budgetCents: budget,
+        goal: item.body ?? (failure ? failure.message : title),
+        risk: "Opened from intake. Production is still a separate approval.",
+      });
+      if (request) {
+        await db.update(clientRequests).set({ status: "jobbed", jobId: id }).where(eq(clientRequests.id, itemId));
+      } else {
+        await db.update(siteErrors).set({ status: "jobbed", jobId: id }).where(eq(siteErrors.id, itemId));
+      }
+      await db.insert(jobSteps).values({
+        jobId: id,
+        customerId: ref.customerId,
+        kind: "tool",
+        text: `opened from intake ${itemId}`,
+        actor: session.handle,
+      });
+      await log(ref.customerId, session.handle, "opened work from intake", `${itemId} → ${id}`);
+      return `Created ${id} — "${title}", claimed by you, cap $${(budget / 100).toFixed(2)}. Intake item ${itemId} is now jobbed.`;
     }
 
     case "open_branch": {

@@ -446,3 +446,130 @@ describe("magic-link sign in", () => {
     assert.equal(body.session?.sub ?? body.sub, ADMIN);
   });
 });
+
+/**
+ * Intake and context. An agent that can open its own work off a customer's error
+ * feed is only safe if the feed itself is walled — the ingest key routes, and
+ * routes nothing else.
+ */
+describe("intake is walled the same as everything else", () => {
+  let token = "";
+  let acmeKey = "";
+  let globexKey = "";
+
+  async function call(name, args = {}) {
+    const res = await fetch(`${BASE}/api/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+    });
+    const body = await res.json();
+    return { text: body?.result?.content?.[0]?.text ?? "", isError: body?.result?.isError === true };
+  }
+  const post = (path, key, payload) =>
+    fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(key ? { "x-wrangler-key": key } : {}) },
+      body: JSON.stringify(payload),
+    });
+
+  before(async () => {
+    const { createHash } = await import("node:crypto");
+    const hash = (v) => createHash("sha256").update(v).digest("hex");
+    acmeKey = "wr_ingest_acme_test";
+    globexKey = "wr_ingest_globex_test";
+    await sql`UPDATE customers SET ingest_key_hash = ${hash(acmeKey)} WHERE id = 'acme'`;
+    await sql`UPDATE customers SET ingest_key_hash = ${hash(globexKey)} WHERE id = 'globex'`;
+    await sql`DELETE FROM site_errors WHERE customer_id IN ('acme','globex')`;
+    await sql`DELETE FROM client_requests WHERE customer_id IN ('acme','globex')`;
+    await sql`DELETE FROM memories WHERE customer_id = 'acme' AND text LIKE 'Never ship%'`;
+    await sql`INSERT INTO memories (id, customer_id, text) VALUES ('mem-rule','acme','Never ship on a Friday.')`;
+    await sql`DELETE FROM jobs WHERE id IN ('job-acme','job-globex')`;
+    await sql`
+      INSERT INTO jobs (id, customer_id, title, status, repo, budget_cents)
+      VALUES ('job-acme','acme','Acme rebuild','queued','agency/acme-site',2000),
+             ('job-globex','globex','Globex rebuild','queued','agency/globex-shop',2000)`;
+    await sql`DELETE FROM people WHERE id = 'intake-session'`;
+    await sql`INSERT INTO people (id, name, handle, status) VALUES ('intake-session','Intake','intake','invited')`;
+    await sql`INSERT INTO person_scopes (person_id, customer_id) VALUES ('intake-session','acme')`;
+    await sql`
+      INSERT INTO person_tools (person_id, tool) VALUES
+        ('intake-session','list_jobs'), ('intake-session','claim_job'),
+        ('intake-session','read_project'), ('intake-session','next_work'), ('intake-session','open_work')`;
+    const minted = await api("/api/people/intake-session", {
+      method: "POST",
+      body: JSON.stringify({ action: "token" }),
+    });
+    token = minted.body.token;
+  });
+
+  test("an error with no key, or a wrong key, is refused", async () => {
+    assert.equal((await post("/api/ingest/error", "", { message: "boom" })).status, 401);
+    assert.equal((await post("/api/ingest/error", "not-a-key", { message: "boom" })).status, 401);
+  });
+
+  test("the key routes the error to its own customer and nowhere else", async () => {
+    assert.equal((await post("/api/ingest/error", acmeKey, { message: "TypeError on /quote", url: "/quote" })).status, 202);
+    assert.equal((await post("/api/ingest/error", globexKey, { message: "Globex checkout broke", url: "/cart" })).status, 202);
+    const rows = await sql`SELECT customer_id, message FROM site_errors ORDER BY customer_id`;
+    assert.equal(rows.length, 2);
+    assert.equal(rows.find((r) => r.message.includes("quote")).customer_id, "acme");
+    assert.equal(rows.find((r) => r.message.includes("Globex")).customer_id, "globex");
+  });
+
+  test("the same failure twice is one row with a count", async () => {
+    await post("/api/ingest/error", acmeKey, { message: "TypeError on /quote at line 41", url: "/quote" });
+    await post("/api/ingest/error", acmeKey, { message: "TypeError on /quote at line 77", url: "/quote" });
+    const [row] = await sql`
+      SELECT count FROM site_errors WHERE customer_id = 'acme' AND message LIKE '%quote%' ORDER BY count DESC LIMIT 1`;
+    assert.ok(row.count >= 2, `line numbers vary, the failure does not — got count ${row.count}`);
+  });
+
+  test("read_project hands over one customer's world and no one else's", async () => {
+    await call("claim_job", { job_id: "job-acme" });
+    const { text, isError } = await call("read_project", { job_id: "job-acme" });
+    assert.ok(!isError, text);
+    assert.match(text, /agency\/acme-site/);
+    assert.match(text, /Never ship on a Friday/);
+    assert.match(text, /TypeError on \/quote/);
+    assert.doesNotMatch(text, /globex/i, "another customer must not appear in this context");
+  });
+
+  test("next_work only shows this customer's intake", async () => {
+    await post("/api/ingest/request", acmeKey, { body: "Can you add a booking page", email: "maya@acme.test" });
+    await post("/api/ingest/request", globexKey, { body: "Globex wants a dark mode" });
+    const { text } = await call("next_work", { job_id: "job-acme" });
+    assert.match(text, /booking page/);
+    assert.doesNotMatch(text, /dark mode/, "Globex's intake is not on this floor");
+  });
+
+  test("open_work promotes an item into a real, budgeted, owned job", async () => {
+    const [item] = await sql`SELECT id FROM client_requests WHERE customer_id = 'acme' LIMIT 1`;
+    const { text, isError } = await call("open_work", {
+      job_id: "job-acme",
+      item_id: item.id,
+      title: "Add a booking page",
+      budget_dollars: 15,
+    });
+    assert.ok(!isError, text);
+    const [req] = await sql`SELECT status, job_id FROM client_requests WHERE id = ${item.id}`;
+    assert.equal(req.status, "jobbed");
+    const [job] = await sql`SELECT owner_id, budget_cents, customer_id FROM jobs WHERE id = ${req.job_id}`;
+    assert.equal(job.owner_id, "intake-session");
+    assert.equal(job.budget_cents, 1500);
+    assert.equal(job.customer_id, "acme");
+  });
+
+  test("an intake item from another customer cannot be promoted, even with a valid job id", async () => {
+    const [theirs] = await sql`SELECT id FROM client_requests WHERE customer_id = 'globex' LIMIT 1`;
+    const { text, isError } = await call("open_work", {
+      job_id: "job-acme",
+      item_id: theirs.id,
+      title: "sneaking in",
+    });
+    assert.ok(isError);
+    assert.match(text, /belongs to another customer/);
+    const [row] = await sql`SELECT status FROM client_requests WHERE id = ${theirs.id}`;
+    assert.equal(row.status, "new", "and it stays untouched");
+  });
+});
