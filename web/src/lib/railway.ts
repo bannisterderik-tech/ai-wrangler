@@ -104,15 +104,17 @@ export async function railwayState(): Promise<RailwayState> {
   return { connected: true, ...base };
 }
 
-async function gql<T>(token: string, query: string, variables: Record<string, unknown>): Promise<T> {
+async function gql<T>(token: string, op: string, query: string, variables: Record<string, unknown>): Promise<T> {
   const res = await fetch(API, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ query, variables }),
   });
   const body = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(`Railway API ${res.status}: ${JSON.stringify(body)?.slice(0, 300)}`);
-  if (body?.errors?.length) throw new Error(`Railway: ${body.errors[0].message}`);
+  // Railway answers an unknown input field with a bare "Problem processing
+  // request", so say which call it was or the message is unusable.
+  if (!res.ok) throw new Error(`Railway ${op} failed (${res.status}): ${JSON.stringify(body)?.slice(0, 300)}`);
+  if (body?.errors?.length) throw new Error(`Railway ${op}: ${body.errors[0].message}`);
   return body.data as T;
 }
 
@@ -124,7 +126,7 @@ export async function connectRailway(apiToken: string) {
   }
   // Prove the token works before storing it, so a typo fails here and not later
   // in the middle of creating an agent.
-  await gql(apiToken, `query variables($projectId: String!, $environmentId: String!) {
+  await gql(apiToken, "variables", `query variables($projectId: String!, $environmentId: String!) {
     variables(projectId: $projectId, environmentId: $environmentId)
   }`, { projectId, environmentId });
 
@@ -154,6 +156,7 @@ async function rememberService(serviceId: string) {
 async function readTokens(token: string, projectId: string, environmentId: string, serviceId: string) {
   const data = await gql<{ variables: Record<string, string> }>(
     token,
+    "variables",
     `query variables($projectId: String!, $environmentId: String!, $serviceId: String) {
        variables(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId)
      }`,
@@ -172,23 +175,18 @@ async function writeTokens(
   serviceId: string,
   tokens: string[],
 ) {
+  // VariableUpsertInput is exactly these five fields. The docs also describe a
+  // skipDeploys flag; the schema does not have it, and an unknown field here is
+  // a flat 400 rather than a warning — so it is not sent.
   await gql(
     token,
+    "variableUpsert",
     `mutation variableUpsert($input: VariableUpsertInput!) { variableUpsert(input: $input) }`,
-    {
-      input: {
-        projectId,
-        environmentId,
-        serviceId,
-        name: TOKENS_VAR,
-        value: tokens.join(","),
-        // We redeploy once, deliberately, after the write.
-        skipDeploys: true,
-      },
-    },
+    { input: { projectId, environmentId, serviceId, name: TOKENS_VAR, value: tokens.join(",") } },
   );
   await gql(
     token,
+    "serviceInstanceRedeploy",
     `mutation serviceInstanceRedeploy($serviceId: String!, $environmentId: String!) {
        serviceInstanceRedeploy(serviceId: $serviceId, environmentId: $environmentId)
      }`,
@@ -217,15 +215,20 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
   }
 
   if (!state.serviceId) {
+    // ServiceCreateInput does not take a root directory — that lives on the
+    // service *instance*. Create, then set it, then deploy, in that order: a
+    // build kicked off before the root directory is set builds the repo root,
+    // where there is deliberately no app.
     const made = await gql<{ serviceCreate: { id: string; name: string } }>(
       conn.token,
+      "serviceCreate",
       `mutation serviceCreate($input: ServiceCreateInput!) { serviceCreate(input: $input) { id name } }`,
       {
         input: {
           projectId,
+          environmentId,
           name: "ai-wrangler-agents",
           source: { repo },
-          rootDirectory: "worker",
           variables: {
             ANTHROPIC_API_KEY: anthropic,
             WRANGLER_MCP_URL: `${origin}/api/mcp`,
@@ -234,8 +237,26 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
         },
       },
     );
-    await rememberService(made.serviceCreate.id);
-    return { deployed: true as const, created: true, serviceId: made.serviceCreate.id };
+    const serviceId = made.serviceCreate.id;
+    await rememberService(serviceId);
+
+    await gql(
+      conn.token,
+      "serviceInstanceUpdate",
+      `mutation serviceInstanceUpdate($serviceId: String!, $environmentId: String!, $input: ServiceInstanceUpdateInput!) {
+         serviceInstanceUpdate(serviceId: $serviceId, environmentId: $environmentId, input: $input)
+       }`,
+      { serviceId, environmentId, input: { rootDirectory: "worker" } },
+    );
+    await gql(
+      conn.token,
+      "serviceInstanceRedeploy",
+      `mutation serviceInstanceRedeploy($serviceId: String!, $environmentId: String!) {
+         serviceInstanceRedeploy(serviceId: $serviceId, environmentId: $environmentId)
+       }`,
+      { serviceId, environmentId },
+    );
+    return { deployed: true as const, created: true, serviceId };
   }
 
   const tokens = await readTokens(conn.token, projectId, environmentId, state.serviceId);
