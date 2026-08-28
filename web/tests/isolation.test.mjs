@@ -692,3 +692,71 @@ describe("a client sees their own CRM and nothing else", () => {
     assert.equal(res.status, 401);
   });
 });
+
+/**
+ * An agent is not a teammate. A teammate works across the customers you scope
+ * them to; an agent is per project, and its scope is a column rather than a list
+ * somebody maintains — there is no second customer to grant it and no toggle to
+ * forget.
+ */
+describe("an agent belongs to exactly one project", () => {
+  before(async () => {
+    await sql`DELETE FROM people WHERE id IN ('A_test-agent','U_test-mate')`;
+  });
+
+  test("creating one without a project is refused", async () => {
+    const res = await api("/api/people", {
+      method: "POST",
+      body: JSON.stringify({ name: "test-agent", kind: "agent" }),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /belongs to one customer/);
+  });
+
+  test("the database refuses it too, not just the route", async () => {
+    await assert.rejects(
+      () => sql`INSERT INTO people (id, name, handle, kind) VALUES ('A_bare','Bare','bare','agent')`,
+      /people_kind_scope/,
+    );
+  });
+
+  test("its scope is its project, without anything in person_scopes", async () => {
+    const made = await api("/api/people", {
+      method: "POST",
+      body: JSON.stringify({ name: "test-agent", kind: "agent", customerId: "acme" }),
+    });
+    assert.equal(made.status, 200);
+    const [rows] = await sql`SELECT count(*)::int AS n FROM person_scopes WHERE person_id = 'A_test-agent'`;
+    assert.equal(rows.n, 0, "nothing maintains a list for it");
+
+    const minted = await api("/api/people/A_test-agent", {
+      method: "POST",
+      body: JSON.stringify({ action: "token" }),
+    });
+    const res = await fetch(`${BASE}/api/mcp`, { headers: { Authorization: `Bearer ${minted.body.token}` } });
+    const seen = await res.json();
+    assert.deepEqual(seen.scope, ["acme"], "one customer, from the column");
+  });
+
+  test("and that scope cannot be widened", async () => {
+    const res = await api("/api/people/A_test-agent", {
+      method: "POST",
+      body: JSON.stringify({ action: "scope", customerId: "globex" }),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /cannot be widened/);
+    const [rows] = await sql`SELECT count(*)::int AS n FROM person_scopes WHERE person_id = 'A_test-agent'`;
+    assert.equal(rows.n, 0);
+  });
+
+  test("a teammate still gets a list, because that is what a teammate is", async () => {
+    await api("/api/people", { method: "POST", body: JSON.stringify({ name: "test mate" }) });
+    const res = await api("/api/people/U_test-mate", {
+      method: "POST",
+      body: JSON.stringify({ action: "scope", customerId: "acme" }),
+    });
+    assert.equal(res.status, 200);
+    const [rows] = await sql`SELECT count(*)::int AS n FROM person_scopes WHERE person_id = 'U_test-mate'`;
+    assert.equal(rows.n, 1);
+  });
+});

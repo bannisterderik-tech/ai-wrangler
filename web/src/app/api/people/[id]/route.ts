@@ -55,6 +55,15 @@ export async function POST(req: Request, ctx: RouteContext<"/api/people/[id]">) 
       });
     }
 
+    // Scope is a list for a teammate and a column for an agent. Handing an agent
+    // a second customer is the one thing this model exists to make impossible.
+    if (action === "scope" && who.kind === "agent") {
+      return NextResponse.json(
+        { error: `${who.name} is an agent. It belongs to one project and its scope cannot be widened.` },
+        { status: 400 },
+      );
+    }
+
     if (action === "scope") {
       const customerId = String(body.customerId || "");
       if (!(await getCustomer(customerId))) {

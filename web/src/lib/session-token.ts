@@ -33,6 +33,8 @@ export type McpSession = {
   id: string;
   name: string;
   handle: string;
+  /** operator = a teammate, scoped to a list. agent = one project, one customer. */
+  kind: string;
   approver: boolean;
   status: string;
   scope: string[];
@@ -52,18 +54,26 @@ export async function sessionFromHeader(header: string | null): Promise<McpSessi
   if (!row || !row.tokenHash || !sameDigest(row.tokenHash, digest)) return null;
   if (row.status === "revoked") return null;
 
-  const [scopes, tools] = await Promise.all([
-    db.select().from(personScopes).where(eq(personScopes.personId, row.id)),
-    db.select().from(personTools).where(eq(personTools.personId, row.id)),
-  ]);
+  const tools = await db.select().from(personTools).where(eq(personTools.personId, row.id));
+
+  // An agent's scope is its column, not a list somebody maintains. It cannot be
+  // widened by a mis-click, and there is no second customer to widen it to.
+  let scope: string[];
+  if (row.kind === "agent") {
+    scope = row.customerId ? [row.customerId] : [];
+  } else {
+    const scopes = await db.select().from(personScopes).where(eq(personScopes.personId, row.id));
+    scope = scopes.map((s) => s.customerId);
+  }
 
   return {
     id: row.id,
     name: row.name,
     handle: row.handle,
+    kind: row.kind,
     approver: row.approver,
     status: row.status,
-    scope: scopes.map((s) => s.customerId),
+    scope,
     tools: tools.map((t) => t.tool),
   };
 }

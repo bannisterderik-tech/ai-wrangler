@@ -5,6 +5,7 @@ import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
 
 type Person = {
   id: string; name: string; handle: string; role: string; approver: boolean;
+  kind: string; customerId: string | null;
   machine: string | null; status: string; clientVersion: string | null; connectedAt: string | null;
   tokenPrefix: string | null; hasToken: boolean;
   scope: string[]; grants: string[]; claimed: number;
@@ -28,8 +29,9 @@ export default function SessionsPage() {
   const [tab, setTab] = useState("connect");
   const [revealed, setRevealed] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<"operator" | "agent" | null>(null);
   const [newName, setNewName] = useState("");
+  const [newCustomer, setNewCustomer] = useState("");
   const [addError, setAddError] = useState("");
 
   const load = useCallback(async () => {
@@ -55,7 +57,7 @@ export default function SessionsPage() {
     const res = await fetch("/api/people", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName }),
+      body: JSON.stringify({ name: newName, kind: adding, customerId: adding === "agent" ? newCustomer : undefined }),
     });
     const out = await res.json().catch(() => ({}));
     setBusy(false);
@@ -64,7 +66,7 @@ export default function SessionsPage() {
       return;
     }
     setNewName("");
-    setAdding(false);
+    setAdding(null);
     await load();
     setSel(out.id);
     setTab("connect");
@@ -113,14 +115,31 @@ export default function SessionsPage() {
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Name, or the agent's name"
-              className="btn-os min-w-[200px]"
+              placeholder={adding === "agent" ? "Agent name, e.g. apex-builder" : "Their name"}
+              className="btn-os min-w-[190px]"
             />
-            <button className="btn-os brand" type="submit" disabled={busy || !newName.trim()}>Add</button>
-            <button className="btn-os" type="button" onClick={() => { setAdding(false); setAddError(""); }}>Cancel</button>
+            {adding === "agent" ? (
+              <select className="btn-os" value={newCustomer} onChange={(e) => setNewCustomer(e.target.value)}>
+                <option value="">Which project…</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            ) : null}
+            <button
+              className="btn-os brand"
+              type="submit"
+              disabled={busy || !newName.trim() || (adding === "agent" && !newCustomer)}
+            >
+              Add {adding === "agent" ? "agent" : "teammate"}
+            </button>
+            <button className="btn-os" type="button" onClick={() => { setAdding(null); setAddError(""); }}>Cancel</button>
           </form>
         ) : (
-          <button className="btn-os" onClick={() => setAdding(true)}>+ Add a teammate or agent</button>
+          <>
+            <button className="btn-os" onClick={() => setAdding("operator")}>+ Teammate</button>
+            <button className="btn-os" onClick={() => setAdding("agent")}>+ Agent for a project</button>
+          </>
         )}
         {addError ? <span className="text-[11px]" style={{ color: "var(--state-stop)" }}>{addError}</span> : null}
         <span className="ml-auto text-[11px]" style={{ color: "var(--text-secondary)" }}>
@@ -129,15 +148,37 @@ export default function SessionsPage() {
       </DeskBar>
 
       <Dossier
-        list={data.people.map((p) => (
-          <RollItem
-            key={p.id}
-            on={p.id === who.id}
-            title={p.name}
-            meta={`${p.role} · ${p.status} · ${p.claimed} claimed`}
-            onClick={() => { setSel(p.id); setTab("connect"); }}
-          />
-        ))}
+        list={
+          <>
+            {([["operator", "Your team"], ["agent", "Agents — one per project"]] as const).map(([kind, label]) => {
+              const group = data.people.filter((p) => p.kind === kind);
+              if (!group.length) return null;
+              return (
+                <div key={kind}>
+                  <div
+                    className="border-b px-3 py-2 text-[10px] font-semibold uppercase tracking-wider"
+                    style={{ borderColor: "var(--hairline)", color: "var(--text-secondary)" }}
+                  >
+                    {label}
+                  </div>
+                  {group.map((p) => (
+                    <RollItem
+                      key={p.id}
+                      on={p.id === who.id}
+                      title={p.name}
+                      meta={
+                        p.kind === "agent"
+                          ? `${customers.find((c) => c.id === p.customerId)?.name ?? p.customerId} · ${p.status} · ${p.claimed} claimed`
+                          : `${p.role} · ${p.status} · ${p.claimed} claimed`
+                      }
+                      onClick={() => { setSel(p.id); setTab("connect"); }}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </>
+        }
         rail={
           <div className="flex flex-col gap-3">
             <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
@@ -258,7 +299,18 @@ export default function SessionsPage() {
             </>
           ) : null}
 
-          {tab === "scope" ? (
+          {tab === "scope" && who.kind === "agent" ? (
+            <>
+              <Kv rows={[["Project", customers.find((c) => c.id === who.customerId)?.name ?? who.customerId ?? "—"]]} />
+              <p className="mt-4 max-w-[62ch] text-[12.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                An agent belongs to one project. Its scope is a column on the row, not a list somebody
+                maintains — there is no second customer to grant it, and no toggle to forget. If you need an
+                agent on another project, make another agent.
+              </p>
+            </>
+          ) : null}
+
+          {tab === "scope" && who.kind !== "agent" ? (
             <>
               {customers.map((c) => {
                 const on = who.scope.includes(c.id);

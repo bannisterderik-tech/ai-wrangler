@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { fail, guard, operator } from "@/lib/api";
 import { audit, jobs, people, personScopes, personTools } from "@/lib/schema";
 import { TOOLS } from "@/lib/mcp-tools";
 import { slug } from "@/lib/crypto";
+import { getCustomer } from "@/lib/customers";
 
 /** Everyone on the floor, with what their session is allowed to touch. */
 export async function GET() {
@@ -15,7 +16,7 @@ export async function GET() {
     // Operators and agents only. A client user is a person row too, but they
     // sign in to their own CRM and have no MCP session — listing them here
     // invites minting them a token that could never do anything.
-    db.select().from(people).where(eq(people.kind, "operator")).orderBy(asc(people.createdAt)),
+    db.select().from(people).where(inArray(people.kind, ["operator", "agent"])).orderBy(asc(people.createdAt)),
     db.select().from(personScopes),
     db.select().from(personTools),
     db
@@ -31,6 +32,7 @@ export async function GET() {
       name: p.name,
       handle: p.handle,
       kind: p.kind,
+      customerId: p.customerId,
       role: p.role,
       approver: p.approver,
       machine: p.machine,
@@ -40,14 +42,22 @@ export async function GET() {
       // Never the token itself — only enough to recognise which one is installed.
       tokenPrefix: p.tokenPrefix,
       hasToken: Boolean(p.tokenHash),
-      scope: scopes.filter((s) => s.personId === p.id).map((s) => s.customerId),
+      // An agent's scope is its column. Nobody maintains a list for it.
+      scope: p.kind === "agent" ? (p.customerId ? [p.customerId] : []) : scopes.filter((s) => s.personId === p.id).map((s) => s.customerId),
       grants: tools.filter((t) => t.personId === p.id).map((t) => t.tool),
       claimed: counts.find((c) => c.ownerId === p.id)?.n ?? 0,
     })),
   });
 }
 
-/** Add a teammate. They get no token until you mint one. */
+/**
+ * Add a teammate, or an agent.
+ *
+ * A teammate is a person and works across the customers you scope them to. An
+ * agent is per project and must name its customer — the schema refuses one
+ * without, because an agent that can reach a second customer is the thing this
+ * product exists to prevent.
+ */
 export async function POST(req: Request) {
   const denied = await guard();
   if (denied) return denied;
@@ -56,8 +66,18 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const name = String(body.name || "").trim();
     if (!name) return NextResponse.json({ error: "name required" }, { status: 400 });
+
+    const kind = body.kind === "agent" ? "agent" : "operator";
+    const customerId = String(body.customerId || "").trim();
+    if (kind === "agent" && !customerId) {
+      return NextResponse.json({ error: "an agent belongs to one customer — pick the project" }, { status: 400 });
+    }
+    if (kind === "agent" && !(await getCustomer(customerId))) {
+      return NextResponse.json({ error: "no such customer" }, { status: 404 });
+    }
+
     const handle = slug(String(body.handle || name)).slice(0, 24) || "teammate";
-    const id = `U_${handle}`;
+    const id = kind === "agent" ? `A_${handle}` : `U_${handle}`;
 
     const [existing] = await db.select().from(people).where(eq(people.handle, handle)).limit(1);
     if (existing) return NextResponse.json({ error: `${handle} is already on the floor` }, { status: 409 });
@@ -66,7 +86,9 @@ export async function POST(req: Request) {
       id,
       name,
       handle,
-      role: String(body.role || "Build wrangler"),
+      kind,
+      customerId: kind === "agent" ? customerId : null,
+      role: kind === "agent" ? "Build agent" : String(body.role || "Build wrangler"),
       approver: false,
       machine: "not connected yet",
       status: "invited",

@@ -21,15 +21,28 @@ The trade is real: we operate the container. In exchange the walls, the audit
 trail and the approval gate stay in one system, and the agent is the same Claude
 Code the team already uses.
 
-## What decides what it can do
+## An agent is per project
 
-Its session token. Nothing else.
+Not per teammate. A teammate is a person who brings their own Claude Code and
+works across the customers you scope them to. An agent has no human, and it must
+never be able to see a second customer — so its scope is a **column on its row**,
+not a list somebody maintains. There is no toggle to forget, and the database
+refuses an agent without a project.
 
-Mint one on **Sessions** for a person row that represents the agent, then grant
-it scope and tools there. Take away `open_branch` and it can read, think and ask,
-and cannot write — not because the prompt says so, but because
-`/api/mcp` refuses the call. Revoke the session and everything it was holding
-goes back on the board.
+Make one on **Sessions → + Agent for a project**, pick the customer, mint its
+token. Need an agent on another project? Make another agent.
+
+Everything else it can do is the tools you grant it there. Take away
+`open_branch` and it can read, think and ask, and cannot write — not because the
+brief says so, but because `/api/mcp` refuses the call. Revoke the session and
+everything it was holding goes back on the board.
+
+## One container, several agents
+
+Isolation is per token, not per container. `WRANGLER_SESSION_TOKENS` takes a
+comma-separated list: each pass runs as exactly one agent, in its own workspace,
+and the server hands it exactly one customer. So you do not need a Railway
+service per project — you need a token per project.
 
 ## Deploy on Railway
 
@@ -47,7 +60,7 @@ Variables:
 |---|---|
 | `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys |
 | `WRANGLER_MCP_URL` | `https://<your-app>.up.railway.app/api/mcp` |
-| `WRANGLER_SESSION_TOKEN` | Sessions screen → the agent's row → Mint token. Shown once. |
+| `WRANGLER_SESSION_TOKENS` | One per project agent, comma separated. Sessions → the agent → Mint token. Shown once. |
 | `POLL_SECONDS` | optional, default 120 |
 | `RUN_ONCE` | optional, `1` to make one pass and exit — use this first |
 | `AGENT_MODEL` | optional, default `claude-opus-5` |

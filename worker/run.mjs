@@ -17,7 +17,26 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const MCP_URL = need("WRANGLER_MCP_URL");
-const TOKEN = need("WRANGLER_SESSION_TOKEN");
+
+/**
+ * One token per agent, and an agent is one project. Several here means one
+ * container hosting several project agents — each pass runs as exactly one of
+ * them, in its own workspace, and the server gives it exactly one customer.
+ * Isolation is per token, not per container, so this stays true however many
+ * you list.
+ */
+const TOKENS = (process.env.WRANGLER_SESSION_TOKENS || process.env.WRANGLER_SESSION_TOKEN || "")
+  .split(",")
+  .map((t) => t.trim())
+  .filter(Boolean);
+if (!TOKENS.length) {
+  console.error(
+    "[agent] WRANGLER_SESSION_TOKENS is not set.\n" +
+      "        One token per project agent, comma separated. Mint each on Sessions —\n" +
+      "        + Agent for a project — and each is shown once.",
+  );
+  process.exit(1);
+}
 const WORKSPACE = process.env.WORKSPACE_DIR || "/work";
 const INTERVAL = Number(process.env.POLL_SECONDS || 120);
 const ONCE = process.env.RUN_ONCE === "1";
@@ -40,17 +59,17 @@ function need(key) {
  * Claude Code reads .mcp.json from the working directory. Writing it here rather
  * than baking it into the image keeps the token out of the image layers.
  */
-function writeMcpConfig() {
-  mkdirSync(WORKSPACE, { recursive: true });
+function writeMcpConfig(dir, token) {
+  mkdirSync(dir, { recursive: true });
   writeFileSync(
-    join(WORKSPACE, ".mcp.json"),
+    join(dir, ".mcp.json"),
     JSON.stringify(
       {
         mcpServers: {
           wrangler: {
             type: "http",
             url: MCP_URL,
-            headers: { Authorization: `Bearer ${TOKEN}` },
+            headers: { Authorization: `Bearer ${token}` },
           },
         },
       },
@@ -88,16 +107,16 @@ Hard rules:
   of the same thing.
 - Spend is capped per job. When you are near the cap, post_step saying so and stop.`;
 
-function runOnce() {
+function runOnce(dir) {
   return new Promise((resolve) => {
     const args = [
       "-p", BRIEF,
       "--model", MODEL,
       "--permission-mode", "acceptEdits",
-      "--mcp-config", join(WORKSPACE, ".mcp.json"),
+      "--mcp-config", join(dir, ".mcp.json"),
     ];
     const child = spawn("claude", args, {
-      cwd: WORKSPACE,
+      cwd: dir,
       stdio: ["ignore", "inherit", "inherit"],
       env: process.env,
     });
@@ -109,17 +128,43 @@ function runOnce() {
   });
 }
 
+/** Ask the floor who this token is, so the log names the agent and its project. */
+async function whoAmI(token) {
+  try {
+    const res = await fetch(MCP_URL, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return { label: `token ending ${token.slice(-6)}`, ok: false };
+    const info = await res.json();
+    return { label: `${info.session?.handle ?? "agent"} → ${(info.scope || []).join(", ") || "no project"}`, ok: true };
+  } catch {
+    return { label: `token ending ${token.slice(-6)}`, ok: false };
+  }
+}
+
 async function main() {
-  writeMcpConfig();
   console.log(`[agent] floor: ${MCP_URL}`);
-  console.log(`[agent] workspace: ${WORKSPACE}  model: ${MODEL}`);
-  console.log(`[agent] mode: ${ONCE ? "one pass" : `every ${INTERVAL}s`}`);
+  console.log(`[agent] ${TOKENS.length} agent${TOKENS.length === 1 ? "" : "s"}  model: ${MODEL}`);
+  console.log(`[agent] mode: ${ONCE ? "one pass each" : `every ${INTERVAL}s`}`);
+
+  const agents = [];
+  for (let i = 0; i < TOKENS.length; i++) {
+    const token = TOKENS[i];
+    const who = await whoAmI(token);
+    if (!who.ok) console.warn(`[agent] ${who.label}: the floor did not recognise this token`);
+    // A workspace each: two agents must never share a checkout.
+    const dir = join(WORKSPACE, `agent-${i + 1}`);
+    writeMcpConfig(dir, token);
+    agents.push({ dir, label: who.label });
+    console.log(`[agent] ${i + 1}. ${who.label}  workspace ${dir}`);
+  }
 
   do {
-    const started = Date.now();
-    const code = await runOnce();
-    console.log(`[agent] pass finished in ${Math.round((Date.now() - started) / 1000)}s (exit ${code})`);
-    if (ONCE) process.exit(code);
+    for (const a of agents) {
+      const started = Date.now();
+      console.log(`[agent] --- ${a.label} ---`);
+      const code = await runOnce(a.dir);
+      console.log(`[agent] ${a.label}: ${Math.round((Date.now() - started) / 1000)}s (exit ${code})`);
+    }
+    if (ONCE) process.exit(0);
     // A crashed pass must not become a hot loop against the API.
     await new Promise((r) => setTimeout(r, Math.max(30, INTERVAL) * 1000));
   } while (true);
