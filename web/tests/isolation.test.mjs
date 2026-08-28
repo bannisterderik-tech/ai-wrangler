@@ -2438,3 +2438,42 @@ describe("customer copilots and their dependency map", () => {
     assert.equal(res.status, 200);
   });
 });
+
+/**
+ * The self-test has to ask, not infer.
+ *
+ * "The key is set" and "the key works" are different claims. Every failure of
+ * this project has lived in that gap — a Docker image missing a dependency, a
+ * Railway field that did not exist, a worker idling on Opus. So the checks are
+ * real requests, and a check must never report ok from an env var alone.
+ */
+describe("the self-test reports what vendors say, not what we assume", () => {
+  test("with nothing configured, nothing claims to work", async () => {
+    const { status, body } = await api("/api/selftest");
+    assert.equal(status, 200);
+    const byId = Object.fromEntries(body.checks.map((c) => [c.id, c]));
+    // Postgres is genuinely reachable in the suite, so it is the one ok.
+    assert.equal(byId.database.state, "ok");
+    for (const id of ["anthropic", "stripe", "twilio", "github_app", "resend"]) {
+      assert.notEqual(byId[id].state, "ok", `${id} has no credentials and must not report ok`);
+      assert.ok(byId[id].costs, `${id} must say what stops working without it`);
+    }
+  });
+
+  test("a stranger cannot read which vendors we use", async () => {
+    const saved = cookie;
+    cookie = "";
+    const res = await api("/api/selftest");
+    cookie = saved;
+    assert.equal(res.status, 401);
+  });
+
+  test("no check has a side effect", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/lib/selftest.ts", import.meta.url), "utf8"),
+    );
+    // A self-test that sends a text or charges a card is not a self-test.
+    assert.ok(!/method:\s*"POST"/.test(src), "every check must be a read");
+    assert.ok(!/Messages\.json|\/v1\/charges|\/pulls/.test(src), "no sending, charging or writing");
+  });
+});

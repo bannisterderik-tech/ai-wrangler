@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { SelfTest } from "@/components/os/SelfTest";
 
 type KeyField = { id: string; label: string; hint: string; secret: boolean };
 
@@ -97,6 +98,7 @@ export default function SettingsPage() {
       <div className="text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
         Each connection issues the AI its own limited token — never your password. Isolation is per customer.
       </div>
+      <SelfTest />
       <AgencyKeys />
       <Row
         name="Vercel"
