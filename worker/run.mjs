@@ -40,7 +40,12 @@ if (!TOKENS.length) {
 const WORKSPACE = process.env.WORKSPACE_DIR || "/work";
 const INTERVAL = Number(process.env.POLL_SECONDS || 120);
 const ONCE = process.env.RUN_ONCE === "1";
-const MODEL = process.env.AGENT_MODEL || "claude-opus-5";
+/**
+ * The fallback only. Normally the floor names the model for the next job, so a
+ * heading change does not get billed at rebuild prices. AGENT_MODEL is what we
+ * use when the floor cannot be reached or has nothing queued.
+ */
+const MODEL = process.env.AGENT_MODEL || "claude-sonnet-5";
 
 function need(key) {
   const v = process.env[key];
@@ -176,12 +181,30 @@ const BARE = (() => {
   }
 })();
 
-function runOnce(dir) {
+/**
+ * Ask the floor what is next and how much brain it wants.
+ *
+ * --model is fixed for the life of a session, but the job is chosen inside the
+ * session, so the tier can only be honoured by asking before we start.
+ */
+async function nextBrain(token) {
+  try {
+    const res = await fetch(new URL("/api/agent/next", MCP_URL), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+function runOnce(dir, model) {
   return new Promise((resolve) => {
     const args = [
       "-p", BRIEF,
       ...(BARE ? ["--bare"] : []),
-      "--model", MODEL,
+      "--model", model,
       "--permission-mode", "acceptEdits",
       "--mcp-config", join(dir, ".mcp.json"),
       // Only the floor. Not whatever else happens to be configured on the box.
@@ -293,7 +316,25 @@ async function main() {
     for (const a of agents) {
       const started = Date.now();
       console.log(`[agent] --- ${a.label} ---`);
-      const { code, usd } = await runOnce(a.dir);
+
+      const next = await nextBrain(a.token);
+      if (next && !next.job) {
+        // Nothing claimable. Starting a session to be told that costs real money
+        // for a guaranteed "nothing to do".
+        console.log(`[agent] ${a.label}: ${next.reason}. Skipping this pass.`);
+        continue;
+      }
+      const model = next?.model || MODEL;
+      if (next?.job) {
+        console.log(
+          `[agent] ${a.label}: ${next.job.id} "${next.job.title}" — ${next.brain} (${model}), ` +
+            `$${Number(next.remaining).toFixed(2)} left on its cap`,
+        );
+      } else {
+        console.log(`[agent] ${a.label}: floor unreachable, falling back to ${model}`);
+      }
+
+      const { code, usd } = await runOnce(a.dir, model);
       const secs = Math.round((Date.now() - started) / 1000);
       const cost = Number.isFinite(usd) ? `$${usd.toFixed(2)}` : "cost unknown";
       console.log(`[agent] ${a.label}: ${secs}s  ${cost}  (exit ${code})`);

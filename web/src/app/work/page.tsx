@@ -16,10 +16,13 @@ type Job = {
   steps: Step[]; gate: Gate | null;
   change: { id: string; title: string; repo: string | null; branch: string | null; status: string; diff: string | null } | null;
 };
+type Brain = { id: string; label: string; rate: string; good: string; bad: string };
 type Floor = {
   jobs: Job[];
   people: { id: string; handle: string; name: string; status: string; kind?: string; customerId?: string | null }[];
   customers: { id: string; name: string }[];
+  brains?: Brain[];
+  defaultBrain?: string;
 };
 
 const WORD: Record<string, string> = {
@@ -43,7 +46,7 @@ export default function FloorPage() {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [opening, setOpening] = useState(false);
-  const [draft, setDraft] = useState({ title: "", customerId: "", goal: "", budgetDollars: "10", ownerId: "" });
+  const [draft, setDraft] = useState({ title: "", customerId: "", goal: "", budgetDollars: "10", ownerId: "", tier: "sonnet" });
   const [openError, setOpenError] = useState("");
 
   const load = useCallback(async () => {
@@ -91,7 +94,7 @@ export default function FloorPage() {
       return;
     }
     setOpening(false);
-    setDraft({ title: "", customerId: "", goal: "", budgetDollars: "10", ownerId: "" });
+    setDraft({ title: "", customerId: "", goal: "", budgetDollars: "10", ownerId: "", tier: floor?.defaultBrain ?? "sonnet" });
     await load();
     setSel(out.id);
     setFilter("all");
@@ -174,6 +177,12 @@ export default function FloorPage() {
             />
           </label>
           <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Brain</span>
+            <select className="btn-os" value={draft.tier} onChange={(e) => setDraft({ ...draft, tier: e.target.value })}>
+              {(floor.brains ?? []).map((b) => <option key={b.id} value={b.id}>{b.label} · {b.rate}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
             <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Give it to</span>
             <select className="btn-os" value={draft.ownerId} onChange={(e) => setDraft({ ...draft, ownerId: e.target.value })}>
               <option value="">Leave on the board</option>
@@ -194,6 +203,14 @@ export default function FloorPage() {
           <button className="btn-os brand" type="submit" disabled={busy || !draft.title.trim() || !draft.customerId}>
             Open it
           </button>
+          {(() => {
+            const b = (floor.brains ?? []).find((x) => x.id === draft.tier);
+            return b ? (
+              <p className="w-full max-w-[70ch] text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                <strong>{b.label}</strong> — {b.good} <span style={{ color: "var(--state-blocked)" }}>{b.bad}</span>
+              </p>
+            ) : null;
+          })()}
           {openError ? <span className="text-[12px]" style={{ color: "var(--state-stop)" }}>{openError}</span> : null}
         </form>
       ) : null}

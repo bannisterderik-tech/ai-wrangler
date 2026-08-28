@@ -990,7 +990,9 @@ describe("giving an agent a job with a limit", () => {
   test("the first step says who opened it and what the cap is", async () => {
     const [job] = await sql`SELECT id FROM jobs WHERE title = 'Booking page C'`;
     const [step] = await sql`SELECT text, actor FROM job_steps WHERE job_id = ${job.id} ORDER BY id LIMIT 1`;
-    assert.match(step.text, /Cap \$12\.50/);
+    // The step names the brain as well as the cap: both are what the job costs.
+    assert.match(step.text, /cap \$12\.50/i);
+    assert.match(step.text, /Medium brain/);
   });
 });
 
@@ -1215,5 +1217,82 @@ describe("the worker can be redeployed from the OS", () => {
     });
     cookie = saved;
     assert.equal(res.status, 401);
+  });
+});
+
+/**
+ * A job's tier has to reach the model that runs it.
+ *
+ * `jobs.tier` existed as free text defaulting to "Medium brain" and nothing read
+ * it — every pass ran on whatever AGENT_MODEL the container held, so a heading
+ * change was billed at rebuild prices and the column was decoration.
+ */
+describe("a job picks its own size of brain", () => {
+  let token = "";
+  before(async () => {
+    await sql`DELETE FROM jobs WHERE title LIKE 'Brain %'`;
+    await sql`DELETE FROM people WHERE id = 'A_brain-bot'`;
+    token = "wr_sess_braintest000000000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(token).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, token_hash, status)
+      VALUES ('A_brain-bot','brain-bot','brain-bot','agent','acme',${hash},'connected')`;
+  });
+
+  const next = () =>
+    fetch(`${BASE}/api/agent/next`, { headers: { Authorization: `Bearer ${token}` } }).then(async (r) => ({
+      status: r.status,
+      body: await r.json(),
+    }));
+
+  test("the floor offers the tiers so the form does not retype them", async () => {
+    const { body } = await api("/api/floor");
+    assert.ok(Array.isArray(body.brains) && body.brains.length >= 3);
+    const ids = body.brains.map((b) => b.id);
+    for (const id of ["haiku", "sonnet", "opus"]) assert.ok(ids.includes(id), `missing ${id}`);
+    // Every tier states its downside. A picker of only upsides is a sales page.
+    for (const b of body.brains) assert.ok(b.bad && b.bad.length > 10, `${b.id} has no stated downside`);
+  });
+
+  test("opening a job on a tier stores that tier", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Brain small", customerId: "acme", budgetDollars: 3, tier: "haiku" }),
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT tier FROM jobs WHERE id = ${res.body.id}`;
+    assert.equal(row.tier, "haiku");
+  });
+
+  test("an unknown tier falls back rather than failing the job", async () => {
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Brain junk", customerId: "acme", budgetDollars: 3, tier: "galaxy" }),
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT tier FROM jobs WHERE id = ${res.body.id}`;
+    assert.equal(row.tier, "sonnet");
+  });
+
+  test("the worker is told which model to start", async () => {
+    const r = await next();
+    assert.equal(r.status, 200);
+    assert.ok(r.body.job, "there is claimable work, so a job should be offered");
+    assert.ok(r.body.model, "a model has to be named or --model cannot be set");
+    assert.equal(typeof r.body.remaining, "number");
+  });
+
+  test("a stranger is not told what is on the board", async () => {
+    const r = await fetch(`${BASE}/api/agent/next`, { headers: { Authorization: "Bearer wr_sess_nope" } });
+    assert.equal(r.status, 401);
+  });
+
+  test("a job at its cap is not offered as work", async () => {
+    await sql`UPDATE jobs SET spent_cents = budget_cents WHERE customer_id = 'acme' AND owner_id IS NULL`;
+    await sql`UPDATE jobs SET spent_cents = budget_cents WHERE owner_id = 'A_brain-bot'`;
+    const r = await next();
+    assert.equal(r.body.job, null, "capped jobs must not start a pass that can only be refused");
+    assert.match(r.body.reason, /cap|nothing/i);
   });
 });

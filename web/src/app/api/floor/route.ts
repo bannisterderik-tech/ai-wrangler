@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { approvals, audit, boundResources, changes, customers, jobSteps, jobs, people } from "@/lib/schema";
 import { fail, guard, operator } from "@/lib/api";
 import { newId } from "@/lib/customers";
+import { BRAINS, DEFAULT_BRAIN, brainFromTier } from "@/lib/brains";
 
 /**
  * The floor in one payload. A job carries its own gate and its own diff, because
@@ -47,6 +48,8 @@ export async function GET() {
         risk: j.risk,
         spent: j.spentCents / 100,
         budget: j.budgetCents / 100,
+        tier: brainFromTier(j.tier).id,
+        brain: brainFromTier(j.tier).label,
         steps: steps
           .filter((s) => s.jobId === j.id)
           .map((s) => ({ kind: s.kind, text: s.text, actor: s.actor, at: s.at })),
@@ -68,6 +71,10 @@ export async function GET() {
           : null,
       };
     }),
+    // The picker renders from here, so the tiers and their trade-offs live in
+    // one file rather than being retyped into a form.
+    brains: BRAINS.map((b) => ({ id: b.id, label: b.label, rate: b.rate, good: b.good, bad: b.bad })),
+    defaultBrain: DEFAULT_BRAIN,
   });
 }
 
@@ -95,6 +102,9 @@ export async function POST(req: Request) {
     const goal = String(body.goal || "").trim();
     const budget = Number(body.budgetDollars);
     const ownerId = String(body.ownerId || "").trim() || null;
+    // How much brain to buy. Picked when the job is opened, because that is when
+    // somebody knows whether this is a heading change or a rebuild.
+    const picked = brainFromTier(String(body.tier || "") || DEFAULT_BRAIN);
 
     if (!title) return NextResponse.json({ error: "give it a title" }, { status: 400 });
     if (!customerId) return NextResponse.json({ error: "pick the project" }, { status: 400 });
@@ -143,14 +153,15 @@ export async function POST(req: Request) {
       risk: "Opened by a human. Production is still a separate approval.",
       budgetCents: Math.round(budget * 100),
       spentCents: 0,
+      tier: picked.id,
     });
     await db.insert(jobSteps).values({
       jobId: id,
       customerId,
       kind: "think",
       text: ownerId
-        ? `Opened by ${actor} and handed straight to an agent. Cap $${budget.toFixed(2)}.`
-        : `Opened by ${actor}. On the board for any scoped session to claim. Cap $${budget.toFixed(2)}.`,
+        ? `Opened by ${actor} and handed straight to an agent. ${picked.label} · cap $${budget.toFixed(2)}.`
+        : `Opened by ${actor}. On the board for any scoped session to claim. ${picked.label} · cap $${budget.toFixed(2)}.`,
       actor,
     });
     await db.insert(audit).values({
@@ -161,7 +172,7 @@ export async function POST(req: Request) {
       at: new Date(),
     });
 
-    return NextResponse.json({ ok: true, id, repo });
+    return NextResponse.json({ ok: true, id, repo, tier: picked.id });
   } catch (e) {
     return fail(e);
   }

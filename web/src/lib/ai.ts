@@ -73,6 +73,13 @@ export type Ask = {
   maxTokens?: number;
   /** low | medium | high | xhigh | max. Higher costs more and thinks longer. */
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  /**
+   * Mark the system prompt as cacheable. Worth it when the same system text is
+   * sent repeatedly — a customer's house rules, a playbook, a site's content
+   * being walked page by page. Ignored when the block is too small to qualify,
+   * and ignored on OpenRouter, which does not expose the breakpoint.
+   */
+  cache?: boolean;
 };
 
 export type Answer = {
@@ -81,18 +88,40 @@ export type Answer = {
   provider: Provider;
   inputTokens: number;
   outputTokens: number;
+  /** Tokens written into the cache on this call, billed at 1.25x input. */
+  cacheWriteTokens: number;
+  /** Tokens served from the cache, billed at 0.1x input. The saving. */
+  cacheReadTokens: number;
   /** Whole cents, rounded up, so a job is never under-billed. */
   cents: number;
 };
 
-function priceOf(model: string, inTok: number, outTok: number) {
+/**
+ * Cached tokens are not priced like fresh ones: writing the cache costs 1.25x
+ * input and reading it costs 0.1x. Billing a cache read at full rate would
+ * report a saving as a cost and make the cap fire early.
+ */
+const CACHE_WRITE = 1.25;
+const CACHE_READ = 0.1;
+
+function priceOf(model: string, inTok: number, outTok: number, cacheWrite = 0, cacheRead = 0) {
   const p = PRICING[model.replace(/^anthropic\//, "")];
   if (!p) return 0;
-  return Math.ceil((inTok * p.in + outTok * p.out) / 1_000_000);
+  const micros =
+    inTok * p.in + outTok * p.out + cacheWrite * p.in * CACHE_WRITE + cacheRead * p.in * CACHE_READ;
+  return Math.ceil(micros / 1_000_000);
 }
 
+/**
+ * Below this a cache breakpoint is refused by the API and does nothing but add
+ * a field. Anthropic's floor is 1024 tokens for the bigger models and 2048 for
+ * Haiku; ~3.5 chars a token, and we err high so we never mark a block that is
+ * too small to qualify.
+ */
+const CACHEABLE_CHARS = 2048 * 4;
+
 /** The raw call. Use `askFor` when the work belongs to a customer. */
-export async function ask({ role = "deep", system, prompt, maxTokens = 8000, effort }: Ask): Promise<Answer> {
+export async function ask({ role = "deep", system, prompt, maxTokens = 8000, effort, cache }: Ask): Promise<Answer> {
   const provider = aiProvider();
   const model = MODELS[role];
   // The key can live in the vault as well as the environment, so it is pasted
@@ -130,7 +159,12 @@ export async function ask({ role = "deep", system, prompt, maxTokens = 8000, eff
     const text = data?.choices?.[0]?.message?.content ?? "";
     const inTok = data?.usage?.prompt_tokens ?? 0;
     const outTok = data?.usage?.completion_tokens ?? 0;
-    return { text, model, provider, inputTokens: inTok, outputTokens: outTok, cents: priceOf(model, inTok, outTok) };
+    return {
+      text, model, provider,
+      inputTokens: inTok, outputTokens: outTok,
+      cacheWriteTokens: 0, cacheReadTokens: 0,
+      cents: priceOf(model, inTok, outTok),
+    };
   }
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -143,7 +177,16 @@ export async function ask({ role = "deep", system, prompt, maxTokens = 8000, eff
     body: JSON.stringify({
       model,
       max_tokens: maxTokens,
-      ...(system ? { system } : {}),
+      // A cache breakpoint has to sit on a structured block, so the system only
+      // becomes an array when we are actually asking for one.
+      ...(system
+        ? {
+            system:
+              cache && system.length >= CACHEABLE_CHARS
+                ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
+                : system,
+          }
+        : {}),
       ...(effort ? { output_config: { effort } } : {}),
       messages: [{ role: "user", content: prompt }],
     }),
@@ -156,5 +199,12 @@ export async function ask({ role = "deep", system, prompt, maxTokens = 8000, eff
     .join("");
   const inTok = data?.usage?.input_tokens ?? 0;
   const outTok = data?.usage?.output_tokens ?? 0;
-  return { text, model, provider, inputTokens: inTok, outputTokens: outTok, cents: priceOf(model, inTok, outTok) };
+  const cw = data?.usage?.cache_creation_input_tokens ?? 0;
+  const cr = data?.usage?.cache_read_input_tokens ?? 0;
+  return {
+    text, model, provider,
+    inputTokens: inTok, outputTokens: outTok,
+    cacheWriteTokens: cw, cacheReadTokens: cr,
+    cents: priceOf(model, inTok, outTok, cw, cr),
+  };
 }

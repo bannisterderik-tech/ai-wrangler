@@ -9,6 +9,7 @@ const PUBLIC = [
   // The worker reporting what a pass cost. Bearer session token, same as
   // /api/mcp, and it can only add spend to a job its own session holds.
   "/api/agent/spend",
+  "/api/agent/next",
   // Called from a customer's own deployed site. Write-only, key-authenticated,
   // and it cannot read anything — see the route.
   "/api/ingest/error",
