@@ -190,16 +190,20 @@ if (!ALLOWED.some((t) => t.startsWith("Bash(node"))) {
  * Detected rather than assumed: an unknown flag is rejected before the run
  * starts, and a hardening change must not be able to break every pass.
  */
-const BARE = (() => {
+const HELP = (() => {
   const r = spawnSync("claude", ["--help"], { encoding: "utf8", timeout: 20_000 });
-  // spawnSync does not throw on a missing binary, it returns .error — so the
-  // old try/catch here was dead code and ENOENT read as "no --bare support".
   if (r.error) {
     console.error(`[agent] cannot run claude: ${r.error.message}`);
     process.exit(1);
   }
-  const has = `${r.stdout || ""}${r.stderr || ""}`.includes("--bare");
-  if (!has) return false;
+  return `${r.stdout || ""}${r.stderr || ""}`;
+})();
+
+/** Continuing a session only helps if this build can do it. */
+const CAN_RESUME = HELP.includes("--resume");
+
+const BARE = (() => {
+  if (!HELP.includes("--bare")) return false;
   // In bare mode Claude Code never reads OAuth credentials or the keychain; it
   // needs ANTHROPIC_API_KEY. Passing --bare without one turns every pass into an
   // auth failure — a hardening flag that switches the whole fleet off.
@@ -253,11 +257,26 @@ const MAX_PASS_MS = Math.max(60, Number(process.env.MAX_PASS_SECONDS) || 1800) *
 const MAX_SPEND_USD = Number(process.env.MAX_SPEND_USD) || 25;
 let spentThisBoot = 0;
 
-function runOnce(dir, model, brief) {
+/**
+ * Passes on the same job continue one session instead of starting a new one.
+ *
+ * Two things were paying for this. Cost: every pass was a cold start, so Claude
+ * Code's system prompt and the whole tool schema were billed at full input
+ * price every time — prompt caching only helps inside a session, and there was
+ * never a second turn in one. Quality: the agent could not remember what it had
+ * already done, so it re-read the project, re-reviewed the same diff, and
+ * rediscovered the same wall, four passes in a row, on real money.
+ *
+ * Resumed only while the job is the same. A different job gets a clean head.
+ */
+const RESUME_LIMIT = Math.max(1, Number(process.env.MAX_RESUMES) || 8);
+
+function runOnce(dir, model, brief, resumeId) {
   return new Promise((resolve) => {
     const args = [
       "-p", brief,
       ...(BARE ? ["--bare"] : []),
+      ...(resumeId ? ["--resume", resumeId] : []),
       "--model", model,
       "--permission-mode", "acceptEdits",
       "--mcp-config", join(dir, ".mcp.json"),
@@ -304,8 +323,10 @@ function runOnce(dir, model, brief) {
       clearTimeout(killer);
       let usd = NaN;
       let text = "";
+      let sessionId = null;
       try {
         const r = JSON.parse(out);
+        sessionId = typeof r.session_id === "string" ? r.session_id : null;
         // An absent field is unknown, not zero. `Number(undefined) || 0` quietly
         // recorded every such pass as free.
         usd = "total_cost_usd" in r ? Number(r.total_cost_usd) : NaN;
@@ -315,7 +336,7 @@ function runOnce(dir, model, brief) {
         if (out.trim()) console.log(out.trim().slice(0, 4000));
       }
       if (text) console.log(text);
-      resolve({ code: code ?? 0, usd, killed });
+      resolve({ code: code ?? 0, usd, killed, sessionId });
     });
   });
 }
@@ -365,6 +386,11 @@ async function main() {
   console.log(`[agent] mode: ${ONCE ? "one pass each" : `every ${INTERVAL}s`}`);
   console.log(`[agent] ceiling: $${MAX_SPEND_USD.toFixed(2)} for this container, ${Math.round(MAX_PASS_MS / 1000)}s per pass`);
   console.log(
+    CAN_RESUME
+      ? `[agent] passes on the same job continue one session (up to ${RESUME_LIMIT}), so the fixed prompt is cached rather than rebought`
+      : "[agent] this Claude Code has no --resume: every pass pays a cold start. Update the image.",
+  );
+  console.log(
     BARE
       ? "[agent] bare mode: the checkout's own hooks, skills and CLAUDE.md are not loaded"
       : "[agent] this Claude Code has no --bare: a checkout's .claude/ hooks and CLAUDE.md WILL load. Update the image.",
@@ -412,7 +438,7 @@ async function main() {
     writeFileSync(marker, mine, { mode: 0o600 });
 
     writeMcpConfig(dir, token);
-    agents.push({ dir, label: who.label, token });
+    agents.push({ dir, label: who.label, token, jobId: null, sessionId: null, resumes: 0 });
     console.log(`[agent] ${i + 1}. ${who.label}  workspace ${dir}`);
   }
 
@@ -458,18 +484,48 @@ async function main() {
           `$${Number(next.remaining).toFixed(2)} left on its cap`,
       );
 
+      // A new job means a clean head. Carrying one job's reasoning into another
+      // is worse than paying for a cold start.
+      if (a.jobId !== next.job.id) {
+        a.jobId = next.job.id;
+        a.sessionId = null;
+        a.resumes = 0;
+      }
+      // Context grows every turn, so a session that never ends stops being a
+      // saving. Start fresh periodically and let the floor re-establish state.
+      const resumeId = CAN_RESUME && a.resumes < RESUME_LIMIT ? a.sessionId : null;
+      if (!resumeId && a.sessionId) console.log(`[agent] ${a.label}: starting a fresh session (resume limit).`);
+
       // The model is started at this job's tier, so it has to be told which job
       // that is. list_jobs may well show a different one first, and a Haiku
       // session attempting an Opus rebuild burns the pass and produces a mess.
-      const brief =
-        `${BRIEF}\n\nThis session was sized for ${next.job.id} — "${next.job.title}".` +
-        `\nClaim that job and no other. If it is already taken, say so and stop:` +
-        ` a different job may need a different model than the one you are running.`;
-      const { code, usd, killed } = await runOnce(a.dir, model, brief);
+      const brief = resumeId
+        ? `You are continuing ${next.job.id} — "${next.job.title}" — in this same session.\n\n` +
+          `You already know what you did last pass. Do NOT re-read the project or re-review work you have ` +
+          `already reviewed; pick up where you stopped. If you were waiting on a human, call read_decision ` +
+          `first and act on the answer. If nothing has changed and you are still blocked, say so in one ` +
+          `post_step and stop — do not spend the budget confirming a wall you already found.`
+        : `${BRIEF}\n\nThis session was sized for ${next.job.id} — "${next.job.title}".` +
+          `\nClaim that job and no other. If it is already taken, say so and stop:` +
+          ` a different job may need a different model than the one you are running.`;
+
+      const { code, usd, killed, sessionId } = await runOnce(a.dir, model, brief, resumeId);
+      if (code !== 0 && resumeId) {
+        // Most likely the session is gone: the container restarted, or the file
+        // was cleaned up. Drop it so the next pass starts clean instead of
+        // failing the same way forever.
+        console.warn(`[agent] ${a.label}: resumed pass exited ${code} — dropping that session and starting fresh next time.`);
+        a.sessionId = null;
+        a.resumes = 0;
+      } else if (sessionId) {
+        a.sessionId = sessionId;
+        a.resumes = resumeId ? (a.resumes || 0) + 1 : 1;
+      }
       const secs = Math.round((Date.now() - started) / 1000);
       const cost = Number.isFinite(usd) ? `$${usd.toFixed(2)}` : "cost unknown";
       console.log(
         `[agent] ${a.label}: ${secs}s  ${cost}  (exit ${code})  ` +
+          `${resumeId ? `resumed (${a.resumes}/${RESUME_LIMIT})` : "fresh session"}  ` +
           `— $${spentThisBoot.toFixed(2)} of $${MAX_SPEND_USD.toFixed(2)} this boot`,
       );
       if (!Number.isFinite(usd)) {
