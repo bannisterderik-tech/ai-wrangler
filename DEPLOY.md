@@ -139,8 +139,15 @@ Railway stays the target for the container.
 
 **1. Root Directory = `web`.** Both `railway.json` and `Dockerfile` live in `web/`,
 and Railway looks for them at the root of the service's source directory. Point a
-service at the repo root and it finds neither, which is the "failed right away"
-with almost no log. Service → Settings → Root Directory → `web`.
+service at the repo root and it never sees either — it falls back to Railpack,
+detects Node from whatever is at the root, and dies with `next: not found`
+because the app's dependencies were never installed. Service → Settings → Root
+Directory → `web`.
+
+There is deliberately no `package.json` at the repo root any more. It only
+proxied npm scripts, and it caused four deploy failures across two platforms by
+making each of them believe the repo root was the app. Use the `Makefile` for the
+same shortcuts locally: `make dev`, `make test`, `make migrate`.
 
 **2. The container refuses to start without a database, on purpose.**
 `scripts/start.mjs` migrates before it serves and will not serve a schema it did

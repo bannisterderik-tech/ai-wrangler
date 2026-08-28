@@ -12,6 +12,11 @@ GitHub Pages serves the clickable OS sim so you can walk the UI before Postgres 
 - **Design sim:** [`prototype/`](prototype/) — Claude Design `.dc.html`. Visual source of truth. Previewed on Pages; not the production app.
 - **Plan:** [`PLAN.md`](PLAN.md) · **Handoff:** [`HANDOFF.md`](HANDOFF.md) · **Deploy:** [`DEPLOY.md`](DEPLOY.md)
 
+The app is **`web/`** — point every deploy platform's Root Directory at it.
+There is no `package.json` at the repo root on purpose; one there makes build
+platforms think the root is the app. Local shortcuts live in the `Makefile`
+(`make dev`, `make test`, `make migrate`).
+
 ```bash
 createdb wrangler_dev
 cd web && npm install && cp ../.env.example .env.local   # fill it in
