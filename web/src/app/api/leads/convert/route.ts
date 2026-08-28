@@ -47,11 +47,14 @@ export async function POST(req: Request) {
     for (const l of rows) {
       if (into === "customer") {
         const id = slug(l.company).slice(0, 60) || `customer-${newId().slice(0, 6)}`;
-        const [existing] = await db
-          .select()
-          .from(customers)
-          .where(and(eq(customers.id, id), eq(customers.tenantId, t.tenantId)))
-          .limit(1);
+        // Customer ids are global slugs, so "acme" can already belong to
+        // another agency. Checking only our own tenant would report a customer
+        // made that the insert then quietly dropped on the primary key.
+        const [existing] = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
+        if (existing && existing.tenantId !== t.tenantId) {
+          skipped.push({ name: l.company, why: "that name is taken — add them by hand" });
+          continue;
+        }
         if (existing) {
           skipped.push({ name: l.company, why: "already a customer" });
         } else {

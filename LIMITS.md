@@ -110,7 +110,21 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
 - Tables added after migration 2 shipped with no RLS, exposing signature
   evidence and proposal capability tokens. A test now fails if any table lacks it.
 
+- Customers and Ads answered `guard()`, which asks only whether *somebody* is
+  signed in, and then selected their whole table. Any signed-in agency read
+  every other agency's client list and ad spend, and could pause their
+  campaigns. Found while checking something else. Five tests were written
+  first, failed, and now pass.
+
 **True, and not fixed**
+
+- **25 routes still answer `guard()`.** The two that displayed other agencies'
+  data are fixed; the rest have not been audited one by one. `guard()` is not a
+  tenant check and reads as one, which is how this happened.
+- **Customer ids are global slugs.** Two agencies both signing "Acme" want the
+  same primary key. `ensureCustomer` now refuses rather than letting the second
+  adopt and rename the first one's row, but the real answer is a composite key,
+  and that is a migration.
 
 - **The agent container has arbitrary code execution.** `Bash(npm *)` and
   `Bash(node *)` both allow it. That container holds your Anthropic key, its own

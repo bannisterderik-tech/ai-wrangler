@@ -3821,3 +3821,103 @@ describe("a lead becomes a customer, or a partner, and only within its own accou
     }
   });
 });
+
+/**
+ * The screens either side of the pipeline.
+ *
+ * Leads were scoped when tenants landed; Customers and Ads were not. Both
+ * answer with `guard()`, which asks only whether *somebody* is signed in, and
+ * both then select their whole table. A signed-in agency therefore reads every
+ * other agency's customer list and every other agency's ad spend.
+ *
+ * These tests were written to fail first, and they did.
+ */
+describe("customers and ad campaigns stay inside their own agency", () => {
+  let theirCookie = "";
+
+  before(async () => {
+    await sql`DELETE FROM ad_campaigns WHERE name IN ('House Campaign','Their Campaign')`;
+    await sql`DELETE FROM customers WHERE id IN ('house-only-co','their-only-co')`;
+    await sql`DELETE FROM people WHERE email = 'boss@third.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'third-agency'`;
+    await sql`
+      INSERT INTO tenants (id, name, can_build, plan)
+      VALUES ('third-agency','Third Agency', true, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_third','Third Boss','thirdboss','boss@third.test','operator','third-agency','admin')`;
+    await sql`
+      INSERT INTO customers (id, name, tenant_id) VALUES
+        ('house-only-co','House Only Co','ai-wrangler'),
+        ('their-only-co','Their Only Co','third-agency')`;
+    await sql`
+      INSERT INTO ad_campaigns (id, customer_id, name, platform, status, daily_cap_cents, spend_cents)
+      VALUES ('A_house','house-only-co','House Campaign','google','active',5000,120000),
+             ('A_their','their-only-co','Their Campaign','google','active',5000,340000)`;
+
+    const raw = `wr_sess_third_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, 'boss@third.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    theirCookie = v ? `wrangler_session=${v}` : "";
+  });
+
+  const asThird = (path, init = {}) =>
+    fetch(`${BASE}${path}`, {
+      ...init,
+      redirect: "manual",
+      headers: { "Content-Type": "application/json", cookie: theirCookie, ...(init.headers || {}) },
+    });
+
+  test("another agency's customers are not in the customer list", async () => {
+    const theirs = await (await asThird("/api/customers")).json();
+    const ids = (theirs.customers ?? []).map((c) => c.id);
+    assert.ok(ids.includes("their-only-co"), "they must see their own");
+    assert.ok(!ids.includes("house-only-co"), "and must not see ours");
+
+    const mine = await api("/api/customers");
+    const myIds = mine.body.customers.map((c) => c.id);
+    assert.ok(!myIds.includes("their-only-co"), "nor we theirs");
+  });
+
+  test("another agency's ad spend is not on our Ads screen", async () => {
+    const theirs = await (await asThird("/api/ads")).json();
+    const names = (theirs.campaigns ?? []).map((c) => c.name);
+    assert.ok(names.includes("Their Campaign"), "they must see their own");
+    assert.ok(!names.includes("House Campaign"), "an agency must not read another's ad spend");
+
+    const mine = await api("/api/ads");
+    const myNames = mine.body.campaigns.map((c) => c.name);
+    assert.ok(!myNames.includes("Their Campaign"));
+  });
+
+  test("the customer picker on Ads shows only your own customers", async () => {
+    const theirs = await (await asThird("/api/ads")).json();
+    const ids = (theirs.customers ?? []).map((c) => c.id);
+    assert.ok(!ids.includes("house-only-co"), "the picker leaks the customer list too");
+  });
+
+  test("a campaign cannot be drafted against another agency's customer", async () => {
+    const res = await asThird("/api/ads", {
+      method: "POST",
+      body: JSON.stringify({ name: "Sneaky", customerId: "house-only-co", dailyCap: 10 }),
+    });
+    assert.equal(res.status, 404, "their customer is not found from another account");
+    const [{ count }] = await sql`SELECT count(*)::int FROM ad_campaigns WHERE name = 'Sneaky'`;
+    assert.equal(count, 0);
+  });
+
+  test("and another agency's campaign cannot be paused or resumed", async () => {
+    const res = await asThird("/api/ads", {
+      method: "PATCH",
+      body: JSON.stringify({ id: "A_house", status: "paused" }),
+    });
+    assert.equal(res.status, 404);
+    const [row] = await sql`SELECT status FROM ad_campaigns WHERE id = 'A_house'`;
+    assert.equal(row.status, "active", "it must still be running");
+  });
+});

@@ -1,21 +1,31 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guardTenant, operator } from "@/lib/api";
 import { adCampaigns, audit, customers } from "@/lib/schema";
 import { newId } from "@/lib/customers";
 
 const PLATFORMS = ["google", "meta", "tiktok", "linkedin", "x", "pinterest"];
 const STATUSES = ["draft", "pending_review", "active", "paused"];
 
-/** Campaigns on a customer's own ad account. We never hold the spend. */
+/**
+ * Campaigns on a customer's own ad account. We never hold the spend.
+ *
+ * Scoped through the customers of this agency rather than read whole: ad spend
+ * is one of the more sensitive numbers in the product, and this screen used to
+ * show every agency's.
+ */
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
-  const [rows, custs] = await Promise.all([
-    db.select().from(adCampaigns).orderBy(desc(adCampaigns.createdAt)),
-    db.select().from(customers),
-  ]);
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
+  const custs = await db.select().from(customers).where(eq(customers.tenantId, t.tenantId));
+  const rows = custs.length
+    ? await db
+        .select()
+        .from(adCampaigns)
+        .where(inArray(adCampaigns.customerId, custs.map((c) => c.id)))
+        .orderBy(desc(adCampaigns.createdAt))
+    : [];
   const name = (id: string) => custs.find((c) => c.id === id)?.name ?? id;
   return NextResponse.json({
     platforms: PLATFORMS,
@@ -32,8 +42,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
@@ -42,7 +52,13 @@ export async function POST(req: Request) {
     if (!name || !customerId) return NextResponse.json({ error: "name and customer required" }, { status: 400 });
     const cap = Number(body.dailyCap);
     if (!Number.isFinite(cap) || cap <= 0) return NextResponse.json({ error: "set a daily cap" }, { status: 400 });
-    const [c] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+    // Another agency's customer is "no such customer" — the same answer as one
+    // that does not exist, so the reply never confirms it is out there.
+    const [c] = await db
+      .select()
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, t.tenantId)))
+      .limit(1);
     if (!c) return NextResponse.json({ error: "no such customer" }, { status: 404 });
     const id = "A" + newId().slice(0, 8);
     await db.insert(adCampaigns).values({
@@ -63,13 +79,18 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
     const id = String(body.id || "");
-    const [a] = await db.select().from(adCampaigns).where(eq(adCampaigns.id, id)).limit(1);
+    const [a] = await db
+      .select({ id: adCampaigns.id, customerId: adCampaigns.customerId, name: adCampaigns.name })
+      .from(adCampaigns)
+      .innerJoin(customers, eq(customers.id, adCampaigns.customerId))
+      .where(and(eq(adCampaigns.id, id), eq(customers.tenantId, t.tenantId)))
+      .limit(1);
     if (!a) return NextResponse.json({ error: "no such campaign" }, { status: 404 });
     const status = String(body.status || "");
     if (!STATUSES.includes(status)) return NextResponse.json({ error: "unknown status" }, { status: 400 });
