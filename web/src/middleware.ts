@@ -10,6 +10,8 @@ const PUBLIC = [
   // /api/mcp, and it can only add spend to a job its own session holds.
   "/api/agent/spend",
   "/api/agent/next",
+  // Stripe posts here with its own signature; there is no session to have.
+  "/api/stripe/webhook",
   // Called from a customer's own deployed site. Write-only, key-authenticated,
   // and it cannot read anything — see the route.
   "/api/ingest/error",
@@ -25,7 +27,11 @@ const PUBLIC = [
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isApi = pathname.startsWith("/api/");
-  const isPublic = PUBLIC.some((p) => pathname === p);
+  // A proposal link is the credential — the recipient is a lead, not a user, and
+  // has nothing to sign in with. The token is 32 random bytes and addresses one
+  // proposal; the route can read, sign and pay that one and list nothing.
+  const isProposal = pathname.startsWith("/p/") || pathname.startsWith("/api/p/");
+  const isPublic = isProposal || PUBLIC.some((p) => pathname === p);
 
   if (!authConfigured()) {
     // No way to sign in means no way in. Never fall open.

@@ -1662,3 +1662,254 @@ describe("a decision reaches the agent, and a cap can be raised", () => {
     assert.equal(row.owner_id, null, "the session that hit the wall is gone; leaving it owned makes it unclaimable");
   });
 });
+
+/**
+ * Quote to cash.
+ *
+ * A lead is sent a proposal, agrees to it, signs it, and pays a deposit — and
+ * the deposit is what turns them into a customer, because money changing hands
+ * is the only signal worth trusting for that.
+ */
+describe("a proposal can be signed and paid, and paying makes a customer", () => {
+  let leadId = "";
+  let proposalId = "";
+  let token = "";
+
+  before(async () => {
+    await sql`DELETE FROM proposals WHERE title LIKE 'Chain %'`;
+    await sql`DELETE FROM agency_leads WHERE company = 'Chain Test Co'`;
+    await sql`DELETE FROM customers WHERE id = 'chain-test-co'`;
+    const [lead] = await sql`
+      INSERT INTO agency_leads (id, company, contact, email, stage, value_cents)
+      VALUES ('L_chain','Chain Test Co','Dana Chain','dana@chain.test','talking',0) RETURNING id`;
+    leadId = lead.id;
+  });
+
+  const pub = (path, init) =>
+    fetch(`${BASE}${path}`, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) } });
+
+  test("an operator builds it and the deposit is taken on one-time work only", async () => {
+    const made = await api("/api/proposals", {
+      method: "POST",
+      body: JSON.stringify({ leadId, title: "Chain rebuild", terms: "50% up front." }),
+    });
+    assert.equal(made.status, 200);
+    proposalId = made.body.id;
+
+    const priced = await api(`/api/proposals/${proposalId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        depositKind: "percent",
+        depositPct: 50,
+        items: [
+          { name: "Build", cadence: "once", qty: 1, unitCents: 400000 },
+          { name: "Retainer", cadence: "monthly", qty: 1, unitCents: 50000 },
+        ],
+      }),
+    });
+    assert.equal(priced.body.onceCents, 400000);
+    assert.equal(priced.body.monthlyCents, 50000);
+    // Half of the build, not half of build+retainer: a deposit on a retainer
+    // bills for months nobody has worked yet.
+    assert.equal(priced.body.depositCents, 200000);
+  });
+
+  test("an unsent proposal has no link to open", async () => {
+    const before = await sql`SELECT token FROM proposals WHERE id = ${proposalId}`;
+    assert.equal(before[0].token, null, "a draft must not be reachable");
+  });
+
+  test("sending freezes it and produces a link", async () => {
+    const sent = await api(`/api/proposals/${proposalId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "send" }),
+    });
+    assert.equal(sent.status, 200);
+    token = sent.body.link.split("/p/")[1];
+    assert.ok(token && token.length > 30, "the link is the credential, so it has to be unguessable");
+
+    const edit = await api(`/api/proposals/${proposalId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title: "Sneakily changed" }),
+    });
+    assert.equal(edit.status, 409, "a sent proposal must not be editable underneath the person reading it");
+  });
+
+  test("the client opens it with no account and sees the price", async () => {
+    const res = await pub(`/api/p/${token}`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.dueTodayCents, 200000);
+    assert.equal(body.company, "Chain Test Co");
+  });
+
+  test("a wrong token gets nothing", async () => {
+    const res = await pub(`/api/p/${"x".repeat(43)}`);
+    assert.equal(res.status, 404);
+  });
+
+  test("signing needs a name and an explicit agreement", async () => {
+    const noBox = await pub(`/api/p/${token}`, {
+      method: "POST",
+      body: JSON.stringify({ action: "sign", name: "Dana Chain", agreed: false }),
+    });
+    assert.equal(noBox.status, 400);
+    const noName = await pub(`/api/p/${token}`, {
+      method: "POST",
+      body: JSON.stringify({ action: "sign", name: "", agreed: true }),
+    });
+    assert.equal(noName.status, 400);
+  });
+
+  test("a signature records who, when, from where, and what exactly", async () => {
+    const res = await pub(`/api/p/${token}`, {
+      method: "POST",
+      headers: { "X-Forwarded-For": "203.0.113.9, 10.0.0.1", "User-Agent": "TestBrowser/1.0" },
+      body: JSON.stringify({ action: "sign", name: "Dana Chain", agreed: true, email: "dana@chain.test" }),
+    });
+    assert.equal(res.status, 200);
+    const [sig] = await sql`SELECT * FROM signatures WHERE proposal_id = ${proposalId}`;
+    assert.equal(sig.typed_name, "Dana Chain");
+    assert.equal(sig.ip, "203.0.113.9", "the client hop, not the proxy");
+    assert.match(sig.user_agent, /TestBrowser/);
+    assert.equal(sig.document_hash.length, 64);
+  });
+
+  test("the hash still matches the document, so it proves what was agreed", async () => {
+    const [sig] = await sql`SELECT document_hash FROM signatures WHERE proposal_id = ${proposalId}`;
+    const now = await api(`/api/proposals/${proposalId}`);
+    const { createHash } = await import("node:crypto");
+    const rehashed = createHash("sha256").update(now.body.document, "utf8").digest("hex");
+    assert.equal(rehashed, sig.document_hash, "a hash that cannot be reproduced proves nothing");
+  });
+
+  test("it cannot be signed twice", async () => {
+    const again = await pub(`/api/p/${token}`, {
+      method: "POST",
+      body: JSON.stringify({ action: "sign", name: "Someone Else", agreed: true }),
+    });
+    assert.equal(again.status, 409);
+  });
+
+  test("an unsigned webhook creates nothing", async () => {
+    const res = await fetch(`${BASE}/api/stripe/webhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "checkout.session.completed",
+        data: { object: { payment_status: "paid", metadata: { proposal_id: proposalId } } },
+      }),
+    });
+    assert.equal(res.status, 400, "no signature, no customer — anyone could POST this");
+    const [row] = await sql`SELECT customer_id FROM proposals WHERE id = ${proposalId}`;
+    assert.equal(row.customer_id, null);
+  });
+
+  test("and the browser redirect cannot convert anyone either", async () => {
+    const res = await pub(`/api/p/${token}?paid=1`);
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT customer_id, status FROM proposals WHERE id = ${proposalId}`;
+    assert.equal(row.customer_id, null, "visiting a success URL is not payment");
+    assert.notEqual(row.status, "paid");
+  });
+});
+
+/**
+ * The conversion itself: a signed webhook, and only a signed webhook, turns a
+ * lead into a customer. Stripe retries until it gets a 2xx, so this has to be
+ * safe to run twice.
+ */
+describe("the deposit is what creates the customer", () => {
+  const SECRET = "whsec_test_only_not_a_real_secret";
+  let proposalId = "";
+
+  before(async () => {
+    await sql`DELETE FROM proposals WHERE title = 'Convert me'`;
+    await sql`DELETE FROM agency_leads WHERE company = 'Convert Co'`;
+    await sql`DELETE FROM customers WHERE id = 'convert-co'`;
+    await sql`
+      INSERT INTO agency_leads (id, company, contact, email, stage, value_cents)
+      VALUES ('L_convert','Convert Co','Sam Convert','sam@convert.test','proposal',0)`;
+    const made = await api("/api/proposals", {
+      method: "POST",
+      body: JSON.stringify({ leadId: "L_convert", title: "Convert me" }),
+    });
+    proposalId = made.body.id;
+    await api(`/api/proposals/${proposalId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ items: [{ name: "Build", cadence: "once", qty: 1, unitCents: 100000 }] }),
+    });
+    await api(`/api/proposals/${proposalId}`, { method: "PATCH", body: JSON.stringify({ action: "send" }) });
+  });
+
+  async function send(body, { secret = SECRET, age = 0 } = {}) {
+    const { createHmac } = await import("node:crypto");
+    const payload = JSON.stringify(body);
+    const t = Math.floor(Date.now() / 1000) - age;
+    const sig = createHmac("sha256", secret).update(`${t}.${payload}`).digest("hex");
+    return fetch(`${BASE}/api/stripe/webhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "stripe-signature": `t=${t},v1=${sig}` },
+      body: payload,
+    });
+  }
+
+  const paidEvent = (id = "cs_test_1") => ({
+    type: "checkout.session.completed",
+    data: { object: { id, payment_status: "paid", payment_intent: "pi_test_1", metadata: { proposal_id: proposalId } } },
+  });
+
+  test("a signature from the wrong secret is refused", async () => {
+    const res = await send(paidEvent(), { secret: "whsec_wrong" });
+    assert.equal(res.status, 400);
+  });
+
+  test("a replayed old signature is refused", async () => {
+    const res = await send(paidEvent(), { age: 4000 });
+    assert.equal(res.status, 400, "an old timestamp is a captured request being replayed");
+  });
+
+  test("an unpaid session converts nobody", async () => {
+    const res = await send({
+      type: "checkout.session.completed",
+      data: { object: { id: "cs_unpaid", payment_status: "unpaid", metadata: { proposal_id: proposalId } } },
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT customer_id FROM proposals WHERE id = ${proposalId}`;
+    assert.equal(row.customer_id, null);
+  });
+
+  test("a real paid webhook creates the customer and wins the lead", async () => {
+    const res = await send(paidEvent());
+    assert.equal(res.status, 200);
+    const [p] = await sql`SELECT customer_id, status FROM proposals WHERE id = ${proposalId}`;
+    assert.ok(p.customer_id, "paying is what makes a customer");
+    assert.equal(p.status, "paid");
+    const [c] = await sql`SELECT name FROM customers WHERE id = ${p.customer_id}`;
+    assert.equal(c.name, "Convert Co");
+    const [lead] = await sql`SELECT stage FROM agency_leads WHERE id = 'L_convert'`;
+    assert.equal(lead.stage, "won");
+  });
+
+  test("Stripe retrying the same event does not create a second customer", async () => {
+    const before = await sql`SELECT count(*)::int AS n FROM customers`;
+    const res = await send(paidEvent());
+    assert.equal(res.status, 200);
+    const after = await sql`SELECT count(*)::int AS n FROM customers`;
+    assert.equal(after[0].n, before[0].n, "webhooks retry; conversion must be idempotent");
+  });
+});
+
+describe("a client-facing page never wears the agency shell", () => {
+  test("the proposal page is bare", async () => {
+    const src = await import("node:fs/promises").then((fs) =>
+      fs.readFile(new URL("../src/components/os/Shell.tsx", import.meta.url), "utf8"),
+    );
+    // Caught by looking, not by a test, twice now — once on /client and once
+    // here. A lead with no account must not be shown our floor and a Sign out
+    // button for a session they do not have.
+    for (const route of ['path === "/login"', 'path === "/client"', 'path.startsWith("/p/")']) {
+      assert.ok(src.includes(route), `Shell must render bare for ${route}`);
+    }
+  });
+});

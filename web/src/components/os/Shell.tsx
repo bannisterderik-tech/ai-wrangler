@@ -17,7 +17,15 @@ export function Shell({ children }: { children: React.ReactNode }) {
   // render the agency's navigation — those links are not theirs to see, never mind
   // follow, and the middleware refusing them afterwards is not the same as not
   // showing them.
-  const bare = path === "/login" || path === "/client" || path.startsWith("/client/");
+  // Anywhere someone who is not staff can land. A proposal goes to a lead with
+  // no account at all, and wrapping it in the agency sidebar shows them our
+  // floor, our other customers' names, and a Sign out button for a session they
+  // do not have.
+  const bare =
+    path === "/login" ||
+    path === "/client" ||
+    path.startsWith("/client/") ||
+    path.startsWith("/p/");
 
   useEffect(() => {
     const stored = localStorage.getItem("wrangler-theme") as "dark" | "light" | null;

@@ -19,6 +19,10 @@ const env = {
   TOKEN_ENCRYPTION_KEY: "0".repeat(64),
   OPERATOR_GITHUB_LOGINS: "",
   PORT: process.env.TEST_PORT || "3111",
+  // A known webhook secret so the payment path can be exercised for real: the
+  // conversion from lead to customer is the point of the whole feature, and
+  // "it refuses a forged webhook" is only half of proving it.
+  STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || "whsec_test_only_not_a_real_secret",
 };
 const base = `http://localhost:${env.PORT}`;
 env.TEST_BASE_URL = base;
