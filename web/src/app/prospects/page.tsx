@@ -37,7 +37,7 @@ export default function ProspectsPage() {
     const res = await fetch("/api/leads", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...draft, value: Number(draft.value) || 0, stage: "prospect" }),
+      body: JSON.stringify({ ...draft, value: Number(draft.value) || 0, stage: "prospects" }),
     });
     const out = await res.json().catch(() => ({}));
     setBusy(false);
@@ -62,7 +62,7 @@ export default function ProspectsPage() {
 
   if (!all) return <div className="p-5 text-[13px]" style={{ color: "var(--text-secondary)" }}>Reading the list…</div>;
 
-  const rows = all.filter((l) => l.stage === "prospect");
+  const rows = all.filter((l) => l.stage === "prospects");
   const open = Boolean(id && rows.some((l) => l.id === id));
   const p = rows.find((x) => x.id === id) ?? rows[0] ?? null;
 

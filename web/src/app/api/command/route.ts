@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isOpen } from "@/lib/stages";
 import { desc, eq, gt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { guard } from "@/lib/api";
@@ -20,10 +21,10 @@ export async function GET() {
     db.select({ n: sql<number>`count(*)::int` }).from(threads).where(eq(threads.unread, true)),
   ]);
 
-  const open = leads.filter((l) => !["won", "lost"].includes(l.stage));
+  const open = leads.filter((l) => isOpen(l.stage));
   return NextResponse.json({
     pipeline: {
-      prospects: leads.filter((l) => l.stage === "prospect").length,
+      prospects: leads.filter((l) => l.stage === "prospects").length,
       open: open.length,
       value: open.reduce((a, l) => a + l.valueCents, 0) / 100,
       won: leads.filter((l) => l.stage === "won").length,

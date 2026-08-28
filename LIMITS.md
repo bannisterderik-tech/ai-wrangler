@@ -128,7 +128,7 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
 
 **True, and not fixed**
 
-- **25 routes still answer `guard()`.** The two that displayed other agencies'
+- **24 routes still answer `guard()`.** The two that displayed other agencies'
   data are fixed; the rest have not been audited one by one. `guard()` is not a
   tenant check and reads as one, which is how this happened.
 - **Customer ids are global slugs.** Two agencies both signing "Acme" want the

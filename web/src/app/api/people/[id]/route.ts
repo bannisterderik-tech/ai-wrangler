@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guard, guardTenant, operator } from "@/lib/api";
 import { audit, jobs, people, personScopes, personTools } from "@/lib/schema";
 import { mintToken } from "@/lib/session-token";
 import { TOOLS } from "@/lib/mcp-tools";
@@ -182,13 +182,28 @@ export async function POST(req: Request, ctx: RouteContext<"/api/people/[id]">) 
  * not: their session is a signed cookie with no server-side state and stays
  * valid until it expires. That gap is real and is written down in LIMITS.md.
  */
+/**
+ * Remove an agent or a teammate.
+ *
+ * Scoped to the caller's own account: somebody else's agent reads as "no such
+ * person", the same answer as one that never existed, so the refusal never
+ * confirms it is out there.
+ *
+ * Deleting takes its sessions, its queued commands and its unread events with
+ * it — that is the point. An agent whose row is gone but whose token still
+ * works is worse than no delete at all.
+ */
 export async function DELETE(_req: Request, ctx: RouteContext<"/api/people/[id]">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const { id } = await ctx.params;
-    const [person] = await db.select().from(people).where(eq(people.id, id)).limit(1);
+    const [person] = await db
+      .select()
+      .from(people)
+      .where(and(eq(people.id, id), eq(people.tenantId, t.tenantId)))
+      .limit(1);
     if (!person) return NextResponse.json({ error: "no such person" }, { status: 404 });
     await db.delete(people).where(eq(people.id, id));
     await db.insert(audit).values({

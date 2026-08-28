@@ -1,8 +1,10 @@
 "use client";
+import { isOpen, stage as stageOf, STAGES } from "@/lib/stages";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
 import { Proposals } from "@/components/os/Proposals";
+import { LeadBoard } from "@/components/os/LeadBoard";
 import { ImportDeals } from "@/components/os/ImportDeals";
 
 type Lead = {
@@ -11,17 +13,19 @@ type Lead = {
   note: string | null; createdAt: string;
 };
 
-const TONE: Record<string, string> = {
-  new: "var(--state-running)", talking: "var(--state-thinking)", proposal: "var(--state-blocked)",
-  won: "var(--state-go)", lost: "var(--text-secondary)",
-};
 const money = (n: number) => "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 
 const SORTS = {
   newest: { label: "Newest", by: (a: Lead, b: Lead) => +new Date(b.createdAt) - +new Date(a.createdAt) },
   value: { label: "Biggest", by: (a: Lead, b: Lead) => b.value - a.value },
   company: { label: "A–Z", by: (a: Lead, b: Lead) => a.company.localeCompare(b.company) },
-  stage: { label: "Stage", by: (a: Lead, b: Lead) => a.stage.localeCompare(b.stage) || b.value - a.value },
+  stage: {
+    label: "Stage",
+    // Pipeline order, not alphabetical — "Won" does not belong between
+    // "Prospects" and "Offer Sent".
+    by: (a: Lead, b: Lead) =>
+      STAGES.findIndex((s) => s.id === a.stage) - STAGES.findIndex((s) => s.id === b.stage) || b.value - a.value,
+  },
 } as const;
 type SortKey = keyof typeof SORTS;
 
@@ -42,6 +46,7 @@ export default function LeadsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sort, setSort] = useState<SortKey>("newest");
+  const [view, setView] = useState<"list" | "board">("list");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [said, setSaid] = useState("");
   const lastPick = useRef<string | null>(null);
@@ -184,14 +189,32 @@ export default function LeadsPage() {
   const bar = (
     <DeskBar>
       {["all", ...stages].map((s) => (
-        <button key={s} className={`btn-os ${stage === s ? "brand" : ""}`} onClick={() => { setStage(s); setId(null); }}>
-          {s === "all" ? "Everyone" : s}{" "}
+        <button key={s} className={`btn-os ${stage === s ? "brand" : ""}`} onClick={() => { setStage(s); setId(null); }}
+          title={s === "all" ? "Every lead" : stageOf(s).label}>
+          {s === "all" ? null : (
+            <span
+              aria-hidden
+              className="mr-1.5 inline-block h-[7px] w-[7px] rounded-full align-middle"
+              style={{
+                background: stageOf(s).dot,
+                // "No stage" is the absence of one, so it reads as an empty ring.
+                border: stageOf(s).dot === "transparent" ? "1px solid var(--text-secondary)" : "none",
+              }}
+            />
+          )}
+          {s === "all" ? "Everyone" : stageOf(s).label}{" "}
           <span className="tabular-nums opacity-70">
             {s === "all" ? leads.length : leads.filter((x) => x.stage === s).length}
           </span>
         </button>
       ))}
       <input className="btn-os min-w-[180px]" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
+      {/*
+        The list works a queue; the board answers where everything is piled up.
+        Different questions, so both, rather than one compromise.
+      */}
+      <button className={`btn-os ${view === "list" ? "brand" : ""}`} onClick={() => setView("list")}>List</button>
+      <button className={`btn-os ${view === "board" ? "brand" : ""}`} onClick={() => setView("board")}>Board</button>
       <select className="btn-os" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} title="Order the list">
         {(Object.keys(SORTS) as SortKey[]).map((k) => (
           <option key={k} value={k}>{SORTS[k].label}</option>
@@ -200,7 +223,7 @@ export default function LeadsPage() {
       <button className="btn-os brand" onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ New lead"}</button>
       <button className="btn-os" onClick={() => setImporting((v) => !v)}>{importing ? "Cancel import" : "Import"}</button>
       <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
-        {money(leads.filter((x) => x.stage !== "won" && x.stage !== "lost").reduce((a, x) => a + x.value, 0))} in play
+        {money(leads.filter((x) => isOpen(x.stage)).reduce((a, x) => a + x.value, 0))} in play
       </span>
     </DeskBar>
   );
@@ -217,7 +240,7 @@ export default function LeadsPage() {
           <button className="btn-os" onClick={() => setPicked(new Set())}>Clear</button>
           <span className="mx-1 text-[11px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Move to</span>
           {stages.map((sname) => (
-            <button key={sname} className="btn-os" disabled={busy} onClick={() => moveMany(sname)}>{sname}</button>
+            <button key={sname} className="btn-os" disabled={busy} onClick={() => moveMany(sname)}>{stageOf(sname).label}</button>
           ))}
           <span className="mx-1 text-[11px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Make them</span>
           <button className="btn-os brand" disabled={busy} onClick={() => convert("customer", chosen)}>A customer</button>
@@ -252,6 +275,14 @@ export default function LeadsPage() {
         </form>
       ) : null}
 
+      {view === "board" ? (
+        <LeadBoard
+          leads={shown}
+          busy={busy}
+          onMove={move}
+          onOpen={(leadId) => { setId(leadId); setTab("overview"); setView("list"); }}
+        />
+      ) : (
       <Dossier
         widthKey="leads"
         onClose={() => setId(null)}
@@ -297,9 +328,17 @@ export default function LeadsPage() {
           l ? (
             <div className="flex flex-col gap-3">
               <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Move it</div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-col gap-1">
                 {stages.map((s) => (
-                  <button key={s} className={`btn-os ${l.stage === s ? "brand" : ""}`} disabled={busy} onClick={() => move(l.id, s)}>{s}</button>
+                  <button key={s} className={`btn-os text-left ${l.stage === s ? "brand" : ""}`} disabled={busy}
+                    onClick={() => move(l.id, s)}>
+                    <span aria-hidden className="mr-1.5 inline-block h-[7px] w-[7px] rounded-full align-middle"
+                      style={{
+                        background: stageOf(s).dot,
+                        border: stageOf(s).dot === "transparent" ? "1px solid var(--text-secondary)" : "none",
+                      }} />
+                    {stageOf(s).label}
+                  </button>
                 ))}
               </div>
               <div className="mt-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
@@ -324,7 +363,7 @@ export default function LeadsPage() {
         {open && l ? (
           <>
             <div className="border-b px-4 pt-4 pb-2.5" style={{ borderColor: "var(--hairline)" }}>
-              <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: TONE[l.stage] }}>{l.stage}</div>
+              <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: stageOf(l.stage).dot }}>{stageOf(l.stage).label}</div>
               <h3 className="mt-1 mb-1 text-[24px] leading-tight">{l.company}</h3>
               <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
                 {[l.contact, l.phone, l.city].filter(Boolean).join(" · ") || "no contact details yet"}
@@ -365,6 +404,7 @@ export default function LeadsPage() {
           </>
         ) : null}
       </Dossier>
+      )}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { newId } from "@/lib/customers";
 
 // A prospect is a lead you have not engaged yet. One pipeline, one table:
 // two would drift, and the day they drift the same shop is in both.
-const STAGES = ["prospect", "new", "talking", "proposal", "won", "lost"];
+import { DEFAULT_STAGE, stageFrom, STAGE_IDS, STAGES } from "@/lib/stages";
 
 /** The agency's own pipeline — shops buying web and technology from us. */
 export async function GET() {
@@ -21,7 +21,8 @@ export async function GET() {
     .where(eq(agencyLeads.tenantId, t.tenantId))
     .orderBy(desc(agencyLeads.createdAt));
   return NextResponse.json({
-    stages: STAGES,
+    stages: STAGE_IDS,
+    stageMeta: STAGES,
     leads: rows.map((l) => ({
       id: l.id,
       company: l.company,
@@ -47,7 +48,10 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const company = String(body.company || "").trim();
     if (!company) return NextResponse.json({ error: "who are they?" }, { status: 400 });
-    const stage = STAGES.includes(String(body.stage)) ? String(body.stage) : "new";
+    // stageFrom, not an exact-id check: the MCP tools and anything written
+    // against the old six-stage names still send "talking" and "proposal", and
+    // translating those beats silently filing them at the top of the pipeline.
+    const stage = body.stage ? stageFrom(body.stage) : DEFAULT_STAGE;
     const value = Number(body.value);
     const id = "L" + newId().slice(0, 8);
     await db.insert(agencyLeads).values({
@@ -88,7 +92,7 @@ export async function PATCH(req: Request) {
 
     const patch: Record<string, unknown> = { lastTouchAt: new Date() };
     if (body.stage !== undefined) {
-      if (!STAGES.includes(String(body.stage))) return NextResponse.json({ error: "unknown stage" }, { status: 400 });
+      if (!STAGE_IDS.includes(String(body.stage))) return NextResponse.json({ error: "unknown stage" }, { status: 400 });
       patch.stage = String(body.stage);
     }
     if (body.note !== undefined) patch.note = String(body.note).slice(0, 4000) || null;

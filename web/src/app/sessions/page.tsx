@@ -43,6 +43,7 @@ export default function SessionsPage() {
   const [rwToken, setRwToken] = useState("");
   const [aiKey, setAiKey] = useState("");
   const [deployNote, setDeployNote] = useState("");
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     const [a, b, r] = await Promise.all([
@@ -89,6 +90,30 @@ export default function SessionsPage() {
     await load();
     setSel(out.id);
     setTab("connect");
+  }
+
+  /**
+   * Delete an agent.
+   *
+   * The confirmation names it and says what goes with it, because a revoked
+   * agent and a deleted one look identical in a list and only one comes back.
+   */
+  async function remove(who: { id: string; name: string; hasToken?: boolean }) {
+    if (
+      !confirm(
+        `Delete ${who.name}?\n\nIts session, its queued commands and anything it had not read go with it. ` +
+          `Jobs it worked stay, and keep its name in their history.\n\nThis cannot be undone.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    const res = await fetch(`/api/people/${encodeURIComponent(who.id)}`, { method: "DELETE" });
+    const out = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(out.error || "could not delete that");
+    setSel(null);
+    await load();
   }
 
   async function post(id: string, body: Record<string, unknown>) {
@@ -281,7 +306,13 @@ export default function SessionsPage() {
                 Revoke session
               </button>
             ) : null}
+            <button className="btn-os stop ml-auto" disabled={busy} onClick={() => remove(who)}>
+              Delete
+            </button>
           </div>
+          {error ? (
+            <div className="mt-2 text-[12.5px]" style={{ color: "var(--state-stop)" }}>{error}</div>
+          ) : null}
         </div>
 
         <Tabs

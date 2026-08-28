@@ -2781,7 +2781,10 @@ describe("a CRM export can be imported from the OS", () => {
     const [won] = await sql`SELECT name FROM customers WHERE id = 'won-shop'`;
     assert.equal(won.name, "Won Shop", "a won deal is a customer");
     const stages = await sql`SELECT stage FROM agency_leads WHERE source = 'deals import' ORDER BY stage`;
-    assert.deepEqual(stages.map((s) => s.stage), ["proposal", "talking"]);
+    // The real stages, not collapsed. "Offer Sent" and "Book Discovery Meeting"
+    // used to both arrive as one word each, which lost the only thing the stage
+    // was for — whether the offer had actually gone out.
+    assert.deepEqual(stages.map((s) => s.stage), ["book_discovery", "offer_sent"]);
   });
 
   test("a deal worth money gets a DRAFT proposal, never a sent one", async () => {
@@ -2973,7 +2976,7 @@ describe("one agency cannot see another's pipeline", () => {
   test("the house creates a lead; the rival cannot see it", async () => {
     const mine = await api("/api/leads", {
       method: "POST",
-      body: JSON.stringify({ company: "House Lead", stage: "new", value: 1000 }),
+      body: JSON.stringify({ company: "House Lead", stage: "lead", value: 1000 }),
     });
     assert.equal(mine.status, 200);
 
@@ -2985,7 +2988,7 @@ describe("one agency cannot see another's pipeline", () => {
   test("and the rival's lead is invisible to the house", async () => {
     const made = await asRival("/api/leads", {
       method: "POST",
-      body: JSON.stringify({ company: "Rival Lead", stage: "new", value: 500 }),
+      body: JSON.stringify({ company: "Rival Lead", stage: "lead", value: 500 }),
     });
     assert.equal(made.status, 200);
     const [row] = await sql`SELECT tenant_id FROM agency_leads WHERE company = 'Rival Lead'`;
@@ -3717,7 +3720,7 @@ describe("a lead becomes a customer, or a partner, and only within its own accou
     const made = await fetch(`${BASE}/api/leads`, {
       method: "POST",
       headers: { "Content-Type": "application/json", cookie: theirCookie },
-      body: JSON.stringify({ company: "Ward Roofing", stage: "proposal", value: 2200 }),
+      body: JSON.stringify({ company: "Ward Roofing", stage: "offer_sent", value: 2200 }),
     });
     theirLeadId = (await made.json()).id;
   });
@@ -3727,7 +3730,7 @@ describe("a lead becomes a customer, or a partner, and only within its own accou
       method: "POST",
       body: JSON.stringify({
         company: "Bell Plumbing", contact: "Dana Bell", phone: "555-0148",
-        trade: "plumbing", stage: "proposal", value: 3400,
+        trade: "plumbing", stage: "offer_sent", value: 3400,
       }),
     });
     assert.equal(made.status, 200);
@@ -3766,7 +3769,7 @@ describe("a lead becomes a customer, or a partner, and only within its own accou
   test("a lead that turned out to be an agency becomes a partner and leaves the pipeline", async () => {
     const made = await api("/api/leads", {
       method: "POST",
-      body: JSON.stringify({ company: "Sharp HVAC", contact: "Lee Sharp", stage: "talking", value: 900 }),
+      body: JSON.stringify({ company: "Sharp HVAC", contact: "Lee Sharp", stage: "book_discovery", value: 900 }),
     });
     const out = await api("/api/leads/convert", {
       method: "POST",
@@ -3792,13 +3795,13 @@ describe("a lead becomes a customer, or a partner, and only within its own accou
     const [{ count }] = await sql`SELECT count(*)::int FROM customers WHERE name = 'Ward Roofing'`;
     assert.equal(count, 0, "no customer was created from another agency's lead");
     const [l] = await sql`SELECT stage FROM agency_leads WHERE id = ${theirLeadId}`;
-    assert.equal(l.stage, "proposal", "and their lead was not touched");
+    assert.equal(l.stage, "offer_sent", "and their lead was not touched");
   });
 
   test("a mixed batch converts only the leads that belong to the caller", async () => {
     const mine = await api("/api/leads", {
       method: "POST",
-      body: JSON.stringify({ company: "Ward Roofing", stage: "new", value: 100 }),
+      body: JSON.stringify({ company: "Ward Roofing", stage: "lead", value: 100 }),
     });
     const out = await api("/api/leads/convert", {
       method: "POST",
@@ -3807,7 +3810,7 @@ describe("a lead becomes a customer, or a partner, and only within its own accou
     assert.equal(out.status, 200);
     assert.equal(out.body.made.length, 1, "one of the two ids was ours");
     const [l] = await sql`SELECT stage FROM agency_leads WHERE id = ${theirLeadId}`;
-    assert.equal(l.stage, "proposal", "theirs is still theirs");
+    assert.equal(l.stage, "offer_sent", "theirs is still theirs");
   });
 
   test("it refuses anything that is not a customer or a partner", async () => {
@@ -4280,5 +4283,120 @@ describe("the Zernio webhook refuses anything it cannot verify", () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.match(body.ignored ?? "", /no customer/);
+  });
+});
+
+
+describe("the pipeline carries all twelve stages", () => {
+  test("the API serves them in board order, with labels and colours", async () => {
+    const res = await api("/api/leads");
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.stages, [
+      "no_stage", "partners", "prospects", "lead", "book_discovery", "booked_discovery",
+      "create_offer", "offer_ready", "offer_sent", "offer_negotiation", "won", "lost",
+    ]);
+    const negotiation = res.body.stageMeta.find((s) => s.id === "offer_negotiation");
+    assert.equal(negotiation.label, "Offer Negotiation");
+    assert.ok(negotiation.open, "a deal being negotiated is still in play");
+    assert.equal(res.body.stageMeta.find((s) => s.id === "won").open, false);
+  });
+
+  test("an unknown stage is refused rather than written", async () => {
+    const made = await api("/api/leads", {
+      method: "POST",
+      body: JSON.stringify({ company: "Stage Test Co", stage: "lead" }),
+    });
+    assert.equal(made.status, 200);
+    const res = await api("/api/leads", {
+      method: "PATCH",
+      body: JSON.stringify({ id: made.body.id, stage: "having a think about it" }),
+    });
+    assert.equal(res.status, 400);
+    const [row] = await sql`SELECT stage FROM agency_leads WHERE id = ${made.body.id}`;
+    assert.equal(row.stage, "lead", "the lead did not move");
+  });
+
+  test("the old short names still land somewhere sensible, and never forwards", async () => {
+    // A lead filed one stage early gets looked at again. One wrongly marked
+    // "Offer Sent" is one nobody chases.
+    for (const [old, expected] of [["new", "lead"], ["talking", "book_discovery"], ["proposal", "create_offer"]]) {
+      const made = await api("/api/leads", {
+        method: "POST",
+        body: JSON.stringify({ company: `Legacy ${old} Co`, stage: old }),
+      });
+      assert.equal(made.status, 200);
+      const [row] = await sql`SELECT stage FROM agency_leads WHERE id = ${made.body.id}`;
+      assert.equal(row.stage, expected, `"${old}" should become "${expected}"`);
+    }
+  });
+});
+
+describe("agents can be deleted, and only your own", () => {
+  let theirCookie = "";
+
+  before(async () => {
+    await sql`DELETE FROM people WHERE id IN ('A_mine','A_theirs')`;
+    await sql`DELETE FROM people WHERE email = 'boss@fifth.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'fifth-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build, plan) VALUES ('fifth-agency','Fifth Agency', true, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_fifth','Fifth Boss','fifthboss','boss@fifth.test','operator','fifth-agency','admin')`;
+    // An agent must belong to a customer — people_kind_scope enforces it.
+    await sql`DELETE FROM customers WHERE id IN ('del-mine','del-theirs')`;
+    await sql`
+      INSERT INTO customers (id, name, tenant_id) VALUES
+        ('del-mine','Del Mine Co','ai-wrangler'), ('del-theirs','Del Theirs Co','fifth-agency')`;
+    await sql`
+      INSERT INTO people (id, name, handle, kind, agent_kind, tenant_id, customer_id) VALUES
+        ('A_mine','Mine Agent','mineagent','agent','build','ai-wrangler','del-mine'),
+        ('A_theirs','Theirs Agent','theirsagent','agent','build','fifth-agency','del-theirs')`;
+
+    const raw = `wr_sess_fifth_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`INSERT INTO login_links (token_hash, email, expires_at)
+              VALUES (${hash}, 'boss@fifth.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    theirCookie = v ? `wrangler_session=${v}` : "";
+  });
+
+  test("another agency's agent cannot be deleted", async () => {
+    const res = await fetch(`${BASE}/api/people/A_mine`, {
+      method: "DELETE", redirect: "manual", headers: { cookie: theirCookie },
+    });
+    assert.equal(res.status, 404, "ours must read as not found from their account");
+    const [row] = await sql`SELECT id FROM people WHERE id = 'A_mine'`;
+    assert.ok(row, "and it must still be there");
+  });
+
+  test("your own agent deletes, and takes its session with it", async () => {
+    const minted = await api("/api/people/A_mine", {
+      method: "POST", body: JSON.stringify({ action: "token" }),
+    });
+    assert.equal(minted.status, 200);
+    const [before] = await sql`SELECT token_hash FROM people WHERE id = 'A_mine'`;
+    assert.ok(before.token_hash, "it should have a session to lose");
+
+    const res = await api("/api/people/A_mine", { method: "DELETE" });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    const rows = await sql`SELECT id FROM people WHERE id = 'A_mine'`;
+    assert.equal(rows.length, 0, "the agent is gone");
+  });
+
+  test("a deleted agent's token stops working immediately", async () => {
+    // The row is gone; the token it carried must not still authenticate.
+    const res = await fetch(`${BASE}/api/mcp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer wr_sess_deleted_agent" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+    });
+    assert.ok(res.status === 401 || res.status === 403, `expected a refusal, got ${res.status}`);
+  });
+
+  test("deleting something that never existed says the same thing", async () => {
+    const res = await api("/api/people/A_never_existed", { method: "DELETE" });
+    assert.equal(res.status, 404);
   });
 });

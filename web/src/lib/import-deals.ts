@@ -8,6 +8,7 @@
  * Idempotent on the source system's own Record ID, so re-importing a fresh
  * export brings in the new rows and touches nothing else.
  */
+import { stageFrom } from "./stages";
 
 export type Row = {
   srcId: string; name: string; stage: string; product: string; owner: string;
@@ -39,35 +40,13 @@ export function parseCsv(text: string): string[][] {
 }
 
 /**
- * Their stage names to ours. Anything unrecognised becomes a plain lead rather
- * than being dropped — filing a row imprecisely beats losing it silently.
+ * Their stage names to ours — now one-to-one.
+ *
+ * This used to collapse four offer stages into a single `proposal`, which threw
+ * away the only thing anybody reads a stage for. The pipeline carries all
+ * twelve now, so the mapping lives in one place and this just calls it.
  */
-const STAGE: Record<string, string> = {
-  "lead": "new",
-  "prospects": "prospect",
-  "prospect": "prospect",
-  "book discovery meeting": "talking",
-  "booked discovery meeting": "talking",
-  "discovery": "talking",
-  "create offer": "proposal",
-  "offer ready": "proposal",
-  "offer sent": "proposal",
-  "offer negotiation": "proposal",
-  "negotiation": "proposal",
-  "won": "won",
-  "closed won": "won",
-  "lost": "lost",
-  "closed lost": "lost",
-};
-
-export function stageOf(raw: string) {
-  const k = String(raw || "").toLowerCase().replace(/[^a-z ]/g, "").trim();
-  if (STAGE[k]) return STAGE[k];
-  if (k.includes("won")) return "won";
-  if (k.includes("lost")) return "lost";
-  if (k.includes("partner")) return "partner";
-  return "new";
-}
+export const stageOf = (raw: string) => stageFrom(raw);
 
 const money = (v: string) => {
   const n = Number(String(v ?? "").replace(/[^0-9.]/g, ""));
@@ -151,7 +130,7 @@ export function planImport(csv: string, peopleCsv?: string): Plan | { error: str
       once, monthly, total,
       email: emailFor(name),
     };
-    if (row.stage === "partner") plan.partners.push(row);
+    if (row.stage === "partners") plan.partners.push(row);
     else if (row.stage === "won") plan.customers.push(row);
     else {
       plan.leads.push(row);

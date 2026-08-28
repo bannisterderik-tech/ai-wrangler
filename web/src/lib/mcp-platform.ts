@@ -108,7 +108,9 @@ export const PLATFORM_TOOLS = [
 
 export const PLATFORM_TOOL_NAMES = PLATFORM_TOOLS.map((t) => t.name) as readonly string[];
 
-const STAGES = ["prospect", "new", "talking", "proposal", "won", "lost"];
+import { STAGE_IDS } from "./stages";
+
+const STAGES = STAGE_IDS;
 
 export async function callPlatformTool(session: McpSession, name: string, args: Record<string, unknown>) {
   // Every query below is pinned to this. It comes from the person's row, so a

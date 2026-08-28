@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isOpen } from "@/lib/stages";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { fail, guard, operator } from "@/lib/api";
@@ -19,7 +20,7 @@ export async function GET() {
     // Only people with a number are callable. A board full of rows you cannot
     // ring is a board nobody uses.
     board: leads
-      .filter((l) => l.phone && l.stage !== "won" && l.stage !== "lost")
+      .filter((l) => l.phone && isOpen(l.stage))
       .map((l) => ({
         id: l.id, company: l.company, contact: l.contact, phone: l.phone,
         city: l.city, stage: l.stage, value: l.valueCents / 100,
