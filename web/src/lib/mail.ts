@@ -9,7 +9,12 @@
 
 import { getAgencyKey } from "./keys";
 
-const FROM = process.env.MAIL_FROM || "AI Wrangler <login@aiwrangler.co>";
+/** Resend refuses any address on an unverified domain, so this is settable. */
+async function from() {
+  // reoperative.ai while that is the verified domain. Change it on Settings the
+  // day aiwrangler.co is verified — no redeploy.
+  return (await getAgencyKey("mail_from")) || "AI Wrangler <login@reoperative.ai>";
+}
 
 /** Vault first, environment second — the key is pasted in the OS, not set here. */
 export async function mailConfigured() {
@@ -43,12 +48,21 @@ export async function sendMagicLink(to: string, url: string, minutes: number) {
       Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: FROM, to: [to], subject, text }),
+    body: JSON.stringify({ from: await from(), to: [to], subject, text }),
   });
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`mail provider refused the send (${res.status}): ${detail.slice(0, 200)}`);
+    // Resend's own words. The usual one is that the from-domain is not verified,
+    // and no paraphrase of ours is more useful than that sentence.
+    let reason = detail.slice(0, 300);
+    try {
+      const parsed = JSON.parse(detail);
+      reason = parsed.message || parsed.error?.message || reason;
+    } catch {
+      /* keep the raw text */
+    }
+    throw new Error(`Resend refused it (${res.status}): ${reason}`);
   }
   return { ok: true, delivered: true as const };
 }

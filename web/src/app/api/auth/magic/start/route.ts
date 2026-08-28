@@ -94,7 +94,12 @@ export async function POST(req: Request) {
     await sendMagicLink(email, url, TTL_MINUTES);
   } catch (e) {
     console.error("[wrangler] magic link send failed", e);
-    return NextResponse.json({ error: "Could not send the email. Check the mail provider." }, { status: 502 });
+    // Say what the provider said. This is our own configuration, not anything
+    // about the address, and hiding it means nobody can fix it.
+    return NextResponse.json(
+      { error: (e as Error).message || "Could not send the email." },
+      { status: 502 },
+    );
   }
 
   await db.insert(audit).values({

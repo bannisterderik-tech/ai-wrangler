@@ -993,3 +993,50 @@ describe("giving an agent a job with a limit", () => {
     assert.match(step.text, /Cap \$12\.50/);
   });
 });
+
+/**
+ * Mail failures have to say what the provider said. Resend refuses any address
+ * on a domain you have not verified, and "could not send the email" is not a
+ * sentence anybody can act on.
+ */
+describe("mail says why when it fails", () => {
+  before(async () => {
+    await sql`DELETE FROM agency_connections WHERE provider IN ('resend','mail_from')`;
+  });
+
+  test("the from address is a settable field, and not a secret one", async () => {
+    const res = await api("/api/keys");
+    const field = res.body.fields.find((f) => f.id === "mail_from");
+    assert.ok(field, "it is offered");
+    assert.equal(field.secret, false, "so it renders as text, not dots");
+  });
+
+  test("something that is not an address is refused", async () => {
+    const res = await api("/api/keys", {
+      method: "POST",
+      body: JSON.stringify({ key: "mail_from", value: "not-an-address" }),
+    });
+    assert.notEqual(res.status, 200);
+  });
+
+  test("a real one is accepted", async () => {
+    const res = await api("/api/keys", {
+      method: "POST",
+      body: JSON.stringify({ key: "mail_from", value: "AI Wrangler <login@reoperative.ai>" }),
+    });
+    assert.equal(res.status, 200);
+  });
+
+  test("with a bad Resend key, the sign-in route returns the provider's own words", async () => {
+    await api("/api/keys", { method: "POST", body: JSON.stringify({ key: "resend", value: "re_definitely_invalid" }) });
+    const res = await fetch(`${BASE}/api/auth/magic/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "derik@aiwrangler.co" }),
+    });
+    assert.equal(res.status, 502);
+    const body = await res.json();
+    assert.match(body.error, /Resend refused it/, `got: ${body.error}`);
+    assert.doesNotMatch(body.error, /^Could not send the email\.$/, "not the useless generic one");
+  });
+});

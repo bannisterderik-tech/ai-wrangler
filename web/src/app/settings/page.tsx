@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-type KeyField = { id: string; label: string; hint: string };
+type KeyField = { id: string; label: string; hint: string; secret: boolean };
 
 /**
  * The agency's own keys. One place, stored in the same encrypted vault as every
@@ -60,7 +60,7 @@ function AgencyKeys() {
             </div>
           </div>
           <input
-            type="password"
+            type={f.secret ? "password" : "text"}
             value={draft[f.id] ?? ""}
             onChange={(e) => setDraft((d) => ({ ...d, [f.id]: e.target.value }))}
             placeholder={keys[f.id] ? "replace it…" : f.hint}

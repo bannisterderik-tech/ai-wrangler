@@ -15,9 +15,12 @@ import { agencyConnections } from "./schema";
  * and nothing has to be migrated to adopt this.
  */
 
-export type AgencyKey = "anthropic" | "resend" | "openrouter";
+export type AgencyKey = "anthropic" | "resend" | "openrouter" | "mail_from";
 
-const KEYS: Record<AgencyKey, { env: string; label: string; looksRight: (v: string) => boolean; hint: string }> = {
+const KEYS: Record<
+  AgencyKey,
+  { env: string; label: string; looksRight: (v: string) => boolean; hint: string; secret?: boolean }
+> = {
   anthropic: {
     env: "ANTHROPIC_API_KEY",
     label: "Anthropic",
@@ -36,10 +39,25 @@ const KEYS: Record<AgencyKey, { env: string; label: string; looksRight: (v: stri
     looksRight: (v) => /^sk-or-/.test(v),
     hint: "OpenRouter keys start with sk-or-.",
   },
+  // Not a secret, but it belongs with the mail key: Resend refuses any address
+  // on a domain you have not verified, and this is the field you change to fix
+  // that without a redeploy.
+  mail_from: {
+    env: "MAIL_FROM",
+    label: "Send mail from",
+    looksRight: (v) => /.+@.+\..+/.test(v),
+    hint: "AI Wrangler <login@reoperative.ai> — the domain must be verified in Resend",
+    secret: false,
+  },
 };
 
 export function keyLabels() {
-  return (Object.keys(KEYS) as AgencyKey[]).map((k) => ({ id: k, label: KEYS[k].label, hint: KEYS[k].hint }));
+  return (Object.keys(KEYS) as AgencyKey[]).map((k) => ({
+    id: k,
+    label: KEYS[k].label,
+    hint: KEYS[k].hint,
+    secret: KEYS[k].secret !== false,
+  }));
 }
 
 export async function getAgencyKey(which: AgencyKey): Promise<string | null> {
