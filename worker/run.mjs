@@ -199,6 +199,11 @@ const HELP = (() => {
   return `${r.stdout || ""}${r.stderr || ""}`;
 })();
 
+const VERSION = (() => {
+  const r = spawnSync("claude", ["--version"], { encoding: "utf8", timeout: 20_000 });
+  return `${r.stdout || ""}`.trim() || "version unknown";
+})();
+
 /** Continuing a session only helps if this build can do it. */
 const CAN_RESUME = HELP.includes("--resume");
 
@@ -380,11 +385,43 @@ async function whoAmI(token) {
   }
 }
 
+/**
+ * Prove the model key works before starting anything that costs money.
+ *
+ * A bad or expired ANTHROPIC_API_KEY does not fail fast. Verified against the
+ * real CLI: it retried silently for over two minutes with zero bytes on stdout
+ * and stderr before being killed. Without this check that becomes one full
+ * MAX_PASS_SECONDS of nothing, per pass, per agent, while the log says only
+ * that a pass took a long time.
+ *
+ * Listing models is free and is the same question the OS asks on its own
+ * self-test screen.
+ */
+async function keyWorks() {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) return { ok: true, why: "no key in the environment; Claude Code will use whatever it is configured with" };
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/models?limit=1", {
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
+    });
+    if (res.ok) return { ok: true, why: "model key accepted" };
+    const body = await res.json().catch(() => ({}));
+    return { ok: false, why: body?.error?.message || `Anthropic returned ${res.status}` };
+  } catch (e) {
+    // A network problem is not a bad key. Say which it is rather than refusing
+    // to boot over a blip.
+    return { ok: true, why: `could not reach Anthropic to check the key (${e?.message ?? e}) — starting anyway` };
+  }
+}
+
 async function main() {
   console.log(`[agent] floor: ${MCP_URL}`);
   console.log(`[agent] ${TOKENS.length} agent${TOKENS.length === 1 ? "" : "s"}  model: ${MODEL}`);
   console.log(`[agent] mode: ${ONCE ? "one pass each" : `every ${INTERVAL}s`}`);
   console.log(`[agent] ceiling: $${MAX_SPEND_USD.toFixed(2)} for this container, ${Math.round(MAX_PASS_MS / 1000)}s per pass`);
+  // Say which build is running. When something changes behaviour between one
+  // week and the next, this is the line that says whether the software moved.
+  console.log(`[agent] claude ${VERSION}`);
   console.log(
     CAN_RESUME
       ? `[agent] passes on the same job continue one session (up to ${RESUME_LIMIT}), so the fixed prompt is cached rather than rebought`
@@ -395,6 +432,13 @@ async function main() {
       ? "[agent] bare mode: the checkout's own hooks, skills and CLAUDE.md are not loaded"
       : "[agent] this Claude Code has no --bare: a checkout's .claude/ hooks and CLAUDE.md WILL load. Update the image.",
   );
+
+  const key = await keyWorks();
+  console.log(`[agent] ${key.why}`);
+  if (!key.ok) {
+    console.error("[agent] refusing to start: every pass would hang on authentication and bill for the wait.");
+    process.exit(1);
+  }
 
   const agents = [];
   for (let i = 0; i < TOKENS.length; i++) {
