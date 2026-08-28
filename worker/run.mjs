@@ -13,7 +13,8 @@
  * prompt instruction; the server refuses the call.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const MCP_URL = need("WRANGLER_MCP_URL");
@@ -271,11 +272,16 @@ async function reportSpend(token, usd) {
 async function whoAmI(token) {
   try {
     const res = await fetch(MCP_URL, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) return { label: `token ending ${token.slice(-6)}`, ok: false };
+    if (!res.ok) return { label: `token ending ${token.slice(-6)}`, ok: false, scope: [] };
     const info = await res.json();
-    return { label: `${info.session?.handle ?? "agent"} → ${(info.scope || []).join(", ") || "no project"}`, ok: true };
+    const scope = info.scope || [];
+    return {
+      label: `${info.session?.handle ?? "agent"} → ${scope.join(", ") || "no project"}`,
+      ok: true,
+      scope,
+    };
   } catch {
-    return { label: `token ending ${token.slice(-6)}`, ok: false };
+    return { label: `token ending ${token.slice(-6)}`, ok: false, scope: [] };
   }
 }
 
@@ -300,8 +306,36 @@ async function main() {
       console.warn(`[agent] skipping ${who.label}: the floor does not recognise this token (revoked?)`);
       continue;
     }
-    // A workspace each: two agents must never share a checkout.
-    const dir = join(WORKSPACE, `agent-${i + 1}`);
+    // A workspace each, keyed on WHO rather than WHERE.
+    //
+    // This used to be `agent-${i + 1}` — the token's position in the
+    // comma-separated list — while /work is a persistent Railway volume.
+    // Deleting a token from the middle of that variable shifted every later
+    // agent down one slot, and the next customer's agent booted into the
+    // previous customer's checkout: their repository, their git history, their
+    // remotes. A text edit in the Railway dashboard silently broke the one
+    // guarantee this product sells. Keyed on the token's digest, a workspace
+    // belongs to a session and cannot be inherited.
+    const dir = join(WORKSPACE, `agent-${createHash("sha256").update(token).digest("hex").slice(0, 16)}`);
+    mkdirSync(dir, { recursive: true });
+
+    // Belt and braces: if this directory ever held a different customer, it is
+    // wiped rather than reused. A stale checkout is not worth a leak.
+    const marker = join(dir, ".wrangler-customer");
+    const mine = (who.scope || []).join(",");
+    let previous = null;
+    try {
+      previous = readFileSync(marker, "utf8").trim();
+    } catch {
+      /* first run for this session */
+    }
+    if (previous && previous !== mine) {
+      console.warn(`[agent] ${who.label}: workspace held "${previous}" and is now "${mine}" — wiping it.`);
+      rmSync(dir, { recursive: true, force: true });
+      mkdirSync(dir, { recursive: true });
+    }
+    writeFileSync(marker, mine, { mode: 0o600 });
+
     writeMcpConfig(dir, token);
     agents.push({ dir, label: who.label, token });
     console.log(`[agent] ${i + 1}. ${who.label}  workspace ${dir}`);
