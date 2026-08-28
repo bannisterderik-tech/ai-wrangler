@@ -139,6 +139,33 @@ worker**.
 | `MAX_PASS_SECONDS` | Ceiling on one pass. Default 1800. |
 | `MAX_SPEND_USD` | Ceiling for the whole container, all passes. Default 25. It stops and stays stopped. |
 
+### Running it on your own VPS
+
+Nothing about the worker is Railway-specific. It needs Node, git, ripgrep and
+Claude Code, and it makes only outbound calls — so a Hostinger VPS, a Hetzner
+box or a machine under a desk all work identically, with no inbound port, no
+firewall hole and no provider API token.
+
+```
+git clone <this repo> && cd worker
+npm install -g @anthropic-ai/claude-code@2.1.236
+WRANGLER_MCP_URL=https://<your-origin>/api/mcp \
+WRANGLER_SESSION_TOKENS=<one per project agent> \
+ANTHROPIC_API_KEY=sk-ant-... \
+MAX_SPEND_USD=25 POLL_SECONDS=600 node run.mjs
+```
+
+Set `AGENT_HOST` to name the box in the OS. Run it under systemd or pm2 so it
+restarts; the worker itself has no opinion about that.
+
+**On uptime:** a provider's API can tell you a box is powered on, and that is
+the wrong signal — during the incident that cost $20 the box was on the whole
+time and the agent produced nothing. The worker reports its own health instead:
+which host, which CLI version, how many passes, what the last one cost, how much
+of its ceiling is gone, and what it is stuck on. Silence is treated as its own
+state rather than as a stale "ok", because a box that has stopped talking is the
+thing you most need to see.
+
 **Stopping it does not mean opening Railway.** The floor has a stop switch: on
 the floor, **Stop all agents**. Every agent asks the floor what to do before it
 starts a paid session, so it takes effect on the next poll, and `claim_job`

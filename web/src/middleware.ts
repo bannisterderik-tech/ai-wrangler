@@ -10,6 +10,8 @@ const PUBLIC = [
   // /api/mcp, and it can only add spend to a job its own session holds.
   "/api/agent/spend",
   "/api/agent/next",
+  // A worker reporting its own health, Bearer-authenticated like the rest.
+  "/api/agent/heartbeat",
   // Stripe posts here with its own signature; there is no session to have.
   "/api/stripe/webhook",
   // Called from a customer's own deployed site. Write-only, key-authenticated,

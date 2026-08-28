@@ -13,6 +13,7 @@
  * prompt instruction; the server refuses the call.
  */
 import { spawn, spawnSync } from "node:child_process";
+import { hostname } from "node:os";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -199,6 +200,8 @@ const HELP = (() => {
   return `${r.stdout || ""}${r.stderr || ""}`;
 })();
 
+const HOST = process.env.AGENT_HOST || hostname();
+
 const VERSION = (() => {
   const r = spawnSync("claude", ["--version"], { encoding: "utf8", timeout: 20_000 });
   return `${r.stdout || ""}`.trim() || "version unknown";
@@ -352,6 +355,37 @@ function runOnce(dir, model, brief, resumeId, apiKey) {
 }
 
 /**
+ * Say what this worker is doing, so the OS knows without asking a provider.
+ *
+ * Outbound on purpose: it works from a Hostinger VPS, a Railway container or a
+ * box under a desk, with no inbound port, no provider API token and no firewall
+ * hole. And it reports what "working" means rather than what "powered on"
+ * means — a provider's uptime graph was green for the whole of the $20
+ * incident, while the agent did nothing thirty times an hour.
+ */
+async function heartbeat(token, body) {
+  try {
+    await fetch(new URL("/api/agent/heartbeat", MCP_URL), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        host: HOST,
+        cliVersion: VERSION,
+        uptimeS: Math.round(process.uptime()),
+        bare: BARE,
+        resuming: CAN_RESUME,
+        spentUsd: spentThisBoot,
+        ceilingUsd: MAX_SPEND_USD,
+        ...body,
+      }),
+    });
+  } catch {
+    // A missed heartbeat is not worth failing a pass over. The floor treats
+    // silence as its own state anyway, which is the point.
+  }
+}
+
+/**
  * Tell the floor what the pass cost. The floor decides whether that puts the
  * job over its cap and holds it if so — the container does not get a vote.
  */
@@ -487,7 +521,7 @@ async function main() {
     writeFileSync(marker, mine, { mode: 0o600 });
 
     writeMcpConfig(dir, token);
-    agents.push({ dir, label: who.label, token, jobId: null, sessionId: null, resumes: 0 });
+    agents.push({ dir, label: who.label, token, jobId: null, sessionId: null, resumes: 0, passes: 0 });
     console.log(`[agent] ${i + 1}. ${who.label}  workspace ${dir}`);
   }
 
@@ -502,11 +536,14 @@ async function main() {
       const started = Date.now();
       console.log(`[agent] --- ${a.label} ---`);
 
+      await heartbeat(a.token, { state: "ok", passes: a.passes || 0, detail: "checking for work" });
+
       const next = await nextBrain(a.token);
       if (next?.stop) {
         // The floor pulled the switch. Obeyed here rather than by deleting a
         // service, so stopping does not mean opening a dashboard.
         console.error(`[agent] ${a.label}: the floor says stop — ${next.reason ?? "paused by an operator"}.`);
+        await heartbeat(a.token, { state: "stopped", detail: next.reason ?? "paused by an operator" });
         a.dead = true;
         continue;
       }
@@ -525,6 +562,7 @@ async function main() {
       a.misses = 0;
       if (!next?.job) {
         console.log(`[agent] ${a.label}: ${next?.reason ?? "nothing to do"}. Skipping this pass.`);
+        await heartbeat(a.token, { state: "idle", detail: next?.reason ?? "nothing on the board" });
         continue;
       }
       const model = next.model || MODEL;
@@ -582,6 +620,7 @@ async function main() {
       }
       if (Number.isFinite(usd)) spentThisBoot += usd;
       const spend = await reportSpend(a.token, usd, next.job.id);
+      a.passes = (a.passes || 0) + 1;
       if (spend?.attributed) {
         a.unbilled = 0;
         console.log(`[agent] ${a.label}: ${spend.job} now $${spend.spent.toFixed(2)} of $${spend.budget.toFixed(2)}`);
@@ -599,8 +638,25 @@ async function main() {
           console.error(`[agent] ${a.label}: stopping this agent. Two passes in a row went unbilled; the cap is blind.`);
           a.dead = true;
         }
+        await heartbeat(a.token, {
+          state: "unbilled",
+          passes: a.passes || 0,
+          lastPassAt: new Date().toISOString(),
+          detail: `spend not recorded: ${spend?.why ?? spend?.reason ?? "no job matched"}`,
+        });
       }
       if (killed) console.error(`[agent] ${a.label}: that pass was killed on the time limit.`);
+      if (spend?.attributed) {
+        await heartbeat(a.token, {
+          state: killed ? "stuck" : "ok",
+          passes: (a.passes || 0) + 1,
+          lastPassAt: new Date().toISOString(),
+          lastCostUsd: Number.isFinite(usd) ? usd : undefined,
+          detail: killed
+            ? `killed on the ${Math.round(MAX_PASS_MS / 1000)}s limit`
+            : `${next.job.id} · ${next.brain} · $${spend.spent.toFixed(2)} of $${spend.budget.toFixed(2)}`,
+        });
+      }
     }
     if (ONCE) process.exit(0);
     if (spentThisBoot >= MAX_SPEND_USD) {

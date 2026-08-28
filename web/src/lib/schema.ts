@@ -4,6 +4,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
   text,
@@ -672,3 +673,29 @@ export const copilotMessages = pgTable(
   },
   (t) => [index("copilot_messages_thread").on(t.customerId, t.at)],
 );
+
+/**
+ * What an agent reports about itself.
+ *
+ * A provider's uptime API says the box is on. That is the wrong signal — during
+ * the $20 incident the box was on the whole time and the agent was producing
+ * nothing. This is the agent saying what it is doing, which works on any host
+ * because it is an outbound POST.
+ */
+export const agentHealth = pgTable("agent_health", {
+  personId: text("person_id").primaryKey(),
+  host: text("host"),
+  cliVersion: text("cli_version"),
+  uptimeS: integer("uptime_s"),
+  passes: integer("passes").notNull().default(0),
+  lastPassAt: timestamp("last_pass_at", { withTimezone: true }),
+  lastCostUsd: numeric("last_cost_usd", { precision: 10, scale: 4 }),
+  spentUsd: numeric("spent_usd", { precision: 10, scale: 4 }).notNull().default("0"),
+  ceilingUsd: numeric("ceiling_usd", { precision: 10, scale: 4 }),
+  /** ok | idle | stuck | unbilled | stopped */
+  state: text("state").notNull().default("ok"),
+  detail: text("detail"),
+  bare: boolean("bare"),
+  resuming: boolean("resuming"),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});

@@ -3232,3 +3232,106 @@ describe("the platform over MCP", () => {
     assert.match(out.text, /for people, not for build agents/);
   });
 });
+
+/**
+ * What an agent reports about itself, from wherever it runs.
+ *
+ * A provider's uptime API says the box is powered on. That is the wrong signal:
+ * during the $20 incident the box was on the whole time, idling on Opus thirty
+ * times an hour, and any uptime dashboard would have been green throughout. So
+ * the worker reports in, outbound, and carries what "working" means.
+ */
+describe("agents report their own health", () => {
+  const token = "wr_sess_hb0000000000000000000000000";
+  before(async () => {
+    await sql`DELETE FROM agent_health WHERE person_id = 'A_hb'`;
+    await sql`DELETE FROM people WHERE id = 'A_hb'`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(token).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, tenant_id, token_hash, status, agent_kind)
+      VALUES ('A_hb','box-one','box-one','agent','acme','ai-wrangler',${hash},'connected','build')`;
+  });
+
+  const beat = (body) =>
+    fetch(`${BASE}/api/agent/heartbeat`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  test("a worker can report from any host, with no inbound port", async () => {
+    const res = await beat({
+      host: "srv-vps-1", cliVersion: "2.1.236", uptimeS: 900, passes: 3,
+      state: "ok", lastCostUsd: 0.21, spentUsd: 1.4, ceilingUsd: 25, bare: true, resuming: true,
+      detail: "J1 · sonnet",
+    });
+    assert.equal(res.status, 200);
+    const { body } = await api("/api/agent/heartbeat");
+    const me = body.agents.find((a) => a.id === "A_hb");
+    assert.equal(me.state, "ok");
+    assert.equal(me.host, "srv-vps-1");
+    assert.equal(me.passes, 3);
+    assert.equal(me.spentUsd, 1.4);
+  });
+
+  test("silence is its own state, not a stale ok", async () => {
+    await sql`UPDATE agent_health SET at = now() - interval '2 hours' WHERE person_id = 'A_hb'`;
+    const { body } = await api("/api/agent/heartbeat");
+    const me = body.agents.find((a) => a.id === "A_hb");
+    // The last report said ok. That was two hours ago, and a box that has
+    // stopped talking is the thing you most need to see.
+    assert.equal(me.state, "silent");
+    assert.ok(me.secondsAgo > 3600);
+  });
+
+  test("an agent that never reported reads as never, not as fine", async () => {
+    await sql`DELETE FROM agent_health WHERE person_id = 'A_hb'`;
+    const { body } = await api("/api/agent/heartbeat");
+    const me = body.agents.find((a) => a.id === "A_hb");
+    assert.equal(me.state, "never");
+  });
+
+  test("only an agent may report agent health", async () => {
+    const human = "wr_sess_hbhuman00000000000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(human).digest("hex");
+    await sql`DELETE FROM people WHERE id = 'U_hb'`;
+    await sql`
+      INSERT INTO people (id, name, handle, kind, tenant_id, token_hash, status)
+      VALUES ('U_hb','A Human','ahuman','operator','ai-wrangler',${hash},'connected')`;
+    const res = await fetch(`${BASE}/api/agent/heartbeat`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${human}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ state: "ok" }),
+    });
+    assert.equal(res.status, 403);
+  });
+
+  test("nonsense numbers are dropped rather than stored", async () => {
+    await beat({ state: "ok", uptimeS: -5, spentUsd: "banana", passes: 99999999999 });
+    const [row] = await sql`SELECT uptime_s, spent_usd, passes FROM agent_health WHERE person_id = 'A_hb'`;
+    assert.equal(row.uptime_s, null);
+    assert.equal(Number(row.spent_usd), 0);
+    assert.equal(row.passes, 0);
+  });
+
+  test("a CRM-only tenant has no fleet to look at", async () => {
+    await sql`DELETE FROM tenants WHERE id = 'nofleet'`;
+    await sql`INSERT INTO tenants (id, name, can_build) VALUES ('nofleet','No Fleet', false)`;
+    await sql`DELETE FROM people WHERE email = 'nf@nofleet.test'`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_nf','NF','nf','nf@nofleet.test','operator','nofleet','admin')`;
+    const raw = `wr_sess_nf_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, 'nf@nofleet.test', now() + interval '15 minutes')`;
+    const login = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(login.headers.get("set-cookie") || "")?.[1];
+    const res = await fetch(`${BASE}/api/agent/heartbeat`, { headers: { cookie: `wrangler_session=${v}` } });
+    assert.equal(res.status, 403, "the fleet is part of the build half");
+  });
+});
