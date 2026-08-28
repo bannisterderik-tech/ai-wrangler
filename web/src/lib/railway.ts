@@ -214,6 +214,13 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
     };
   }
 
+  // If a worker was already made by hand, adopt it instead of creating a rival
+  // that fights it for the same jobs.
+  if (!state.serviceId && process.env.RAILWAY_WORKER_SERVICE_ID) {
+    await rememberService(process.env.RAILWAY_WORKER_SERVICE_ID);
+    state.serviceId = process.env.RAILWAY_WORKER_SERVICE_ID;
+  }
+
   if (!state.serviceId) {
     // ServiceCreateInput does not take a root directory — that lives on the
     // service *instance*. Create, then set it, then deploy, in that order: a
@@ -240,6 +247,22 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
     const serviceId = made.serviceCreate.id;
     await rememberService(serviceId);
 
+    // serviceCreate takes a variables map, but it is a scalar and there is no
+    // way to see whether it landed. Set them explicitly as well: a worker that
+    // boots without them crash-loops on its own error message.
+    for (const [name, value] of [
+      ["ANTHROPIC_API_KEY", anthropic],
+      ["WRANGLER_MCP_URL", `${origin}/api/mcp`],
+      [TOKENS_VAR, agentToken],
+    ] as [string, string][]) {
+      await gql(
+        conn.token,
+        `variableUpsert(${name})`,
+        `mutation variableUpsert($input: VariableUpsertInput!) { variableUpsert(input: $input) }`,
+        { input: { projectId, environmentId, serviceId, name, value } },
+      );
+    }
+
     await gql(
       conn.token,
       "serviceInstanceUpdate",
@@ -248,11 +271,14 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
        }`,
       { serviceId, environmentId, input: { rootDirectory: "worker" } },
     );
+
+    // Redeploy cannot redeploy something that has never deployed — a brand new
+    // service has nothing to repeat, which is why the first one sat offline.
     await gql(
       conn.token,
-      "serviceInstanceRedeploy",
-      `mutation serviceInstanceRedeploy($serviceId: String!, $environmentId: String!) {
-         serviceInstanceRedeploy(serviceId: $serviceId, environmentId: $environmentId)
+      "serviceInstanceDeployV2",
+      `mutation serviceInstanceDeployV2($serviceId: String!, $environmentId: String!) {
+         serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
        }`,
       { serviceId, environmentId },
     );

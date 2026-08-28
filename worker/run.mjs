@@ -48,7 +48,7 @@ function need(key) {
     console.error(
       `[agent] ${key} is not set.\n` +
         `        WRANGLER_MCP_URL is https://<your-app>/api/mcp\n` +
-        `        WRANGLER_SESSION_TOKEN is minted on the Sessions screen — it is shown once.`,
+        `        WRANGLER_SESSION_TOKENS is one token per project agent, comma separated.\n        Both are set for you when you mint an agent token in the OS. If they are\n        missing, this service was made by hand rather than by Sessions — delete it\n        and mint an agent instead.`,
     );
     process.exit(1);
   }
