@@ -3677,3 +3677,147 @@ describe("copilots are woken by events, not by polling", () => {
     await sql`UPDATE people SET wakes_on = NULL WHERE id = 'A_evt'`;
   });
 });
+
+/**
+ * Turning a lead into what it actually is.
+ *
+ * Two things need proving. That it works — a customer record exists afterwards
+ * and carries what we knew about them. And that it stays inside the account:
+ * the ids arrive in the request body, so a body naming another agency's lead is
+ * exactly the attack this route invites.
+ */
+describe("a lead becomes a customer, or a partner, and only within its own account", () => {
+  let theirCookie = "";
+  let theirLeadId = "";
+
+  before(async () => {
+    await sql`DELETE FROM memories WHERE customer_id IN ('bell-plumbing','sharp-hvac')`;
+    await sql`DELETE FROM customers WHERE id IN ('bell-plumbing','sharp-hvac')`;
+    await sql`DELETE FROM partners WHERE name IN ('Sharp HVAC','Ward Roofing')`;
+    await sql`DELETE FROM agency_leads WHERE company IN ('Bell Plumbing','Sharp HVAC','Ward Roofing')`;
+    await sql`DELETE FROM people WHERE email = 'boss@other.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'other-agency'`;
+    await sql`
+      INSERT INTO tenants (id, name, can_build, plan)
+      VALUES ('other-agency','Other Agency', false, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_other','Other Boss','otherboss','boss@other.test','operator','other-agency','admin')`;
+
+    const raw = `wr_sess_other_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, 'boss@other.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    theirCookie = v ? `wrangler_session=${v}` : "";
+
+    const made = await fetch(`${BASE}/api/leads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", cookie: theirCookie },
+      body: JSON.stringify({ company: "Ward Roofing", stage: "proposal", value: 2200 }),
+    });
+    theirLeadId = (await made.json()).id;
+  });
+
+  test("a won lead becomes a customer, and brings what we knew with it", async () => {
+    const made = await api("/api/leads", {
+      method: "POST",
+      body: JSON.stringify({
+        company: "Bell Plumbing", contact: "Dana Bell", phone: "555-0148",
+        trade: "plumbing", stage: "proposal", value: 3400,
+      }),
+    });
+    assert.equal(made.status, 200);
+
+    const out = await api("/api/leads/convert", {
+      method: "POST",
+      body: JSON.stringify({ ids: [made.body.id], into: "customer" }),
+    });
+    assert.equal(out.status, 200, JSON.stringify(out.body));
+    assert.equal(out.body.made.length, 1);
+
+    const [c] = await sql`SELECT id, name, tenant_id FROM customers WHERE id = 'bell-plumbing'`;
+    assert.ok(c, "the customer must actually exist afterwards");
+    assert.equal(c.tenant_id, "ai-wrangler", "stamped from the session, never from the body");
+
+    const [m] = await sql`SELECT text FROM memories WHERE customer_id = 'bell-plumbing'`;
+    assert.ok(m && m.text.includes("Dana Bell"), "a new customer record should not start empty");
+
+    const [l] = await sql`SELECT stage FROM agency_leads WHERE id = ${made.body.id}`;
+    assert.equal(l.stage, "won", "the lead it came from is settled");
+  });
+
+  test("converting twice does not make a second customer", async () => {
+    const [lead] = await sql`SELECT id FROM agency_leads WHERE company = 'Bell Plumbing'`;
+    const out = await api("/api/leads/convert", {
+      method: "POST",
+      body: JSON.stringify({ ids: [lead.id], into: "customer" }),
+    });
+    assert.equal(out.status, 200);
+    assert.equal(out.body.made.length, 0, "the second run makes nothing");
+    assert.equal(out.body.skipped[0].why, "already a customer");
+    const [{ count }] = await sql`SELECT count(*)::int FROM customers WHERE id = 'bell-plumbing'`;
+    assert.equal(count, 1);
+  });
+
+  test("a lead that turned out to be an agency becomes a partner and leaves the pipeline", async () => {
+    const made = await api("/api/leads", {
+      method: "POST",
+      body: JSON.stringify({ company: "Sharp HVAC", contact: "Lee Sharp", stage: "talking", value: 900 }),
+    });
+    const out = await api("/api/leads/convert", {
+      method: "POST",
+      body: JSON.stringify({ ids: [made.body.id], into: "partner" }),
+    });
+    assert.equal(out.status, 200, JSON.stringify(out.body));
+
+    const [p] = await sql`SELECT name, tenant_id FROM partners WHERE name = 'Sharp HVAC'`;
+    assert.ok(p, "the partner must exist");
+    assert.equal(p.tenant_id, "ai-wrangler");
+    const [{ count }] = await sql`SELECT count(*)::int FROM customers WHERE id = 'sharp-hvac'`;
+    assert.equal(count, 0, "a partner is not a customer");
+  });
+
+  test("naming another agency's lead converts nothing", async () => {
+    assert.ok(theirLeadId, "the other agency's lead must have been created");
+    const out = await api("/api/leads/convert", {
+      method: "POST",
+      body: JSON.stringify({ ids: [theirLeadId], into: "customer" }),
+    });
+    assert.equal(out.status, 404, "an id from another account is not found, not converted");
+
+    const [{ count }] = await sql`SELECT count(*)::int FROM customers WHERE name = 'Ward Roofing'`;
+    assert.equal(count, 0, "no customer was created from another agency's lead");
+    const [l] = await sql`SELECT stage FROM agency_leads WHERE id = ${theirLeadId}`;
+    assert.equal(l.stage, "proposal", "and their lead was not touched");
+  });
+
+  test("a mixed batch converts only the leads that belong to the caller", async () => {
+    const mine = await api("/api/leads", {
+      method: "POST",
+      body: JSON.stringify({ company: "Ward Roofing", stage: "new", value: 100 }),
+    });
+    const out = await api("/api/leads/convert", {
+      method: "POST",
+      body: JSON.stringify({ ids: [mine.body.id, theirLeadId], into: "partner" }),
+    });
+    assert.equal(out.status, 200);
+    assert.equal(out.body.made.length, 1, "one of the two ids was ours");
+    const [l] = await sql`SELECT stage FROM agency_leads WHERE id = ${theirLeadId}`;
+    assert.equal(l.stage, "proposal", "theirs is still theirs");
+  });
+
+  test("it refuses anything that is not a customer or a partner", async () => {
+    const [lead] = await sql`SELECT id FROM agency_leads WHERE company = 'Sharp HVAC'`;
+    for (const into of ["operator", "admin", "", "customers"]) {
+      const out = await api("/api/leads/convert", {
+        method: "POST",
+        body: JSON.stringify({ ids: [lead.id], into }),
+      });
+      assert.equal(out.status, 400, `"${into}" should be refused`);
+    }
+  });
+});

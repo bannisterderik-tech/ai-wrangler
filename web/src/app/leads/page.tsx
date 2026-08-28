@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
 import { Proposals } from "@/components/os/Proposals";
 import { ImportDeals } from "@/components/os/ImportDeals";
@@ -16,6 +16,14 @@ const TONE: Record<string, string> = {
   won: "var(--state-go)", lost: "var(--text-secondary)",
 };
 const money = (n: number) => "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+
+const SORTS = {
+  newest: { label: "Newest", by: (a: Lead, b: Lead) => +new Date(b.createdAt) - +new Date(a.createdAt) },
+  value: { label: "Biggest", by: (a: Lead, b: Lead) => b.value - a.value },
+  company: { label: "A–Z", by: (a: Lead, b: Lead) => a.company.localeCompare(b.company) },
+  stage: { label: "Stage", by: (a: Lead, b: Lead) => a.stage.localeCompare(b.stage) || b.value - a.value },
+} as const;
+type SortKey = keyof typeof SORTS;
 
 /**
  * The agency's own pipeline: shops buying web and technology from us. Not a
@@ -33,6 +41,10 @@ export default function LeadsPage() {
   const [draft, setDraft] = useState({ company: "", contact: "", phone: "", email: "", city: "", trade: "", source: "", value: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [sort, setSort] = useState<SortKey>("newest");
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [said, setSaid] = useState("");
+  const lastPick = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/leads", { cache: "no-store" });
@@ -50,8 +62,41 @@ export default function LeadsPage() {
     if (stage !== "all") r = r.filter((l) => l.stage === stage);
     const qq = q.trim().toLowerCase();
     if (qq) r = r.filter((l) => [l.company, l.contact, l.city, l.trade, l.note].join(" ").toLowerCase().includes(qq));
-    return r;
-  }, [leads, stage, q]);
+    return [...r].sort(SORTS[sort].by);
+  }, [leads, stage, q, sort]);
+
+  // A pick only means anything while the row is on screen. Narrowing the filter
+  // and then acting on rows you can no longer see is how the wrong thing gets
+  // converted.
+  const chosen = useMemo(() => shown.filter((x) => picked.has(x.id)), [shown, picked]);
+
+  /** Click picks one; shift-click picks the run since the last one, as lists do. */
+  const pick = useCallback(
+    (leadId: string, e: React.MouseEvent, order: Lead[]) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setPicked((prev) => {
+        const next = new Set(prev);
+        if (e.shiftKey && lastPick.current) {
+          const a = order.findIndex((x) => x.id === lastPick.current);
+          const b = order.findIndex((x) => x.id === leadId);
+          if (a > -1 && b > -1) {
+            const add = !next.has(leadId);
+            for (let i = Math.min(a, b); i <= Math.max(a, b); i++) {
+              if (add) next.add(order[i].id);
+              else next.delete(order[i].id);
+            }
+            return next;
+          }
+        }
+        if (next.has(leadId)) next.delete(leadId);
+        else next.add(leadId);
+        return next;
+      });
+      lastPick.current = leadId;
+    },
+    [],
+  );
 
   const open = Boolean(id && shown.some((l) => l.id === id));
   const l = shown.find((x) => x.id === id) ?? shown[0] ?? null;
@@ -85,6 +130,55 @@ export default function LeadsPage() {
     await load();
   }
 
+  /** Move everything picked, one call each, so a failure part-way is visible. */
+  async function moveMany(to: string) {
+    setBusy(true);
+    setError("");
+    for (const x of chosen) {
+      await fetch("/api/leads", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: x.id, stage: to }),
+      });
+    }
+    setBusy(false);
+    setSaid(`Moved ${chosen.length} to ${to}.`);
+    setPicked(new Set());
+    await load();
+  }
+
+  async function convert(into: "customer" | "partner", list: Lead[]) {
+    if (!list.length) return;
+    const names = list.map((x) => x.company).join(", ");
+    if (
+      !confirm(
+        into === "customer"
+          ? `Make ${list.length} lead(s) a customer? ${names}\n\nThis is you saying so — no deposit is taken and nothing is charged. Send a proposal instead if you want them to pay first.`
+          : `Move ${list.length} lead(s) to Partners? ${names}\n\nThey leave the pipeline: a partner is not a deal you are trying to close.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    setSaid("");
+    const res = await fetch("/api/leads/convert", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: list.map((x) => x.id), into }),
+    });
+    const out = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(out.error || "that did not work");
+    const made = out.made?.length ?? 0;
+    const skipped: { name: string; why: string }[] = out.skipped ?? [];
+    setSaid(
+      `${made} now ${made === 1 ? `a ${into}` : `${into}s`}.` +
+        (skipped.length ? ` ${skipped.map((s) => `${s.name} — ${s.why}`).join("; ")}.` : ""),
+    );
+    setPicked(new Set());
+    await load();
+  }
+
   if (!leads) return <div className="p-5 text-[13px]" style={{ color: "var(--text-secondary)" }}>Reading the pipeline…</div>;
 
   const bar = (
@@ -98,6 +192,11 @@ export default function LeadsPage() {
         </button>
       ))}
       <input className="btn-os min-w-[180px]" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <select className="btn-os" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} title="Order the list">
+        {(Object.keys(SORTS) as SortKey[]).map((k) => (
+          <option key={k} value={k}>{SORTS[k].label}</option>
+        ))}
+      </select>
       <button className="btn-os brand" onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ New lead"}</button>
       <button className="btn-os" onClick={() => setImporting((v) => !v)}>{importing ? "Cancel import" : "Import"}</button>
       <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
@@ -110,6 +209,27 @@ export default function LeadsPage() {
     <div className="flex h-full min-h-0 flex-col">
       {bar}
       {importing ? <ImportDeals onDone={load} /> : null}
+      {chosen.length ? (
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-2.5" style={{ borderColor: "var(--hairline)", background: "var(--brand-dim)" }}>
+          <span className="text-[12.5px] font-semibold tabular-nums">
+            {chosen.length} picked · {money(chosen.reduce((a, x) => a + x.value, 0))}/mo
+          </span>
+          <button className="btn-os" onClick={() => setPicked(new Set())}>Clear</button>
+          <span className="mx-1 text-[11px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Move to</span>
+          {stages.map((sname) => (
+            <button key={sname} className="btn-os" disabled={busy} onClick={() => moveMany(sname)}>{sname}</button>
+          ))}
+          <span className="mx-1 text-[11px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Make them</span>
+          <button className="btn-os brand" disabled={busy} onClick={() => convert("customer", chosen)}>A customer</button>
+          <button className="btn-os" disabled={busy} onClick={() => convert("partner", chosen)}>A partner</button>
+        </div>
+      ) : null}
+      {said ? (
+        <div className="border-b px-4 py-2 text-[12.5px]" style={{ borderColor: "var(--hairline)", color: "var(--state-go)" }}>{said}</div>
+      ) : null}
+      {error ? (
+        <div className="border-b px-4 py-2 text-[12.5px]" style={{ borderColor: "var(--hairline)", color: "var(--state-stop)" }}>{error}</div>
+      ) : null}
       {adding ? (
         <form onSubmit={add} className="flex flex-wrap items-end gap-2 border-b px-4 py-3" style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}>
           {([["company", "Company"], ["contact", "Who"], ["phone", "Phone"], ["city", "Market"], ["trade", "Trade"], ["source", "How they found us"]] as const).map(([k, label]) => (
@@ -133,6 +253,7 @@ export default function LeadsPage() {
       ) : null}
 
       <Dossier
+        widthKey="leads"
         onClose={() => setId(null)}
         list={
           shown.length === 0 ? (
@@ -142,15 +263,34 @@ export default function LeadsPage() {
                 : "Nothing matches that filter."}
             </div>
           ) : (
-            shown.map((x) => (
-              <RollItem
-                key={x.id}
-                on={open && x.id === l?.id}
-                title={x.company}
-                meta={`${[x.contact, x.city].filter(Boolean).join(" · ") || "no contact yet"} · ${x.stage}${x.value ? ` · ${money(x.value)}/mo` : ""}`}
-                onClick={() => { setId(x.id); setTab("overview"); }}
-              />
-            ))
+            <>
+              <label className="flex items-center gap-2.5 border-b px-3.5 py-2 text-[11px] uppercase tracking-wider"
+                style={{ borderColor: "var(--hairline)", color: "var(--text-secondary)" }}>
+                <input
+                  type="checkbox"
+                  className="cursor-pointer"
+                  checked={chosen.length === shown.length && shown.length > 0}
+                  ref={(el) => {
+                    // Some picked but not all: neither box state is honest, so
+                    // show the third one.
+                    if (el) el.indeterminate = chosen.length > 0 && chosen.length < shown.length;
+                  }}
+                  onChange={(e) => setPicked(e.target.checked ? new Set(shown.map((x) => x.id)) : new Set())}
+                />
+                {chosen.length ? `${chosen.length} of ${shown.length}` : `all ${shown.length}`}
+              </label>
+              {shown.map((x) => (
+                <RollItem
+                  key={x.id}
+                  on={open && x.id === l?.id}
+                  picked={picked.has(x.id)}
+                  onPick={(e) => pick(x.id, e, shown)}
+                  title={x.company}
+                  meta={`${[x.contact, x.city].filter(Boolean).join(" · ") || "no contact yet"} · ${x.stage}${x.value ? ` · ${money(x.value)}/mo` : ""}`}
+                  onClick={() => { setId(x.id); setTab("overview"); }}
+                />
+              ))}
+            </>
           )
         }
         rail={
@@ -162,8 +302,20 @@ export default function LeadsPage() {
                   <button key={s} className={`btn-os ${l.stage === s ? "brand" : ""}`} disabled={busy} onClick={() => move(l.id, s)}>{s}</button>
                 ))}
               </div>
+              <div className="mt-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                Make them
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button className="btn-os brand" disabled={busy} onClick={() => convert("customer", [l])}>
+                  A customer
+                </button>
+                <button className="btn-os" disabled={busy} onClick={() => convert("partner", [l])}>
+                  A partner
+                </button>
+              </div>
               <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-                Won a deal? Add them as a customer on Customers — that is what binds a repo and lets an agent work for them.
+                Converting here is you saying so. The other way in is a deposit — send a proposal and let the
+                payment do it, and the record then has money behind it rather than a click.
               </p>
             </div>
           ) : null
