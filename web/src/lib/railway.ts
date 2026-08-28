@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "./db";
 import { decrypt, encrypt } from "./crypto";
 import { agencyConnections } from "./schema";
+import { getAgencyKey, saveAgencyKey } from "./keys";
 
 /**
  * Railway, driven from here.
@@ -20,7 +21,6 @@ import { agencyConnections } from "./schema";
 
 const API = "https://backboard.railway.com/graphql/v2";
 const PROVIDER = "railway";
-const ANTHROPIC = "anthropic";
 const TOKENS_VAR = "WRANGLER_SESSION_TOKENS";
 
 export type RailwayState = {
@@ -41,43 +41,12 @@ function ids() {
   };
 }
 
-/**
- * The agency's Anthropic key. Vault first, environment second — so it can be
- * pasted into the OS like every other credential instead of being the one thing
- * that still needs a trip to the Railway dashboard.
- */
-export async function anthropicKey(): Promise<string | null> {
-  try {
-    const [row] = await db
-      .select()
-      .from(agencyConnections)
-      .where(eq(agencyConnections.provider, ANTHROPIC))
-      .limit(1);
-    if (row?.encryptedAccess) return decrypt(row.encryptedAccess);
-  } catch {
-    /* fall through to the environment */
-  }
-  return process.env.ANTHROPIC_API_KEY || null;
+export async function anthropicKey() {
+  return getAgencyKey("anthropic");
 }
 
 export async function saveAnthropicKey(key: string) {
-  const trimmed = key.trim();
-  if (!/^sk-ant-/.test(trimmed)) {
-    throw new Error("That does not look like an Anthropic key — they start with sk-ant-.");
-  }
-  await db
-    .insert(agencyConnections)
-    .values({
-      provider: ANTHROPIC,
-      mode: "api-key",
-      encryptedAccess: encrypt(trimmed),
-      connectedAt: new Date(),
-    })
-    .onConflictDoUpdate({
-      target: agencyConnections.provider,
-      set: { encryptedAccess: encrypt(trimmed), mode: "api-key", connectedAt: new Date() },
-    });
-  return { ok: true };
+  return saveAgencyKey("anthropic", key);
 }
 
 async function stored() {
@@ -145,12 +114,30 @@ export async function connectRailway(apiToken: string) {
   return { ok: true };
 }
 
+/** Passing an empty id forgets the worker, so the next mint creates a new one. */
 async function rememberService(serviceId: string) {
   const conn = await stored();
   await db
     .update(agencyConnections)
-    .set({ userJson: JSON.stringify({ ...(conn?.meta ?? {}), serviceId }) })
+    .set({ userJson: JSON.stringify({ ...(conn?.meta ?? {}), serviceId: serviceId || null }) })
     .where(eq(agencyConnections.provider, PROVIDER));
+}
+
+/**
+ * Start a deployment. Always deployV2, never redeploy: redeploy repeats a
+ * previous deployment, and a service that has never deployed has none to
+ * repeat — it simply returns and nothing happens, which is what "minting does
+ * nothing" looked like.
+ */
+async function deploy(token: string, serviceId: string, environmentId: string) {
+  await gql(
+    token,
+    "serviceInstanceDeployV2",
+    `mutation serviceInstanceDeployV2($serviceId: String!, $environmentId: String!) {
+       serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
+     }`,
+    { serviceId, environmentId },
+  );
 }
 
 async function readTokens(token: string, projectId: string, environmentId: string, serviceId: string) {
@@ -184,14 +171,7 @@ async function writeTokens(
     `mutation variableUpsert($input: VariableUpsertInput!) { variableUpsert(input: $input) }`,
     { input: { projectId, environmentId, serviceId, name: TOKENS_VAR, value: tokens.join(",") } },
   );
-  await gql(
-    token,
-    "serviceInstanceRedeploy",
-    `mutation serviceInstanceRedeploy($serviceId: String!, $environmentId: String!) {
-       serviceInstanceRedeploy(serviceId: $serviceId, environmentId: $environmentId)
-     }`,
-    { serviceId, environmentId },
-  );
+  await deploy(token, serviceId, environmentId);
 }
 
 /**
@@ -272,21 +252,22 @@ export async function attachAgent(agentToken: string, repo: string, origin: stri
       { serviceId, environmentId, input: { rootDirectory: "worker" } },
     );
 
-    // Redeploy cannot redeploy something that has never deployed — a brand new
-    // service has nothing to repeat, which is why the first one sat offline.
-    await gql(
-      conn.token,
-      "serviceInstanceDeployV2",
-      `mutation serviceInstanceDeployV2($serviceId: String!, $environmentId: String!) {
-         serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
-       }`,
-      { serviceId, environmentId },
-    );
+    await deploy(conn.token, serviceId, environmentId);
     return { deployed: true as const, created: true, serviceId };
   }
 
-  const tokens = await readTokens(conn.token, projectId, environmentId, state.serviceId);
-  if (!tokens.includes(agentToken)) tokens.push(agentToken);
-  await writeTokens(conn.token, projectId, environmentId, state.serviceId, tokens);
-  return { deployed: true as const, created: false, serviceId: state.serviceId, agents: tokens.length };
+  try {
+    const tokens = await readTokens(conn.token, projectId, environmentId, state.serviceId);
+    if (!tokens.includes(agentToken)) tokens.push(agentToken);
+    await writeTokens(conn.token, projectId, environmentId, state.serviceId, tokens);
+    return { deployed: true as const, created: false, serviceId: state.serviceId, agents: tokens.length };
+  } catch (e) {
+    // The remembered worker was deleted in the dashboard. Forget it and say so,
+    // rather than failing every mint from here on with a stale id.
+    await rememberService("");
+    return {
+      deployed: false as const,
+      why: `The worker this OS remembered is gone (${(e as Error).message}). Mint again and it will build a new one.`,
+    };
+  }
 }

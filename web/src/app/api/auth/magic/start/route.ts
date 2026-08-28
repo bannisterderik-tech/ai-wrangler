@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   const same = {
     ok: true,
     message: "If that address can sign in here, a link is on its way.",
-    delivered: mailConfigured(),
+    delivered: await mailConfigured(),
   };
 
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     customerId: null,
     actor: email,
     action: "sign-in link sent",
-    target: mailConfigured() ? "email" : "server log (no mail provider)",
+    target: (await mailConfigured()) ? "email" : "server log (no mail provider)",
     at: new Date(),
   });
 

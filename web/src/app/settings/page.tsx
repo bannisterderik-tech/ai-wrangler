@@ -3,6 +3,79 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
+type KeyField = { id: string; label: string; hint: string };
+
+/**
+ * The agency's own keys. One place, stored in the same encrypted vault as every
+ * customer credential — so setting one never means opening a hosting dashboard.
+ */
+function AgencyKeys() {
+  const [keys, setKeys] = useState<Record<string, boolean>>({});
+  const [fields, setFields] = useState<KeyField[]>([]);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    const res = await fetch("/api/keys", { cache: "no-store" });
+    if (!res.ok) return;
+    const out = await res.json();
+    setKeys(out.keys ?? {});
+    setFields(out.fields ?? []);
+  };
+  useEffect(() => {
+    load();
+  }, []);
+
+  async function save(id: string) {
+    setBusy(true);
+    setNote("");
+    const res = await fetch("/api/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: id, value: draft[id] ?? "" }),
+    });
+    const out = await res.json().catch(() => ({}));
+    setNote(res.ok ? `${id} key saved.` : out.error || "could not save");
+    setDraft((d) => ({ ...d, [id]: "" }));
+    setBusy(false);
+    await load();
+  }
+
+  return (
+    <div className="rounded-[14px] p-4" style={{ background: "var(--surface-raised)", border: "1px solid var(--hairline)" }}>
+      <div className="text-[10px] uppercase tracking-[0.6px]" style={{ color: "var(--text-secondary)" }}>
+        Agency keys
+      </div>
+      <p className="mt-1 mb-3 max-w-[62ch] text-[12.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+        Ours, not a customer&apos;s. Stored encrypted in the same vault as every customer token, and never
+        returned by the API — paste one here rather than setting it on a hosting service.
+      </p>
+      {fields.map((f) => (
+        <div key={f.id} className="flex flex-wrap items-center gap-2 border-b py-2.5" style={{ borderColor: "var(--hairline)" }}>
+          <div className="min-w-[110px]">
+            <div className="text-[13px]">{f.label}</div>
+            <div className="text-[11px]" style={{ color: keys[f.id] ? "var(--state-go)" : "var(--text-secondary)" }}>
+              {keys[f.id] ? "saved" : "not set"}
+            </div>
+          </div>
+          <input
+            type="password"
+            value={draft[f.id] ?? ""}
+            onChange={(e) => setDraft((d) => ({ ...d, [f.id]: e.target.value }))}
+            placeholder={keys[f.id] ? "replace it…" : f.hint}
+            className="btn-os min-w-[230px] flex-1"
+          />
+          <button className="btn-os brand" disabled={busy || !(draft[f.id] ?? "").trim()} onClick={() => save(f.id)}>
+            {keys[f.id] ? "Replace" : "Save"}
+          </button>
+        </div>
+      ))}
+      {note ? <p className="mt-2 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>{note}</p> : null}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const [customers, setCustomers] = useState<{ id: string; name: string; vercel?: { connected: boolean; bound?: number; mode?: string }; github?: { bound: number } }[]>([]);
   const [gh, setGh] = useState<{ connected?: boolean; login?: string; org?: string | null }>({});
@@ -24,6 +97,7 @@ export default function SettingsPage() {
       <div className="text-[11.5px]" style={{ color: "var(--text-secondary)" }}>
         Each connection issues the AI its own limited token — never your password. Isolation is per customer.
       </div>
+      <AgencyKeys />
       <Row
         name="Vercel"
         desc="Hosting — previews and production deploys."

@@ -7,10 +7,13 @@
  * a laptop and is not fine in production.
  */
 
+import { getAgencyKey } from "./keys";
+
 const FROM = process.env.MAIL_FROM || "AI Wrangler <login@aiwrangler.co>";
 
-export function mailConfigured() {
-  return Boolean(process.env.RESEND_API_KEY);
+/** Vault first, environment second — the key is pasted in the OS, not set here. */
+export async function mailConfigured() {
+  return Boolean(await getAgencyKey("resend"));
 }
 
 export async function sendMagicLink(to: string, url: string, minutes: number) {
@@ -24,11 +27,12 @@ export async function sendMagicLink(to: string, url: string, minutes: number) {
     "If it wasn't you, ignore this — the link does nothing until it is opened, and nobody else was told it exists.",
   ].join("\n");
 
-  if (!mailConfigured()) {
+  const key = await getAgencyKey("resend");
+  if (!key) {
     console.warn(
-      `[wrangler] RESEND_API_KEY is not set, so this sign-in link was NOT emailed.\n` +
+      `[wrangler] No Resend key saved, so this sign-in link was NOT emailed.\n` +
         `           to: ${to}\n           ${url}\n` +
-        `           Set RESEND_API_KEY before this deploy is used by anyone but you.`,
+        `           Paste one on Settings before this deploy is used by anyone but you.`,
     );
     return { ok: true, delivered: false as const };
   }
@@ -36,7 +40,7 @@ export async function sendMagicLink(to: string, url: string, minutes: number) {
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      Authorization: `Bearer ${key}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ from: FROM, to: [to], subject, text }),

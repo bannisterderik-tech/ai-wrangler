@@ -864,3 +864,60 @@ describe("the Anthropic key lives in the vault", () => {
     assert.ok(!JSON.stringify(res.body).includes("sk-ant-"), "and never returns it");
   });
 });
+
+/**
+ * Agency keys — ours, not a customer's. They live in the vault so setting one
+ * never means opening a hosting dashboard, and they never come back out.
+ */
+describe("agency keys are vaulted, shape-checked and write-only", () => {
+  before(async () => {
+    await sql`DELETE FROM agency_connections WHERE provider IN ('anthropic','resend','openrouter')`;
+  });
+
+  test("the status endpoint lists the fields and what is missing", async () => {
+    const res = await api("/api/keys");
+    assert.equal(res.status, 200);
+    const ids = res.body.fields.map((f) => f.id);
+    assert.ok(ids.includes("anthropic") && ids.includes("resend"), `got ${ids}`);
+    assert.equal(res.body.keys.resend, false);
+  });
+
+  test("a key with the wrong shape is refused before it is stored", async () => {
+    const res = await api("/api/keys", {
+      method: "POST",
+      body: JSON.stringify({ key: "resend", value: "sk-ant-wrong-provider" }),
+    });
+    assert.notEqual(res.status, 200);
+    const [row] = await sql`SELECT count(*)::int AS n FROM agency_connections WHERE provider = 'resend'`;
+    assert.equal(row.n, 0, "nothing stored");
+  });
+
+  test("a real one is stored encrypted and reported as set", async () => {
+    const key = "re_test_not_a_real_key";
+    const res = await api("/api/keys", { method: "POST", body: JSON.stringify({ key: "resend", value: key }) });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.keys.resend, true);
+    const [row] = await sql`SELECT encrypted_access FROM agency_connections WHERE provider = 'resend'`;
+    assert.ok(row.encrypted_access.startsWith("v1."));
+    assert.ok(!row.encrypted_access.includes(key), "the key is not in the row");
+  });
+
+  test("and it never comes back out", async () => {
+    const res = await api("/api/keys");
+    assert.ok(!JSON.stringify(res.body).includes("re_test"), "no value is returned");
+  });
+
+  test("health reports mail as configured once the Resend key is saved", async () => {
+    const res = await fetch(`${BASE}/api/health`);
+    const body = await res.json();
+    assert.equal(body.mail.configured, true);
+  });
+
+  test("an unknown key name is refused", async () => {
+    const res = await api("/api/keys", {
+      method: "POST",
+      body: JSON.stringify({ key: "stripe", value: "sk_live_whatever" }),
+    });
+    assert.equal(res.status, 400);
+  });
+});

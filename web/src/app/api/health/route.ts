@@ -8,7 +8,7 @@ import {
   operatorEmails,
   passwordLoginConfigured,
 } from "@/lib/auth";
-import { mailConfigured } from "@/lib/mail";
+import { agencyKeyStatus } from "@/lib/keys";
 import { db } from "@/lib/db";
 
 /**
@@ -32,7 +32,7 @@ export async function GET() {
     database,
     vault: { configured: /^[0-9a-fA-F]{64}$/.test((process.env.TOKEN_ENCRYPTION_KEY || "").trim()) },
     integration: Boolean(process.env.VERCEL_INTEGRATION_CLIENT_ID && process.env.VERCEL_INTEGRATION_SLUG),
-    mail: { configured: mailConfigured() },
+    mail: { configured: (await agencyKeyStatus()).resend },
     login: {
       configured: authConfigured(),
       email: magicLinkConfigured(),
