@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { SESSION_COOKIE, isOperatorEmail, sessionCookieOptions, signSession } from "@/lib/auth";
-import { audit, loginLinks } from "@/lib/schema";
+import { audit, loginLinks, people } from "@/lib/schema";
 import { hashToken } from "@/lib/session-token";
 
 /** Redeem a sign-in link. One use, then it is dead. */
@@ -24,11 +24,23 @@ export async function GET(req: Request) {
 
   if (!link) return bail("That link was already used, or it is not a link we handed out. Ask for a new one.");
   if (link.expiresAt.getTime() < Date.now()) return bail("That link expired. Ask for a new one.");
-  // The allowlist can change between sending and clicking. It wins.
-  if (!isOperatorEmail(link.email)) return bail("That address is no longer an operator here.");
+  // Both allowlists are re-checked at redemption, not only at send, so removing
+  // someone kills the links already sitting in their inbox.
+  const [who] = await db
+    .select()
+    .from(people)
+    .where(sql`lower(${people.email}) = ${link.email} AND ${people.kind} = 'client'`)
+    .limit(1);
+  if (!isOperatorEmail(link.email) && !who) return bail("That address can no longer sign in here.");
 
-  const name = link.email.split("@")[0];
-  const session = await signSession({ sub: link.email, name, via: "email" });
+  const client = who && who.customerId ? { kind: "client" as const, cid: who.customerId } : {};
+  const name = who?.name || link.email.split("@")[0];
+  const session = await signSession({
+    sub: link.email,
+    name,
+    via: "email",
+    ...(Object.keys(client).length ? client : { kind: "operator" as const }),
+  });
 
   await db.insert(audit).values({
     customerId: null,
@@ -38,8 +50,11 @@ export async function GET(req: Request) {
     at: new Date(),
   });
 
+  // A client lands on their own side of the house, never the agency's.
+  const home = who?.customerId ? "/client" : "/";
   const next = url.searchParams.get("next");
-  const dest = next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  const wanted = next && next.startsWith("/") && !next.startsWith("//") ? next : home;
+  const dest = who?.customerId && !wanted.startsWith("/client") ? home : wanted;
   const res = NextResponse.redirect(new URL(dest, url.origin));
   res.cookies.set(SESSION_COOKIE, session, sessionCookieOptions());
   return res;

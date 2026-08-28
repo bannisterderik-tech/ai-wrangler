@@ -13,7 +13,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [clock, setClock] = useState("");
   const [needs, setNeeds] = useState(0);
   const [me, setMe] = useState<{ name: string; via: string } | null>(null);
-  const bare = path === "/login";
+  // The client side is a different product with a different audience. It must not
+  // render the agency's navigation — those links are not theirs to see, never mind
+  // follow, and the middleware refusing them afterwards is not the same as not
+  // showing them.
+  const bare = path === "/login" || path === "/client" || path.startsWith("/client/");
 
   useEffect(() => {
     const stored = localStorage.getItem("wrangler-theme") as "dark" | "light" | null;

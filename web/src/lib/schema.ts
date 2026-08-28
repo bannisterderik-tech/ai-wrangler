@@ -191,6 +191,11 @@ export const people = pgTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     handle: text("handle").notNull(),
+    email: text("email"),
+    /** operator = agency staff, sees everything. client = one customer's own user. */
+    kind: text("kind").notNull().default("operator"),
+    /** Set on client rows only. This column is the tenancy. */
+    customerId: text("customer_id"),
     role: text("role").notNull().default("Build wrangler"),
     approver: boolean("approver").notNull().default(false),
     machine: text("machine"),
@@ -322,4 +327,46 @@ export const metrics = pgTable(
     at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("metrics_recent").on(t.customerId, t.source, t.name, t.at)],
+);
+
+/** The client's own leads — the people who call THEM. Not our sales pipeline. */
+export const leads = pgTable(
+  "leads",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    phone: text("phone"),
+    email: text("email"),
+    source: text("source"),
+    stage: text("stage").notNull().default("new"),
+    valueCents: integer("value_cents").notNull().default(0),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastTouchAt: timestamp("last_touch_at", { withTimezone: true }),
+  },
+  (t) => [index("leads_board").on(t.customerId, t.stage, t.createdAt)],
+);
+
+/** Calls, texts, emails and notes against a lead — one timeline, not three. */
+export const leadEvents = pgTable(
+  "lead_events",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    leadId: text("lead_id")
+      .notNull()
+      .references(() => leads.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    direction: text("direction").notNull().default("out"),
+    body: text("body"),
+    durationS: integer("duration_s"),
+    actor: text("actor").notNull().default("ai"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("lead_events_timeline").on(t.customerId, t.leadId, t.at)],
 );

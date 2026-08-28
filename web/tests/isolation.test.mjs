@@ -573,3 +573,122 @@ describe("intake is walled the same as everything else", () => {
     assert.equal(row.status, "new", "and it stays untouched");
   });
 });
+
+/**
+ * Two audiences, one OS. A client user is the first login that must NOT see
+ * everything, so this is where wall three stops being a proof and starts being
+ * the product.
+ */
+describe("a client sees their own CRM and nothing else", () => {
+  let acmeCookie = "";
+  let globexCookie = "";
+
+  let minted = 0;
+  async function signInAs(email) {
+    // A fresh token every call — the links are single use, so reusing one here
+    // would be testing the burn, not the landing.
+    const raw = `wr_sess_test_client_${email.replace(/\W/g, "")}_${++minted}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, ${email}, now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const value = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    return { cookie: value ? `wrangler_session=${value}` : "", location: res.headers.get("location") };
+  }
+  const as = (cookie, path, init = {}) =>
+    fetch(`${BASE}${path}`, { ...init, redirect: "manual", headers: { "Content-Type": "application/json", cookie, ...(init.headers || {}) } });
+
+  before(async () => {
+    await sql`DELETE FROM lead_events WHERE customer_id IN ('acme','globex')`;
+    await sql`DELETE FROM leads WHERE customer_id IN ('acme','globex')`;
+    await sql`DELETE FROM people WHERE kind = 'client'`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, customer_id) VALUES
+        ('p-acme','Maya at Acme','maya','maya@acme.test','client','acme'),
+        ('p-globex','Dev at Globex','dev','dev@globex.test','client','globex')`;
+    await sql`
+      INSERT INTO leads (id, customer_id, name, phone, stage, value_cents) VALUES
+        ('lead-acme','acme','Homeowner on Oak St','+15305550111','new',450000),
+        ('lead-globex','globex','Somebody who called Globex','+15305550222','new',380000)`;
+
+    acmeCookie = (await signInAs("maya@acme.test")).cookie;
+    globexCookie = (await signInAs("dev@globex.test")).cookie;
+  });
+
+  test("a client user can sign in with a magic link", async () => {
+    assert.ok(acmeCookie, "Maya got a session");
+    assert.ok(globexCookie, "Dev got a session");
+  });
+
+  test("and lands on their own side of the house", async () => {
+    const { location } = await signInAs("maya@acme.test");
+    assert.match(location, /\/client$/);
+  });
+
+  test("they see their own leads", async () => {
+    const res = await as(acmeCookie, "/api/client/leads");
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.leads.length, 1);
+    assert.equal(body.leads[0].name, "Homeowner on Oak St");
+  });
+
+  test("and cannot see anyone else's, because RLS will not return them", async () => {
+    const mine = await (await as(acmeCookie, "/api/client/leads")).json();
+    const theirs = await (await as(globexCookie, "/api/client/leads")).json();
+    assert.equal(mine.leads.length, 1);
+    assert.equal(theirs.leads.length, 1);
+    assert.notEqual(mine.leads[0].id, theirs.leads[0].id);
+    assert.ok(!JSON.stringify(mine).includes("Globex"), "no trace of the other customer");
+  });
+
+  test("logging a call against another customer's lead is a 404, not a write", async () => {
+    const res = await as(acmeCookie, "/api/client/leads", {
+      method: "POST",
+      body: JSON.stringify({ leadId: "lead-globex", kind: "call", body: "sneaking in" }),
+    });
+    assert.equal(res.status, 404, "inside their transaction that lead does not exist");
+    const [row] = await sql`SELECT count(*)::int AS n FROM lead_events WHERE lead_id = 'lead-globex'`;
+    assert.equal(row.n, 0, "and nothing was written");
+  });
+
+  test("logging one against their own lead works", async () => {
+    const res = await as(acmeCookie, "/api/client/leads", {
+      method: "POST",
+      body: JSON.stringify({ leadId: "lead-acme", kind: "call", body: "called back in 40s" }),
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT actor, kind FROM lead_events WHERE lead_id = 'lead-acme'`;
+    assert.equal(row.kind, "call");
+    assert.equal(row.actor, "Maya at Acme");
+  });
+
+  test("the agency side is closed to them — pages redirect, APIs 403", async () => {
+    const page = await as(acmeCookie, "/customers");
+    assert.equal(page.status, 307);
+    assert.match(page.headers.get("location"), /\/client$/);
+
+    for (const path of ["/api/floor", "/api/people", "/api/customers", "/api/jobs"]) {
+      const res = await as(acmeCookie, path);
+      assert.equal(res.status, 403, `${path} must be closed to a client`);
+    }
+  });
+
+  test("an operator cannot masquerade on a client screen either", async () => {
+    const res = await api("/api/auth/operator/password", {
+      method: "POST",
+      body: JSON.stringify({ password: PASSWORD }),
+    });
+    assert.equal(res.status, 200);
+    const opCookie = /wrangler_session=([^;]+)/.exec(res.res.headers.get("set-cookie") || "")?.[1];
+    const page = await as(`wrangler_session=${opCookie}`, "/client");
+    assert.equal(page.status, 307, "operators get sent to the agency view");
+  });
+
+  test("a stranger with no session gets nothing from the client API", async () => {
+    const res = await fetch(`${BASE}/api/client/leads`, { redirect: "manual" });
+    assert.equal(res.status, 401);
+  });
+});

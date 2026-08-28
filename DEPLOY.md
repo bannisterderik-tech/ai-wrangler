@@ -133,3 +133,27 @@ starts. Three things to set:
    a box, not a function.
 
 Railway stays the target for the container.
+
+
+## Railway — the two things that fail first
+
+**1. Root Directory = `web`.** Both `railway.json` and `Dockerfile` live in `web/`,
+and Railway looks for them at the root of the service's source directory. Point a
+service at the repo root and it finds neither, which is the "failed right away"
+with almost no log. Service → Settings → Root Directory → `web`.
+
+**2. The container refuses to start without a database, on purpose.**
+`scripts/start.mjs` migrates before it serves and will not serve a schema it did
+not migrate. So the database has to exist before the first deploy:
+
+- Add a **Postgres** database to the Railway project.
+- On the app service set `DATABASE_URL = ${{Postgres.DATABASE_URL}}` — the
+  reference syntax, so it follows the database rather than being pasted.
+- Set `AUTH_SECRET` and `TOKEN_ENCRYPTION_KEY`, different values, each
+  `openssl rand -hex 32`.
+
+It now names the missing variable in the deploy log instead of failing with
+"migrations failed".
+
+`/api/health` is the healthcheck and answers 200 as soon as the server is up, with
+`database.reachable` telling you whether the rest is wired.

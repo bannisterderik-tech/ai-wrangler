@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, gt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { isOperatorEmail, magicLinkConfigured } from "@/lib/auth";
-import { audit, loginLinks } from "@/lib/schema";
+import { audit, loginLinks, people } from "@/lib/schema";
 import { mailConfigured, sendMagicLink } from "@/lib/mail";
 import { hashToken, mintToken } from "@/lib/session-token";
 
@@ -39,7 +39,15 @@ export async function POST(req: Request) {
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return NextResponse.json({ error: "That does not look like an email address." }, { status: 400 });
   }
-  if (!isOperatorEmail(email)) {
+  // Two ways to be allowed in: the operator allowlist, or a client user row that
+  // somebody deliberately created. Nothing else, and both look identical from out here.
+  const [clientUser] = await db
+    .select({ id: people.id })
+    .from(people)
+    .where(sql`lower(${people.email}) = ${email} AND ${people.kind} = 'client'`)
+    .limit(1);
+
+  if (!isOperatorEmail(email) && !clientUser) {
     // Deliberately indistinguishable from success, but recorded, because a
     // stranger guessing at admin addresses is worth seeing in the trail.
     await db.insert(audit).values({

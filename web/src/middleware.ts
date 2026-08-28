@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE, authConfigured, readSession } from "@/lib/auth";
+import { SESSION_COOKIE, authConfigured, isClient, readSession } from "@/lib/auth";
 
 /** Open to the world. Everything else needs an operator session. */
 const PUBLIC = [
@@ -37,6 +37,25 @@ export async function middleware(req: NextRequest) {
 
   const session = await readSession(req.cookies.get(SESSION_COOKIE)?.value);
   if (session) {
+    // A client user gets their own side of the house and nothing else. This is a
+    // second wall, not the only one: every /api/client route also runs through
+    // withCustomer, so a mistake here is still refused by Postgres.
+    if (isClient(session)) {
+      const theirs =
+        pathname === "/client" ||
+        pathname.startsWith("/client/") ||
+        pathname.startsWith("/api/client/") ||
+        pathname.startsWith("/api/auth/");
+      if (!theirs) {
+        if (isApi) return NextResponse.json({ error: "not yours" }, { status: 403 });
+        return NextResponse.redirect(new URL("/client", req.nextUrl.origin));
+      }
+      return NextResponse.next();
+    }
+    // An operator has no business on a client screen; it would read as theirs.
+    if (pathname === "/client" || pathname.startsWith("/client/")) {
+      return NextResponse.redirect(new URL("/customers", req.nextUrl.origin));
+    }
     if (pathname === "/login") return NextResponse.redirect(new URL("/", req.nextUrl.origin));
     return NextResponse.next();
   }

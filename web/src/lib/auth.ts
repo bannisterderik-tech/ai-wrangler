@@ -11,8 +11,16 @@ export type Session = {
   sub: string;
   name: string;
   via: "password" | "github" | "email";
+  /** operator = agency staff. client = one customer's own user, and `cid` is theirs. */
+  kind?: "operator" | "client";
+  cid?: string;
   exp: number;
 };
+
+/** A client session is the one that must never see the agency side. */
+export function isClient(session: Session | null): session is Session & { cid: string } {
+  return Boolean(session && session.kind === "client" && session.cid);
+}
 
 /**
  * Who may run this agency. Emails, because that is what a magic link is
