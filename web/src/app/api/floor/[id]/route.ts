@@ -63,6 +63,38 @@ export async function POST(req: Request, ctx: RouteContext<"/api/floor/[id]">) {
       return NextResponse.json({ ok: true });
     }
 
+    // claim_job refuses a job at its cap and tells the operator "a human has to
+    // raise the cap before it moves again". Until now that operation did not
+    // exist anywhere in the codebase, so the message was a lie and the only
+    // cure was SQL.
+    if (action === "raise-cap") {
+      const to = Number(body.budgetDollars);
+      if (!Number.isFinite(to) || to <= 0) {
+        return NextResponse.json({ error: "what should the new cap be, in dollars?" }, { status: 400 });
+      }
+      if (to > 500) {
+        return NextResponse.json({ error: "that cap is over $500 — raise the ceiling in code if you mean it" }, { status: 400 });
+      }
+      const cents = Math.round(to * 100);
+      if (cents <= job.spentCents) {
+        return NextResponse.json(
+          { error: `it has already spent $${(job.spentCents / 100).toFixed(2)}. A new cap has to be more than that.` },
+          { status: 400 },
+        );
+      }
+      await db
+        .update(jobs)
+        // Back on the board and unowned: the session that hit the wall is long
+        // gone, and leaving it owned makes the job unclaimable by anyone.
+        .set({ budgetCents: cents, status: "queued", ownerId: null, claimedAt: null })
+        .where(eq(jobs.id, job.id));
+      await note("think", `${actor} raised the cap to $${to.toFixed(2)}. Back on the board.`);
+      await db.insert(audit).values({
+        customerId: job.customerId, actor, action: "raised a job cap", target: `${job.id} · $${to.toFixed(2)}`, at: new Date(),
+      });
+      return NextResponse.json({ ok: true });
+    }
+
     if (action === "stop") {
       await db.update(jobs).set({ status: "blocked" }).where(eq(jobs.id, job.id));
       await note("gate", `Stopped by ${actor}. Nothing was merged or sent.`);

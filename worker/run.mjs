@@ -106,22 +106,26 @@ Do this, in order:
 1. list_jobs. If nothing is unclaimed and nothing you already hold is unfinished, say
    "nothing to do" and stop. Do not invent work.
 2. claim_job on one job. One at a time.
-3. read_project on it. That call is the truth about this customer: what is bound and
+3. checkout to get a URL you can clone and push with, then clone into this
+   directory if it is empty. That URL holds a credential: never echo it, never
+   put it in a step, never commit it.
+4. read_project on it. That call is the truth about this customer: what is bound and
    therefore what you may touch, their house rules, what is on fire, how they are
    doing. Read it before you plan. Their house rules outrank your judgement.
-4. next_work if the job is vague — the client's own requests and their live site's
+5. next_work if the job is vague — the client's own requests and their live site's
    errors are there. open_work turns one into a job with its own budget.
-5. Do the work. post_step as you go, one line per real step, so a human can watch
+6. Do the work. post_step as you go, one line per real step, so a human can watch
    without interrupting you.
-6. Stop at the wall. request_approval for anything irreversible: a production
+7. Stop at the wall. request_approval for anything irreversible: a production
    merge, a first message to a real person, money moving. Then stop. Do not do it
    anyway, and do not ask twice.
 
 Hard rules:
 - Never guess a repository name. read_bound_repo is the only source. A name you
   guessed will be refused with a 403 and you will have wasted the turn.
-- Never write to main. Commit your work to the branch FIRST, then open_branch, then
-  ask. open_branch records what you tell it; it cannot see your working tree. A
+- Never write to main. Commit AND PUSH your branch first, then open_branch, then
+  ask. The floor asks GitHub whether that branch is really there and refuses if it
+  is not, so an unpushed branch is a refusal, not a record. open_branch records what you tell it; it cannot see your working tree. A
   branch recorded with the work still uncommitted reads as done and is not, and the
   next pass will spend the budget finding that out.
 - Before you plan, read the steps already on this job. If a previous pass hit a wall
@@ -145,6 +149,7 @@ const ALLOWED = [
   "mcp__wrangler__release_job",
   "mcp__wrangler__read_project",
   "mcp__wrangler__read_bound_repo",
+  "mcp__wrangler__checkout",
   "mcp__wrangler__next_work",
   "mcp__wrangler__open_work",
   "mcp__wrangler__open_branch",

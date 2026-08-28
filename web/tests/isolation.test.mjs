@@ -1577,3 +1577,88 @@ describe("the dialer connects a call or says why not", () => {
     assert.match(src, /if \(!target\)/, "placeCall has to check it has somewhere to ring");
   });
 });
+
+/**
+ * The approval loop had no return path.
+ *
+ * request_approval wrote a row; approving flipped a status. No tool let the
+ * agent learn the answer, so it went to the wall, was approved, picked the job
+ * back up, re-derived everything from scratch and hit the same wall — four
+ * times, on real money. And claim_job told the operator "a human has to raise
+ * the cap", an operation that existed nowhere in the codebase.
+ */
+describe("a decision reaches the agent, and a cap can be raised", () => {
+  let token = "";
+  let jobId = "";
+  before(async () => {
+    await sql`DELETE FROM jobs WHERE title = 'Loop job'`;
+    await sql`DELETE FROM people WHERE id = 'A_loop'`;
+    token = "wr_sess_loop00000000000000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(token).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, token_hash, status)
+      VALUES ('A_loop','loop-bot','loop-bot','agent','acme',${hash},'connected')`;
+    await sql`
+      INSERT INTO person_tools (person_id, tool) VALUES
+        ('A_loop','claim_job'), ('A_loop','read_decision'), ('A_loop','request_approval')`;
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Loop job", customerId: "acme", budgetDollars: 2 }),
+    });
+    jobId = res.body.id;
+  });
+
+  const call = async (name, args) => {
+    const r = await fetch(`${BASE}/api/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }),
+    });
+    return r.text();
+  };
+
+  test("with nothing asked, it says so instead of inventing an answer", async () => {
+    await call("claim_job", { job_id: jobId });
+    const out = await call("read_decision", { job_id: jobId });
+    assert.match(out, /Nothing has been asked/);
+  });
+
+  test("while pending it is told to stop, not to ask again", async () => {
+    await call("request_approval", {
+      job_id: jobId, title: "Merge the booking page", what: "merge to main", blast: "the live site",
+    });
+    const out = await call("read_decision", { job_id: jobId });
+    assert.match(out, /Still waiting/);
+    assert.match(out, /do not do it anyway|stop here/i);
+  });
+
+  test("once approved, the agent can actually learn that", async () => {
+    const [gate] = await sql`SELECT id FROM approvals WHERE job_id = ${jobId} ORDER BY created_at DESC LIMIT 1`;
+    const res = await api(`/api/approvals/${gate.id}`, { method: "POST", body: JSON.stringify({ action: "approve" }) });
+    assert.equal(res.status, 200);
+    const out = await call("read_decision", { job_id: jobId });
+    assert.match(out, /was approved/);
+  });
+
+  test("a capped job can be raised and goes back on the board", async () => {
+    await sql`UPDATE jobs SET spent_cents = budget_cents, status = 'blocked' WHERE id = ${jobId}`;
+    const bad = await api(`/api/floor/${jobId}`, {
+      method: "POST", body: JSON.stringify({ action: "raise-cap", budgetDollars: 1 }),
+    });
+    assert.equal(bad.status, 400, "a new cap below what it already spent is not a cap");
+
+    const ok = await api(`/api/floor/${jobId}`, {
+      method: "POST", body: JSON.stringify({ action: "raise-cap", budgetDollars: 20 }),
+    });
+    assert.equal(ok.status, 200);
+    const [row] = await sql`SELECT budget_cents, status, owner_id FROM jobs WHERE id = ${jobId}`;
+    assert.equal(row.budget_cents, 2000);
+    assert.equal(row.status, "queued", "raised means workable again");
+    assert.equal(row.owner_id, null, "the session that hit the wall is gone; leaving it owned makes it unclaimable");
+  });
+});

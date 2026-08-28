@@ -16,6 +16,7 @@ import {
 } from "./schema";
 import type { McpSession } from "./session-token";
 import { recall } from "./recall";
+import { cloneUrl, githubAppConfigured, readBranch } from "./github-app";
 
 /**
  * The tools a teammate's Claude Code gets over MCP.
@@ -124,9 +125,22 @@ export const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: "checkout",
+    description:
+      "Get a clone URL you can push with for this job's bound repository. The token is scoped to that one " +
+      "repo, expires in about an hour, and cannot touch .github/workflows. Never print it or put it in a step.",
+    inputSchema: {
+      type: "object",
+      properties: { job_id: str("The job you hold.") },
+      required: ["job_id"],
+      additionalProperties: false,
+    },
+  },
+  {
     name: "open_branch",
     description:
-      "Record a branch and an optional preview URL against a job. Never writes to main — production is a separate approval.",
+      "Record a branch you have ALREADY PUSHED. The floor checks GitHub and refuses if the branch is not " +
+      "there, so push first. Never writes to main — production is a separate approval.",
     inputSchema: {
       type: "object",
       properties: {
@@ -141,6 +155,18 @@ export const TOOLS: ToolDef[] = [
         },
       },
       required: ["job_id", "branch", "summary"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "read_decision",
+    description:
+      "Has a human answered the thing you asked about? Returns the latest approval on this job and what was " +
+      "decided. Call this before re-deriving anything: the answer may already be here.",
+    inputSchema: {
+      type: "object",
+      properties: { job_id: str("The job you hold.") },
+      required: ["job_id"],
       additionalProperties: false,
     },
   },
@@ -443,6 +469,27 @@ export async function callTool(session: McpSession, name: string, args: Args): P
       return `Created ${id} — "${title}", claimed by you, cap $${(budget / 100).toFixed(2)}. Intake item ${itemId} is now jobbed.`;
     }
 
+    case "checkout": {
+      const job = await jobInScope(session, s(args.job_id));
+      mustHold(session, job);
+      if (!job.repo) throw new ToolError("This job has no repo bound. A human binds one on Our GitHub.");
+      // Same wall as open_branch, enforced where the credential is minted rather
+      // than in a sentence the agent is asked to respect.
+      await assertBoundToCustomer(job.customerId, "github", job.repo);
+      if (!githubAppConfigured()) {
+        throw new ToolError(
+          "The GitHub App is not configured on the floor, so no push credential can be issued. A human has to set it up.",
+        );
+      }
+      const { url, expiresAt } = await cloneUrl(job.repo);
+      await log(job.customerId, session.handle, "took a checkout token", job.repo);
+      return (
+        `Clone with:\n  git clone ${url} .\n\n` +
+        `That URL contains a credential for ${job.repo} only. It expires at ${expiresAt}. ` +
+        `Do not echo it, do not put it in a step, and do not commit it.`
+      );
+    }
+
     case "open_branch": {
       const job = await jobInScope(session, s(args.job_id));
       mustHold(session, job);
@@ -458,7 +505,33 @@ export async function callTool(session: McpSession, name: string, args: Args): P
       // The wall: the job's repo must be bound to the job's own customer.
       await assertBoundToCustomer(job.customerId, "github", job.repo);
 
-      const files = Array.isArray(args.files) ? (args.files as unknown[]).map((f) => s(f)).filter(Boolean) : [];
+      // Observe the branch rather than believe it.
+      //
+      // This used to record whatever the agent said. A pass once reported a
+      // complete-sounding branch that the next pass found had zero commits,
+      // and four human approvals were spent on a branch that was never pushed
+      // anywhere a human could see. If the App is configured, the floor asks
+      // GitHub what is actually there and refuses if the answer is nothing.
+      let observed: Awaited<ReturnType<typeof readBranch>> | null = null;
+      if (githubAppConfigured()) {
+        observed = await readBranch(job.repo, branch);
+        if (!observed.exists) {
+          throw new ToolError(
+            `refused: ${branch} is not on ${job.repo}. Push it first — call checkout for a URL you can push with. ` +
+              `Recording a branch that does not exist is how four approvals got spent on nothing.`,
+          );
+        }
+        if (observed.ahead === 0) {
+          throw new ToolError(
+            `refused: ${branch} exists on ${job.repo} but is level with ${observed.base}. There is nothing on it to review.`,
+          );
+        }
+      }
+
+      const claimed = Array.isArray(args.files) ? (args.files as unknown[]).map((f) => s(f)).filter(Boolean) : [];
+      const files = observed?.exists
+        ? observed.files.map((f: { path: string; added: number; removed: number }) => `${f.path} +${f.added} -${f.removed}`)
+        : claimed;
       const id = newId();
       await db.insert(changes).values({
         id,
@@ -469,7 +542,7 @@ export async function callTool(session: McpSession, name: string, args: Args): P
         files: files.length || 1,
         status: "preview",
         diff: files.join("\n") || null,
-        expl: summary,
+        expl: observed?.exists ? `${summary}\n\nhead ${observed.headSha.slice(0, 7)} · ${observed.ahead} commit(s) ahead of ${observed.base}` : summary,
       });
       await db
         .update(jobs)
@@ -483,7 +556,34 @@ export async function callTool(session: McpSession, name: string, args: Args): P
         actor: session.handle,
       });
       await log(job.customerId, session.handle, "opened branch", `${job.repo}:${branch}`);
-      return `Branch ${branch} recorded on ${job.repo}. It shows on the floor as a preview change. Main is untouched.`;
+      return observed?.exists
+        ? `Verified ${branch} on ${job.repo}: head ${observed.headSha.slice(0, 7)}, ${observed.ahead} commit(s) ahead of ` +
+            `${observed.base}, ${observed.files.length} file(s). Recorded. Main is untouched.`
+        : `Branch ${branch} recorded on ${job.repo} WITHOUT verification — the GitHub App is not configured, so the ` +
+            `floor cannot see whether it was really pushed. Main is untouched.`;
+    }
+
+    case "read_decision": {
+      const job = await jobInScope(session, s(args.job_id));
+      const rows = await db
+        .select()
+        .from(approvals)
+        .where(eq(approvals.jobId, job.id))
+        .orderBy(desc(approvals.createdAt));
+      if (!rows.length) return "Nothing has been asked on this job, so there is nothing to hear back on.";
+      const a = rows[0];
+      if (a.status === "pending") {
+        return `Still waiting on a human for "${a.title}". Do not ask again and do not do it anyway — stop here.`;
+      }
+      // The agent had no way to learn this. It would go to the wall, be
+      // approved, pick the job back up, re-read everything from scratch and
+      // walk into the same wall — four times, on real money.
+      return (
+        `"${a.title}" was ${a.status}.` +
+        (a.status === "approved"
+          ? ` You may do exactly that and nothing more. If the branch has moved since you asked, ask again.`
+          : ` Do not do it. Read the note on the floor, change the plan, and ask again if it is still worth doing.`)
+      );
     }
 
     case "post_step": {

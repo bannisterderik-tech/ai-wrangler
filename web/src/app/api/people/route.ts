@@ -93,10 +93,17 @@ export async function POST(req: Request) {
       machine: "not connected yet",
       status: "invited",
     });
-    // A new session can look and claim. Writing and asking are granted on purpose.
-    await db
-      .insert(personTools)
-      .values(["list_jobs", "claim_job", "read_bound_repo", "post_step"].map((tool) => ({ personId: id, tool })));
+    // A new session can look, claim, read its project and report. Writing to a
+    // branch and asking for a human decision stay ungranted on purpose.
+    //
+    // read_project and checkout are in the default set because without them a
+    // new agent cannot even see its own house rules or get a clone URL, and the
+    // first thing anyone did was grant them by hand. checkout hands out a
+    // credential, but one scoped to a repo this session is already allowed to
+    // work on — the wall is the binding, not the grant.
+    const grants = ["list_jobs", "claim_job", "read_bound_repo", "read_project", "post_step"];
+    if (kind === "agent") grants.push("checkout");
+    await db.insert(personTools).values(grants.map((tool) => ({ personId: id, tool })));
     await db.insert(audit).values({ customerId: null, actor, action: "added teammate", target: handle, at: new Date() });
     return NextResponse.json({ ok: true, id });
   } catch (e) {
