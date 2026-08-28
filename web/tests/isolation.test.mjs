@@ -2335,3 +2335,106 @@ describe("a removed client stops working immediately", () => {
     await sql`DELETE FROM people WHERE email = 'gone@acme.test'`;
   });
 });
+
+/**
+ * Two kinds of agent, and an honest map of what each can reach.
+ *
+ * A customer running four businesses arrives with a tool sprawl — two mailboxes,
+ * three calendars, Teams, WhatsApp, Asana, SharePoint, an ERP. The first useful
+ * artefact is the list, not the integrations, so a dependency is recorded
+ * whether or not the OS can connect it. What must never happen is a tidy screen
+ * implying an integration that does not exist.
+ */
+describe("customer copilots and their dependency map", () => {
+  let copilot = "";
+  before(async () => {
+    await sql`DELETE FROM people WHERE handle IN ('test-copilot','test-builder')`;
+  });
+
+  test("a copilot is created against a customer, with a brief", async () => {
+    const res = await api("/api/people", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "test-copilot", kind: "agent", agentKind: "copilot", customerId: "acme",
+        brief: "Run four businesses out of one inbox.",
+      }),
+    });
+    assert.equal(res.status, 200);
+    copilot = res.body.id;
+    const [row] = await sql`SELECT agent_kind, brief, role FROM people WHERE id = ${copilot}`;
+    assert.equal(row.agent_kind, "copilot");
+    assert.match(row.brief, /four businesses/);
+  });
+
+  test("a copilot is not given a push credential — it has no repo to push to", async () => {
+    const grants = await sql`SELECT tool FROM person_tools WHERE person_id = ${copilot}`;
+    const tools = grants.map((g) => g.tool);
+    assert.ok(!tools.includes("checkout"), "a copilot must not be handed a repo credential");
+  });
+
+  test("a build agent still is", async () => {
+    const res = await api("/api/people", {
+      method: "POST",
+      body: JSON.stringify({ name: "test-builder", kind: "agent", agentKind: "build", customerId: "acme" }),
+    });
+    const grants = await sql`SELECT tool FROM person_tools WHERE person_id = ${res.body.id}`;
+    assert.ok(grants.map((g) => g.tool).includes("checkout"));
+  });
+
+  test("dependencies are recorded even where no connector exists", async () => {
+    for (const [provider, label] of [["odoo", "Accounting"], ["m365_mail", "Synergy"], ["sms", "Personal"]]) {
+      const res = await api(`/api/people/${copilot}/connections`, {
+        method: "POST",
+        body: JSON.stringify({ provider, label }),
+      });
+      assert.equal(res.status, 200, `${provider} should be recordable`);
+    }
+    const { body } = await api(`/api/people/${copilot}/connections`);
+    assert.equal(body.connections.length, 3);
+    // Every new dependency starts as needed. Nothing declares itself working.
+    assert.ok(body.connections.every((c) => c.status === "needed"));
+    const odoo = body.connections.find((c) => c.provider === "odoo");
+    assert.equal(odoo.available, false, "we cannot talk to Odoo yet and must say so");
+    assert.ok(odoo.buildNote, "and say what it would take");
+  });
+
+  test("an unknown system is refused rather than silently stored", async () => {
+    const res = await api(`/api/people/${copilot}/connections`, {
+      method: "POST",
+      body: JSON.stringify({ provider: "telepathy" }),
+    });
+    assert.equal(res.status, 400);
+  });
+
+  test("a connector that does not exist cannot mark itself connected", async () => {
+    const { body } = await api(`/api/people/${copilot}/connections`);
+    const odoo = body.connections.find((c) => c.provider === "odoo");
+    const res = await api(`/api/people/${copilot}/connections`, {
+      method: "PATCH",
+      body: JSON.stringify({ id: odoo.id, status: "connected" }),
+    });
+    assert.equal(res.status, 409, "this is how a screen starts lying about what works");
+    assert.match(res.body.error, /no connector in the OS yet/);
+  });
+
+  test("but a human who wired it up by hand can say so, deliberately", async () => {
+    const { body } = await api(`/api/people/${copilot}/connections`);
+    const odoo = body.connections.find((c) => c.provider === "odoo");
+    const res = await api(`/api/people/${copilot}/connections`, {
+      method: "PATCH",
+      body: JSON.stringify({ id: odoo.id, status: "connected", iConnectedItMyself: true }),
+    });
+    assert.equal(res.status, 200);
+  });
+
+  test("something the OS really can do needs no such claim", async () => {
+    const { body } = await api(`/api/people/${copilot}/connections`);
+    const smsRow = body.connections.find((c) => c.provider === "sms");
+    assert.equal(smsRow.available, true);
+    const res = await api(`/api/people/${copilot}/connections`, {
+      method: "PATCH",
+      body: JSON.stringify({ id: smsRow.id, status: "connected" }),
+    });
+    assert.equal(res.status, 200);
+  });
+});

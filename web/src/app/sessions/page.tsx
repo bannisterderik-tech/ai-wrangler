@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
+import Link from "next/link";
+import { AgentConnections } from "@/components/os/AgentConnections";
 
 type Person = {
   id: string; name: string; handle: string; role: string; approver: boolean;
-  kind: string; customerId: string | null;
+  kind: string; agentKind?: string | null; brief?: string | null; customerId: string | null;
   machine: string | null; status: string; clientVersion: string | null; connectedAt: string | null;
   tokenPrefix: string | null; hasToken: boolean;
   scope: string[]; grants: string[]; claimed: number;
@@ -33,6 +35,8 @@ export default function SessionsPage() {
   const [adding, setAdding] = useState<"operator" | "agent" | null>(null);
   const [newName, setNewName] = useState("");
   const [newCustomer, setNewCustomer] = useState("");
+  const [newAgentKind, setNewAgentKind] = useState<"build" | "copilot">("build");
+  const [newBrief, setNewBrief] = useState("");
   const [addError, setAddError] = useState("");
   const [railway, setRailway] = useState<Railway | null>(null);
   const [rwToken, setRwToken] = useState("");
@@ -64,7 +68,13 @@ export default function SessionsPage() {
     const res = await fetch("/api/people", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: newName, kind: adding, customerId: adding === "agent" ? newCustomer : undefined }),
+      body: JSON.stringify({
+        name: newName,
+        kind: adding,
+        customerId: adding === "agent" ? newCustomer : undefined,
+        agentKind: adding === "agent" ? newAgentKind : undefined,
+        brief: newAgentKind === "copilot" ? newBrief : undefined,
+      }),
     });
     const out = await res.json().catch(() => ({}));
     setBusy(false);
@@ -73,6 +83,7 @@ export default function SessionsPage() {
       return;
     }
     setNewName("");
+    setNewBrief("");
     setAdding(null);
     await load();
     setSel(out.id);
@@ -105,8 +116,20 @@ export default function SessionsPage() {
 
   if (!data) return <div className="p-5 text-[13px]" style={{ color: "var(--text-secondary)" }}>Reading sessions…</div>;
 
-  const who = data.people.find((p) => p.id === sel) ?? data.people[0];
-  if (!who) return <div className="p-5 text-[13px]">Nobody on the floor yet.</div>;
+  // This screen is agents only, so the fallback selection has to be an agent
+  // too. It used to be data.people[0], which is whoever was created first —
+  // usually a human, shown in full on a page that no longer lists humans.
+  const agents = data.people.filter((p) => p.kind === "agent");
+  const who = agents.find((p) => p.id === sel) ?? agents[0];
+  if (!who) {
+    return (
+      <div className="max-w-[62ch] p-5 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+        No agents yet. A <strong>build agent</strong> works the code we run for a customer. A{" "}
+        <strong>customer copilot</strong> works alongside their own business — their mail, calendar, chat and
+        books — and answers to them rather than to the floor. Add one above.
+      </div>
+    );
+  }
 
   const origin = typeof window === "undefined" ? "https://your-host" : window.location.origin;
   const token = revealed[who.id];
@@ -133,16 +156,30 @@ export default function SessionsPage() {
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder={adding === "agent" ? "Agent name, e.g. apex-builder" : "Their name"}
+              placeholder={newAgentKind === "copilot" ? "Copilot name, e.g. van-copilot" : "Agent name, e.g. apex-builder"}
               className="btn-os min-w-[190px]"
             />
             {adding === "agent" ? (
+              <>
+              <select className="btn-os" value={newAgentKind} onChange={(e) => setNewAgentKind(e.target.value as "build" | "copilot")}>
+                <option value="build">Build agent — works their code</option>
+                <option value="copilot">Customer copilot — works their business</option>
+              </select>
               <select className="btn-os" value={newCustomer} onChange={(e) => setNewCustomer(e.target.value)}>
-                <option value="">Which project…</option>
+                <option value="">Which customer…</option>
                 {customers.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+              {newAgentKind === "copilot" ? (
+                <input
+                  className="btn-os min-w-[240px]"
+                  value={newBrief}
+                  onChange={(e) => setNewBrief(e.target.value)}
+                  placeholder="What it is for — e.g. run four businesses out of one inbox"
+                />
+              ) : null}
+              </>
             ) : null}
             <button
               className="btn-os brand"
@@ -155,24 +192,31 @@ export default function SessionsPage() {
           </form>
         ) : (
           <>
-            <button className="btn-os" onClick={() => setAdding("operator")}>+ Teammate</button>
-            <button className="btn-os" onClick={() => setAdding("agent")}>+ Agent for a project</button>
+            <button className="btn-os brand" onClick={() => { setAdding("agent"); setNewAgentKind("build"); }}>
+              + Build agent
+            </button>
+            <button className="btn-os" onClick={() => { setAdding("agent"); setNewAgentKind("copilot"); }}>
+              + Customer copilot
+            </button>
           </>
         )}
         {addError ? <span className="text-[11px]" style={{ color: "var(--state-stop)" }}>{addError}</span> : null}
         <span className="ml-auto text-[11px]" style={{ color: "var(--text-secondary)" }}>
-          Everyone brings their own Claude Code. Nobody shares a login.
+          One agent per project. Teammates and their own Claude Code live on{" "}
+          <Link href="/team" className="underline">The team</Link>.
         </span>
       </DeskBar>
 
       <Dossier
         list={
           <>
-            {([["operator", "Your team"], ["agent", "Agents — one per project"]] as const).map(([kind, label]) => {
-              const group = data.people.filter((p) => p.kind === kind);
+            {([["build", "Build agents — they work the code"], ["copilot", "Customer copilots — they work the business"]] as const).map(([kindId, label]) => {
+              const group = data.people.filter(
+                (p) => p.kind === "agent" && (p.agentKind ?? "build") === kindId,
+              );
               if (!group.length) return null;
               return (
-                <div key={kind}>
+                <div key={kindId}>
                   <div
                     className="border-b px-3 py-2 text-[10px] font-semibold uppercase tracking-wider"
                     style={{ borderColor: "var(--hairline)", color: "var(--text-secondary)" }}
@@ -184,11 +228,9 @@ export default function SessionsPage() {
                       key={p.id}
                       on={p.id === who.id}
                       title={p.name}
-                      meta={
-                        p.kind === "agent"
-                          ? `${customers.find((c) => c.id === p.customerId)?.name ?? p.customerId} · ${p.status} · ${p.claimed} claimed`
-                          : `${p.role} · ${p.status} · ${p.claimed} claimed`
-                      }
+                      meta={`${customers.find((c) => c.id === p.customerId)?.name ?? p.customerId} · ${p.status}${
+                        kindId === "build" ? ` · ${p.claimed} claimed` : ""
+                      }`}
                       onClick={() => { setSel(p.id); setTab("connect"); }}
                     />
                   ))}
@@ -242,12 +284,30 @@ export default function SessionsPage() {
         </div>
 
         <Tabs
-          tabs={[["connect", "Connect"], ["tools", "Tools"], ["scope", "Scope"]]}
+          tabs={
+            (who.agentKind ?? "build") === "copilot"
+              ? [["reach", "What it can reach"], ["connect", "Connect"], ["tools", "Tools"], ["scope", "Scope"]]
+              : [["connect", "Connect"], ["reach", "What it can reach"], ["tools", "Tools"], ["scope", "Scope"]]
+          }
           tab={tab}
           onTab={setTab}
         />
 
         <div className="min-h-0 flex-1 overflow-auto p-4">
+          {tab === "reach" ? (
+            <div className="-m-4">
+              {who.brief ? (
+                <p className="border-b px-4 py-3 text-[13px] leading-relaxed" style={{ borderColor: "var(--hairline)" }}>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                    What it is for
+                  </span>
+                  <br />
+                  {who.brief}
+                </p>
+              ) : null}
+              <AgentConnections personId={who.id} agentName={who.name} />
+            </div>
+          ) : null}
           {tab === "connect" && who.kind === "agent" ? (
             <>
               <p className="mb-3 max-w-[62ch] text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>

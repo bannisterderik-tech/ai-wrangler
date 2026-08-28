@@ -6,6 +6,7 @@ import { audit, jobs, people, personScopes, personTools } from "@/lib/schema";
 import { TOOLS } from "@/lib/mcp-tools";
 import { slug } from "@/lib/crypto";
 import { getCustomer } from "@/lib/customers";
+import { isAgentKind } from "@/lib/connectors";
 
 /** Everyone on the floor, with what their session is allowed to touch. */
 export async function GET() {
@@ -32,6 +33,8 @@ export async function GET() {
       name: p.name,
       handle: p.handle,
       kind: p.kind,
+      agentKind: p.agentKind ?? (p.kind === "agent" ? "build" : null),
+      brief: p.brief,
       customerId: p.customerId,
       role: p.role,
       approver: p.approver,
@@ -88,7 +91,15 @@ export async function POST(req: Request) {
       handle,
       kind,
       customerId: kind === "agent" ? customerId : null,
-      role: kind === "agent" ? "Build agent" : String(body.role || "Build wrangler"),
+      // build works a repo; copilot works the customer's own business.
+      agentKind: kind === "agent" ? (isAgentKind(String(body.agentKind)) ? String(body.agentKind) : "build") : null,
+      brief: String(body.brief || "").trim() || null,
+      role:
+        kind === "agent"
+          ? String(body.agentKind) === "copilot"
+            ? "Customer copilot"
+            : "Build agent"
+          : String(body.role || "Build wrangler"),
       approver: false,
       machine: "not connected yet",
       status: "invited",
@@ -102,7 +113,9 @@ export async function POST(req: Request) {
     // credential, but one scoped to a repo this session is already allowed to
     // work on — the wall is the binding, not the grant.
     const grants = ["list_jobs", "claim_job", "read_bound_repo", "read_project", "post_step"];
-    if (kind === "agent") grants.push("checkout");
+    // Only a build agent gets a push credential. A copilot has no repository to
+    // push to, and handing it one would be a capability nobody asked for.
+    if (kind === "agent" && String(body.agentKind) !== "copilot") grants.push("checkout");
     await db.insert(personTools).values(grants.map((tool) => ({ personId: id, tool })));
     await db.insert(audit).values({ customerId: null, actor, action: "added teammate", target: handle, at: new Date() });
     return NextResponse.json({ ok: true, id });

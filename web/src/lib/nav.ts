@@ -14,7 +14,7 @@ export const NAV = [
   ]},
   { section: "BUILD", items: [
     { href: "/work", id: "work", label: "The floor" },
-    { href: "/sessions", id: "sessions", label: "Sessions" },
+    { href: "/sessions", id: "sessions", label: "AI agents" },
     { href: "/playbooks", id: "playbooks", label: "Playbooks" },
   ]},
   { section: "SYSTEM", items: [
@@ -36,8 +36,8 @@ export const TITLES: Record<string, string> = {
   "/ads": "Zernio ads",
   "/partners": "Partners — agencies flying our flag",
   "/work": "The floor — everything the AI is doing",
-  "/sessions": "Sessions — every Claude Code on the floor",
-  "/manager": "Sessions — every Claude Code on the floor",
+  "/sessions": "AI agents — what we run for each customer",
+  "/manager": "AI agents — what we run for each customer",
   "/inbox": "Inbox — every thread",
   "/approvals": "The floor — everything the AI is doing",
   "/changes": "The floor — everything the AI is doing",
@@ -47,7 +47,7 @@ export const TITLES: Record<string, string> = {
   "/sales": "Leads",
   "/billing": "Billing & margin",
   "/marketing": "Ads",
-  "/team": "Sessions — every Claude Code on the floor",
+  "/team": "The team — everyone's own Claude Code",
   "/memory": "Memory",
   "/spending": "Spending",
   "/connect": "Connect Vercel",

@@ -202,6 +202,10 @@ export const people = pgTable(
     email: text("email"),
     /** operator = agency staff, sees everything. client = one customer's own user. */
     kind: text("kind").notNull().default("operator"),
+  /** build | copilot — only meaningful when kind is "agent". */
+  agentKind: text("agent_kind"),
+  /** What a copilot is for, in the customer's words. */
+  brief: text("brief"),
     /** Set on client rows only. This column is the tenancy. */
     customerId: text("customer_id"),
     role: text("role").notNull().default("Build wrangler"),
@@ -591,3 +595,28 @@ export const floorSwitches = pgTable("floor_switches", {
   actor: text("actor"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * What an agent needs to reach, and whether it can yet.
+ *
+ * Recorded whether or not the connector exists: a customer's tool sprawl is the
+ * thing you have to see before you can quote it, and "needed" is honestly
+ * different from "connected".
+ */
+export const agentConnections = pgTable(
+  "agent_connections",
+  {
+    id: text("id").primaryKey(),
+    personId: text("person_id")
+      .notNull()
+      .references(() => people.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    /** Which account — "Synergy Innovation" versus "Personal". */
+    label: text("label"),
+    /** needed | connected | blocked | dropped */
+    status: text("status").notNull().default("needed"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("agent_connections_person").on(t.personId, t.status)],
+);
