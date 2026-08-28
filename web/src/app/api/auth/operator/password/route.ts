@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE, sameSecret, sessionCookieOptions, signSession } from "@/lib/auth";
+import { HOUSE, SESSION_COOKIE, sameSecret, sessionCookieOptions, signSession } from "@/lib/auth";
 
 /** Crude but real: a few tries per IP per minute, then the door stops answering. */
 const attempts = new Map<string, { n: number; until: number }>();
@@ -40,7 +40,12 @@ export async function POST(req: Request) {
   if (!sameSecret(String(body.password || ""), expected)) {
     return NextResponse.json({ error: "wrong password" }, { status: 401 });
   }
-  const token = await signSession({ sub: "operator", name: "Operator", via: "password" });
+  const token = await signSession({ sub: "operator", name: "Operator", via: "password",
+    // The password is the house key: it signs you in as the owner of the
+    // product, not as a tenant.
+    tid: HOUSE,
+    trole: "owner" as const,
+  });
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   return res;

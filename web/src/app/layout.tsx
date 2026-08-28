@@ -23,7 +23,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AI Wrangler — Local Domination OS",
+  title: "AI Wrangler",
   description: "Applied AI operating system for home-services agencies. CRM, Twilio dialer, SMS, Zernio ads, and AI builds — without mixing customers.",
   robots: { index: false, follow: false },
 };

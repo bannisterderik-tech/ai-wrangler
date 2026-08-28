@@ -2925,3 +2925,91 @@ describe("the importer reads Excel, not just CSV", () => {
     assert.match(res.body.error, /favourite colour/);
   });
 });
+
+/**
+ * The layer above the agency.
+ *
+ * Everything agency-level — leads, proposals, partners, customers — used to sit
+ * in one pool because there was exactly one agency. That is correct for one and
+ * a total leak for two, so the wall has to exist before the second account signs
+ * up rather than after.
+ */
+describe("one agency cannot see another's pipeline", () => {
+  let rivalCookie = "";
+
+  before(async () => {
+    await sql`DELETE FROM agency_leads WHERE company IN ('House Lead','Rival Lead')`;
+    await sql`DELETE FROM people WHERE email = 'boss@rival.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'rival-agency'`;
+    await sql`
+      INSERT INTO tenants (id, name, can_build, plan)
+      VALUES ('rival-agency','Rival Agency', false, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_rival','Rival Boss','rivalboss','boss@rival.test','operator','rival-agency','admin')`;
+
+    const raw = `wr_sess_rival_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`
+      INSERT INTO login_links (token_hash, email, expires_at)
+      VALUES (${hash}, 'boss@rival.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    rivalCookie = v ? `wrangler_session=${v}` : "";
+  });
+
+  const asRival = (path, init = {}) =>
+    fetch(`${BASE}${path}`, {
+      ...init,
+      redirect: "manual",
+      headers: { "Content-Type": "application/json", cookie: rivalCookie, ...(init.headers || {}) },
+    });
+
+  test("a tenant's own staff can sign in at all", async () => {
+    assert.ok(rivalCookie, "an operator with a people row must be able to sign in, not only a client");
+  });
+
+  test("the house creates a lead; the rival cannot see it", async () => {
+    const mine = await api("/api/leads", {
+      method: "POST",
+      body: JSON.stringify({ company: "House Lead", stage: "new", value: 1000 }),
+    });
+    assert.equal(mine.status, 200);
+
+    const theirs = await (await asRival("/api/leads")).json();
+    const names = (theirs.leads ?? []).map((l) => l.company);
+    assert.ok(!names.includes("House Lead"), "another agency's pipeline must be invisible");
+  });
+
+  test("and the rival's lead is invisible to the house", async () => {
+    const made = await asRival("/api/leads", {
+      method: "POST",
+      body: JSON.stringify({ company: "Rival Lead", stage: "new", value: 500 }),
+    });
+    assert.equal(made.status, 200);
+    const [row] = await sql`SELECT tenant_id FROM agency_leads WHERE company = 'Rival Lead'`;
+    assert.equal(row.tenant_id, "rival-agency", "a write is stamped from the session, never from the body");
+
+    const mine = await api("/api/leads");
+    const names = mine.body.leads.map((l) => l.company);
+    assert.ok(!names.includes("Rival Lead"));
+  });
+
+  test("a CRM-only tenant is refused the build side outright", async () => {
+    const res = await asRival("/api/floor");
+    assert.ok(res.status === 401 || res.status === 403, `expected a refusal, got ${res.status}`);
+  });
+
+  test("the house still has the build side", async () => {
+    const res = await api("/api/floor");
+    assert.equal(res.status, 200);
+  });
+
+  test("a suspended tenant stops working immediately", async () => {
+    await sql`UPDATE tenants SET status = 'suspended' WHERE id = 'rival-agency'`;
+    const res = await asRival("/api/leads");
+    assert.equal(res.status, 401, "a suspended account stops now, not when its cookie expires");
+    await sql`UPDATE tenants SET status = 'active' WHERE id = 'rival-agency'`;
+  });
+});

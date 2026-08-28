@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { SESSION_COOKIE, isOperatorEmail, sessionCookieOptions, signSession } from "@/lib/auth";
+import { HOUSE, SESSION_COOKIE, isOperatorEmail, sessionCookieOptions, signSession } from "@/lib/auth";
 import { audit, loginLinks, people } from "@/lib/schema";
 import { hashToken } from "@/lib/session-token";
 import { safeNext, publicOrigin } from "@/lib/origin";
@@ -30,21 +30,27 @@ export async function GET(req: Request) {
   if (link.expiresAt.getTime() < Date.now()) return bail("That link expired. Ask for a new one.");
   // Both allowlists are re-checked at redemption, not only at send, so removing
   // someone kills the links already sitting in their inbox.
+  // Any person, not only a client. A tenant's own staff are operators with a
+  // people row, and looking only for clients meant a SaaS account's admin could
+  // never sign in at all.
   const [who] = await db
     .select()
     .from(people)
-    .where(sql`lower(${people.email}) = ${link.email} AND ${people.kind} = 'client'`)
+    .where(sql`lower(${people.email}) = ${link.email} AND ${people.kind} IN ('client','operator')`)
     .limit(1);
   if (!isOperatorEmail(link.email) && !who) return bail("That address can no longer sign in here.");
 
-  const client = who && who.customerId ? { kind: "client" as const, cid: who.customerId } : {};
   const name = who?.name || link.email.split("@")[0];
-  const session = await signSession({
-    sub: link.email,
-    name,
-    via: "email",
-    ...(Object.keys(client).length ? client : { kind: "operator" as const }),
-  });
+  const identity =
+    who && who.kind === "client" && who.customerId
+      ? { kind: "client" as const, cid: who.customerId, tid: who.tenantId }
+      : who && who.kind === "operator"
+        ? { kind: "operator" as const, tid: who.tenantId, trole: (who.tenantRole as "owner" | "admin" | "operator") ?? "operator" }
+        // On the env allowlist and no row: that is the house, and the house owns
+        // the product.
+        : { kind: "operator" as const, tid: HOUSE, trole: "owner" as const };
+
+  const session = await signSession({ sub: link.email, name, via: "email", ...identity });
 
   await db.insert(audit).values({
     customerId: null,

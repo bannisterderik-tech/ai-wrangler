@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { and, asc, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { approvals, audit, boundResources, changes, customers, jobSteps, jobs, people } from "@/lib/schema";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, operator, guardBuild } from "@/lib/api";
 import { newId } from "@/lib/customers";
 import { BRAINS, DEFAULT_BRAIN, brainFromTier, modelName } from "@/lib/brains";
 
@@ -11,8 +11,10 @@ import { BRAINS, DEFAULT_BRAIN, brainFromTier, modelName } from "@/lib/brains";
  * Needs you and Changes were only ever views of the same object.
  */
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
+  // The build half. A CRM-only account is refused it outright rather than
+  // shown an empty floor and left to wonder.
+  const b = await guardBuild();
+  if ("error" in b) return b.error;
 
   const [rows, steps, gates, diffs, custs, crew] = await Promise.all([
     db.select().from(jobs).orderBy(desc(jobs.createdAt)),
@@ -108,8 +110,10 @@ export async function GET() {
  * not offer a text box.
  */
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  // The build half. A CRM-only account is refused it outright rather than
+  // shown an empty floor and left to wonder.
+  const b = await guardBuild();
+  if ("error" in b) return b.error;
   const who = await operator();
   const actor = who?.name || "you";
 

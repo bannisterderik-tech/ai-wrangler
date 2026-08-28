@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, operator, guardBuild } from "@/lib/api";
 import { approvals, audit, jobSteps, jobs, people } from "@/lib/schema";
 
 /** Operator actions on one job: take it, hand it over, or decide its gate. */
 export async function POST(req: Request, ctx: RouteContext<"/api/floor/[id]">) {
-  const denied = await guard();
-  if (denied) return denied;
+  // The build half. A CRM-only account is refused it outright rather than
+  // shown an empty floor and left to wonder.
+  const b = await guardBuild();
+  if ("error" in b) return b.error;
   const { id } = await ctx.params;
   const who = await operator();
   const actor = who?.name || "you";

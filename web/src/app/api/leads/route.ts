@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, operator, guardTenant } from "@/lib/api";
 import { agencyLeads, audit } from "@/lib/schema";
 import { newId } from "@/lib/customers";
 
@@ -11,9 +11,15 @@ const STAGES = ["prospect", "new", "talking", "proposal", "won", "lost"];
 
 /** The agency's own pipeline — shops buying web and technology from us. */
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
-  const rows = await db.select().from(agencyLeads).orderBy(desc(agencyLeads.createdAt));
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
+  // Scoped, not just authorised. A guard that lets you in without saying which
+  // rows are yours is a guard that hands you everybody's.
+  const rows = await db
+    .select()
+    .from(agencyLeads)
+    .where(eq(agencyLeads.tenantId, t.tenantId))
+    .orderBy(desc(agencyLeads.createdAt));
   return NextResponse.json({
     stages: STAGES,
     leads: rows.map((l) => ({
@@ -34,8 +40,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
@@ -46,6 +52,7 @@ export async function POST(req: Request) {
     const id = "L" + newId().slice(0, 8);
     await db.insert(agencyLeads).values({
       id,
+      tenantId: t.tenantId,
       company,
       contact: String(body.contact || "").trim() || null,
       phone: String(body.phone || "").trim() || null,
@@ -66,13 +73,17 @@ export async function POST(req: Request) {
 
 /** Move a lead along, or record that you touched it. */
 export async function PATCH(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
     const id = String(body.id || "");
-    const [lead] = await db.select().from(agencyLeads).where(eq(agencyLeads.id, id)).limit(1);
+    const [lead] = await db
+      .select()
+      .from(agencyLeads)
+      .where(and(eq(agencyLeads.id, id), eq(agencyLeads.tenantId, t.tenantId)))
+      .limit(1);
     if (!lead) return NextResponse.json({ error: "no such lead" }, { status: 404 });
 
     const patch: Record<string, unknown> = { lastTouchAt: new Date() };

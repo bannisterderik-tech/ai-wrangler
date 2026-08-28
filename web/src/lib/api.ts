@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE, isClient, readSession, type Session } from "./auth";
+import { SESSION_COOKIE, isClient, isOwner, readSession, tenantOf, type Session } from "./auth";
 import { IsolationError } from "./isolation";
 
 /** Who is driving. The middleware already gated this request; routes check again anyway. */
@@ -44,6 +44,67 @@ export async function clientSession(): Promise<{ session: Session; customerId: s
   // No row, no longer a client, revoked, or no customer: the cookie is stale.
   if (!row || row.kind !== "client" || row.status === "revoked" || !row.customerId) return null;
   return { session, customerId: row.customerId };
+}
+
+/**
+ * The tenant this request acts within, and what it may do.
+ *
+ * Never taken from a query string or a body. An agency account that could name
+ * its own tenant is not an agency account, it is a shared database.
+ */
+export async function tenantContext(): Promise<
+  { tenantId: string; role: "owner" | "admin" | "operator"; canBuild: boolean } | null
+> {
+  const session = await operator();
+  if (!session || isClient(session)) return null;
+  const { db } = await import("./db");
+  const { tenants } = await import("./schema");
+  const { eq } = await import("drizzle-orm");
+  const tenantId = tenantOf(session);
+  const [row] = await db.select().from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+  // A tenant row that has been deleted or suspended stops working now, rather
+  // than when the cookie expires.
+  if (!row || row.status !== "active") return null;
+  return {
+    tenantId,
+    role: session.trole ?? "operator",
+    // The house always can; everyone else only if it was sold to them.
+    canBuild: row.canBuild,
+  };
+}
+
+/**
+ * `const t = await guardTenant(); if ("error" in t) return t.error;`
+ *
+ * Use on anything agency-level — leads, proposals, partners, customers.
+ */
+export async function guardTenant() {
+  const t = await tenantContext();
+  if (!t) return { error: NextResponse.json({ error: "sign in first" }, { status: 401 }) };
+  return t;
+}
+
+/** The AI building half. A CRM-only tenant is refused it outright. */
+export async function guardBuild() {
+  const t = await tenantContext();
+  if (!t) return { error: NextResponse.json({ error: "sign in first" }, { status: 401 }) };
+  if (!t.canBuild) {
+    return {
+      error: NextResponse.json(
+        { error: "This account does not include the build side — agents, repositories and deploys." },
+        { status: 403 },
+      ),
+    };
+  }
+  return t;
+}
+
+/** Only the house may create tenants or look across them. */
+export async function guardOwner() {
+  const session = await operator();
+  if (!session) return NextResponse.json({ error: "sign in first" }, { status: 401 });
+  if (!isOwner(session)) return NextResponse.json({ error: "not yours" }, { status: 403 });
+  return null;
 }
 
 /**

@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, operator, guardBuild } from "@/lib/api";
 import { audit, orchLog } from "@/lib/schema";
 import { agentsPaused, setAgentsPaused } from "@/lib/switches";
 
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
+  // The build half. A CRM-only account is refused it outright rather than
+  // shown an empty floor and left to wonder.
+  const b = await guardBuild();
+  if ("error" in b) return b.error;
   return NextResponse.json(await agentsPaused());
 }
 
 /** Stop every agent, or let them go again. */
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  // The build half. A CRM-only account is refused it outright rather than
+  // shown an empty floor and left to wonder.
+  const b = await guardBuild();
+  if ("error" in b) return b.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));

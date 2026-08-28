@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, operator, guardTenant } from "@/lib/api";
 import { audit, partners } from "@/lib/schema";
 import { newId } from "@/lib/customers";
 
@@ -14,9 +14,9 @@ const STATUSES = ["applied", "onboarding", "live", "paused"];
 
 /** Franchise licensees. One market, one partner — the index enforces it. */
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
-  const rows = await db.select().from(partners).orderBy(asc(partners.name));
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
+  const rows = await db.select().from(partners).where(eq(partners.tenantId, t.tenantId)).orderBy(asc(partners.name));
   return NextResponse.json({
     tiers: Object.entries(TIERS).map(([id, t]) => ({ id, ...t, fee: t.fee / 100 })),
     statuses: STATUSES,
@@ -31,8 +31,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     const spec = TIERS[tier];
     await db.insert(partners).values({
       id: "P" + newId().slice(0, 8),
+      tenantId: t.tenantId,
       name,
       operatorName: String(body.operator || "").trim() || null,
       email: String(body.email || "").trim() || null,
@@ -64,8 +65,8 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   try {
     const body = await req.json().catch(() => ({}));
     const id = String(body.id || "");

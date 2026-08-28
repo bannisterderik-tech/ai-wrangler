@@ -12,8 +12,27 @@ import {
 } from "drizzle-orm/pg-core";
 
 /** Every row that is client-owned MUST have customerId. Isolation is a column, not a vibe. */
+/**
+ * An agency account. The layer above everything else.
+ *
+ * AI Wrangler is the first one; a SaaS customer is another. can_build is the
+ * capability switch: a CRM-only tenant works its own leads and never sees the
+ * floor, the agents, the repositories or the deploys.
+ */
+export const tenants = pgTable("tenants", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  canBuild: boolean("can_build").notNull().default(false),
+  status: text("status").notNull().default("active"),
+  plan: text("plan"),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const customers = pgTable("customers", {
   id: text("id").primaryKey(),
+    /** Which agency account owns this row. */
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   profileJson: text("profile_json"),
@@ -197,6 +216,10 @@ export const people = pgTable(
   "people",
   {
     id: text("id").primaryKey(),
+    /** Which agency account owns this row. */
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
+    /** owner (us) | admin (runs a tenant) | operator (works in one) */
+    tenantRole: text("tenant_role").notNull().default("operator"),
     name: text("name").notNull(),
     handle: text("handle").notNull(),
     email: text("email"),
@@ -391,6 +414,8 @@ export const agencyLeads = pgTable(
   "agency_leads",
   {
     id: text("id").primaryKey(),
+    /** Which agency account owns this row. */
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
     company: text("company").notNull(),
     contact: text("contact"),
     phone: text("phone"),
@@ -413,6 +438,8 @@ export const partners = pgTable(
   "partners",
   {
     id: text("id").primaryKey(),
+    /** Which agency account owns this row. */
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
     name: text("name").notNull(),
     operatorName: text("operator_name"),
     email: text("email"),
@@ -452,6 +479,8 @@ export const threads = pgTable(
   "threads",
   {
     id: text("id").primaryKey(),
+    /** Which agency account owns this row. */
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
     subject: text("subject"),
     who: text("who").notNull(),
     channel: text("channel").notNull().default("sms"),
@@ -484,6 +513,8 @@ export const callLog = pgTable(
   "call_log",
   {
     id: bigserial("id", { mode: "number" }).primaryKey(),
+    /** Which agency account owns this row. */
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
     leadId: text("lead_id"),
     customerId: text("customer_id"),
     toNumber: text("to_number"),
@@ -507,6 +538,8 @@ export const proposals = pgTable(
   "proposals",
   {
     id: text("id").primaryKey(),
+    /** Which agency account owns this row. */
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
     leadId: text("lead_id")
       .notNull()
       .references(() => agencyLeads.id, { onDelete: "cascade" }),

@@ -14,8 +14,28 @@ export type Session = {
   /** operator = agency staff. client = one customer's own user, and `cid` is theirs. */
   kind?: "operator" | "client";
   cid?: string;
+  /**
+   * Which agency account this session belongs to. Absent on old cookies, which
+   * is why every reader defaults it rather than trusting it to be present.
+   */
+  tid?: string;
+  /** owner = us, and sees every tenant. admin runs one. operator works in one. */
+  trole?: "owner" | "admin" | "operator";
   exp: number;
 };
+
+/** The house account. Everything that predates tenants belongs to it. */
+export const HOUSE = "ai-wrangler";
+
+/** Only the owner may cross between tenants or create one. */
+export function isOwner(session: Session | null) {
+  return Boolean(session && session.kind !== "client" && session.trole === "owner");
+}
+
+/** The tenant a request acts within. Never taken from user input. */
+export function tenantOf(session: Session | null) {
+  return session?.tid || HOUSE;
+}
 
 /** A client session is the one that must never see the agency side. */
 export function isClient(session: Session | null): session is Session & { cid: string } {

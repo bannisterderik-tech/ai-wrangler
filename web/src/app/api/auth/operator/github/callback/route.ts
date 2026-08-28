@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, operatorAllowlist, sessionCookieOptions, signSession } from "@/lib/auth";
+import { HOUSE, SESSION_COOKIE, operatorAllowlist, sessionCookieOptions, signSession } from "@/lib/auth";
 import { publicOrigin } from "@/lib/origin";
 
 export async function GET(req: NextRequest) {
@@ -44,6 +44,9 @@ export async function GET(req: NextRequest) {
     sub: String(user.login),
     name: (user.name as string) || String(user.login),
     via: "github",
+    // GitHub sign-in is on the house allowlist, so it is the house owner.
+    tid: HOUSE,
+    trole: "owner" as const,
   });
   const res = NextResponse.redirect(new URL("/", origin));
   res.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());

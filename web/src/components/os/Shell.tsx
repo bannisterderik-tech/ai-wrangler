@@ -12,7 +12,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [clock, setClock] = useState("");
   const [needs, setNeeds] = useState(0);
-  const [me, setMe] = useState<{ name: string; via: string } | null>(null);
+  const [me, setMe] = useState<{ name: string; via: string; canBuild?: boolean; isOwner?: boolean } | null>(null);
   // The client side is a different product with a different audience. It must not
   // render the agency's navigation — those links are not theirs to see, never mind
   // follow, and the middleware refusing them afterwards is not the same as not
@@ -50,7 +50,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
     if (bare) return;
     fetch("/api/auth/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => (d?.signedIn ? setMe({ name: d.name, via: d.via }) : setMe(null)))
+      .then((d) =>
+        d?.signedIn
+          ? setMe({ name: d.name, via: d.via, canBuild: d.canBuild, isOwner: d.isOwner })
+          : setMe(null),
+      )
       .catch(() => {});
   }, [bare]);
 
@@ -110,12 +114,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
         >
           <div className="flex flex-col gap-1 px-4 pb-3.5 pt-4">
             <div className="brand-mark" role="img" aria-label="AI Wrangler" />
-            <div className="text-[10px] uppercase tracking-[1.4px]" style={{ color: "var(--text-secondary)" }}>
-              Local domination OS
-            </div>
+
           </div>
           <nav className="flex flex-1 flex-col overflow-y-auto px-2.5">
-            {NAV.map((group) => (
+            {NAV
+              // A CRM-only account never sees the build half. Showing a floor it
+              // will be refused is worse than not showing it at all.
+              .filter((group) => group.section !== "BUILD" || me?.canBuild !== false)
+              .map((group) => (
               // Spacing on the group rather than padding on the heading, so the
               // gap sits between sections and not above the first one.
               <div key={group.section} className="mt-6 first:mt-1">

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, operator, guardBuild } from "@/lib/api";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/schema";
 import { anthropicKey, connectRailway, railwayState, redeployWorker, saveAnthropicKey } from "@/lib/railway";
 
 /** Whether the OS can deploy agents by itself, and the one credential that lets it. */
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
+  // The build half. A CRM-only account is refused it outright rather than
+  // shown an empty floor and left to wonder.
+  const b = await guardBuild();
+  if ("error" in b) return b.error;
   const state = await railwayState();
   return NextResponse.json({
     ...state,
@@ -18,8 +20,10 @@ export async function GET() {
 
 /** Save the Railway API token. The one thing that has to be done by hand, once. */
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  // The build half. A CRM-only account is refused it outright rather than
+  // shown an empty floor and left to wonder.
+  const b = await guardBuild();
+  if ("error" in b) return b.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
