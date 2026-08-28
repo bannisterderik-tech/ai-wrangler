@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DeskBar, Dossier, Kv, RollItem, Tabs } from "@/components/os/Dossier";
 import { Proposals } from "@/components/os/Proposals";
+import { ImportDeals } from "@/components/os/ImportDeals";
 
 type Lead = {
   id: string; company: string; contact: string | null; phone: string | null; email: string | null;
@@ -28,6 +29,7 @@ export default function LeadsPage() {
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"overview" | "proposals">("overview");
   const [adding, setAdding] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [draft, setDraft] = useState({ company: "", contact: "", phone: "", email: "", city: "", trade: "", source: "", value: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -97,6 +99,7 @@ export default function LeadsPage() {
       ))}
       <input className="btn-os min-w-[180px]" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
       <button className="btn-os brand" onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ New lead"}</button>
+      <button className="btn-os" onClick={() => setImporting((v) => !v)}>{importing ? "Cancel import" : "Import"}</button>
       <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
         {money(leads.filter((x) => x.stage !== "won" && x.stage !== "lost").reduce((a, x) => a + x.value, 0))} in play
       </span>
@@ -106,6 +109,7 @@ export default function LeadsPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {bar}
+      {importing ? <ImportDeals onDone={load} /> : null}
       {adding ? (
         <form onSubmit={add} className="flex flex-wrap items-end gap-2 border-b px-4 py-3" style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}>
           {([["company", "Company"], ["contact", "Who"], ["phone", "Phone"], ["city", "Market"], ["trade", "Trade"], ["source", "How they found us"]] as const).map(([k, label]) => (

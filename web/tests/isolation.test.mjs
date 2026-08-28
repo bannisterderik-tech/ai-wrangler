@@ -2719,3 +2719,104 @@ describe("a customer's own model key", () => {
     assert.equal(res.status, 401);
   });
 });
+
+/**
+ * Importing a CRM export, from the OS.
+ *
+ * The first version of this was a CLI script needing a production connection
+ * string in a shell — which is the thing this OS exists to avoid, and the
+ * reason the first import landed in a local database instead of the real one.
+ */
+describe("a CRM export can be imported from the OS", () => {
+  const csv = [
+    "Record ID,record,Deal stage,Deal value,Deal MRR Value,Deal One-Time Value,Product,Deal owner",
+    "aaa-1,Won Shop,Won 🎉,9000,9000,,AI Engineering,Van",
+    "bbb-2,Talking Shop,Book Discovery Meeting,1500,150,,Creator Management,Van",
+    "ccc-3,Offer Shop,Offer Sent,5000,,5000,Website,Bry",
+    "ddd-4,A Partner,Partners,,,,,Van",
+    "eee-5,,Lead,100,,,,Van",
+  ].join("\n");
+
+  before(async () => {
+    await sql`DELETE FROM proposal_items WHERE proposal_id IN (SELECT id FROM proposals WHERE created_by='deals import')`;
+    await sql`DELETE FROM proposals WHERE created_by = 'deals import'`;
+    await sql`DELETE FROM agency_leads WHERE source = 'deals import'`;
+    await sql`DELETE FROM memories WHERE source = 'deals import'`;
+    await sql`DELETE FROM partners WHERE id LIKE 'P\\_%'`;
+    await sql`DELETE FROM customers WHERE id = 'won-shop'`;
+  });
+
+  test("a preview writes nothing", async () => {
+    const res = await api("/api/import/deals", { method: "POST", body: JSON.stringify({ csv }) });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.wrote, null);
+    const p = res.body.preview;
+    assert.equal(p.customers, 1);
+    // Five rows, one of them nameless: it is skipped, not guessed at, so two
+    // leads rather than three.
+    assert.equal(p.leads, 2);
+    assert.equal(p.partners, 1);
+    assert.equal(p.skipped.length, 1, "the nameless row is skipped, not guessed at");
+    assert.equal(p.customers + p.leads + p.partners + p.skipped.length, p.total, "every row is accounted for");
+    const [row] = await sql`SELECT count(*)::int AS n FROM agency_leads WHERE source = 'deals import'`;
+    assert.equal(row.n, 0, "a preview that writes is not a preview");
+  });
+
+  test("a file that is not a deals export is refused with what it found", async () => {
+    const res = await api("/api/import/deals", {
+      method: "POST",
+      body: JSON.stringify({ csv: "name,favourite colour\nBob,blue" }),
+    });
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /does not look like a deals export/);
+  });
+
+  test("importing writes exactly what the preview said", async () => {
+    const res = await api("/api/import/deals", { method: "POST", body: JSON.stringify({ csv, write: true }) });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.wrote.customers, 1);
+    assert.equal(res.body.wrote.leads, 2);
+    assert.equal(res.body.wrote.partners, 1);
+
+    const [won] = await sql`SELECT name FROM customers WHERE id = 'won-shop'`;
+    assert.equal(won.name, "Won Shop", "a won deal is a customer");
+    const stages = await sql`SELECT stage FROM agency_leads WHERE source = 'deals import' ORDER BY stage`;
+    assert.deepEqual(stages.map((s) => s.stage), ["proposal", "talking"]);
+  });
+
+  test("a deal worth money gets a DRAFT proposal, never a sent one", async () => {
+    const rows = await sql`SELECT status, once_cents, monthly_cents, token FROM proposals WHERE created_by = 'deals import'`;
+    assert.ok(rows.length >= 2);
+    for (const r of rows) {
+      assert.equal(r.status, "draft");
+      // A sent proposal has a live signable link. Importing a spreadsheet must
+      // not create thirty of those.
+      assert.equal(r.token, null);
+    }
+    const once = rows.find((r) => r.once_cents === 500000);
+    assert.ok(once, "a one-time value became a one-time line");
+  });
+
+  test("no jobs are created — a spreadsheet row is not a decision to spend", async () => {
+    const [row] = await sql`
+      SELECT count(*)::int AS n FROM jobs WHERE customer_id = 'won-shop'`;
+    assert.equal(row.n, 0);
+  });
+
+  test("running it again changes nothing", async () => {
+    const before = await sql`SELECT count(*)::int AS n FROM agency_leads WHERE source = 'deals import'`;
+    const res = await api("/api/import/deals", { method: "POST", body: JSON.stringify({ csv, write: true }) });
+    assert.equal(res.body.wrote.leads, 0);
+    assert.ok(res.body.wrote.already > 0);
+    const after = await sql`SELECT count(*)::int AS n FROM agency_leads WHERE source = 'deals import'`;
+    assert.equal(after[0].n, before[0].n);
+  });
+
+  test("a stranger cannot import anything", async () => {
+    const saved = cookie;
+    cookie = "";
+    const res = await api("/api/import/deals", { method: "POST", body: JSON.stringify({ csv, write: true }) });
+    cookie = saved;
+    assert.equal(res.status, 401);
+  });
+});
