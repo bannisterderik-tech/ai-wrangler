@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fail, guard, operator } from "@/lib/api";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/schema";
-import { anthropicKey, connectRailway, railwayState, saveAnthropicKey } from "@/lib/railway";
+import { anthropicKey, connectRailway, railwayState, redeployWorker, saveAnthropicKey } from "@/lib/railway";
 
 /** Whether the OS can deploy agents by itself, and the one credential that lets it. */
 export async function GET() {
@@ -23,6 +23,15 @@ export async function POST(req: Request) {
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
+    if (body.action === "redeploy") {
+      const out = await redeployWorker();
+      if (!out.deployed) return NextResponse.json({ error: out.why }, { status: 409 });
+      await db.insert(audit).values({
+        customerId: null, actor, action: "redeployed the worker", target: out.service, at: new Date(),
+      });
+      return NextResponse.json({ ok: true, redeployed: true });
+    }
+
     const token = String(body.token || "").trim();
     const key = String(body.anthropicKey || "").trim();
     if (!token && !key) return NextResponse.json({ error: "nothing to save" }, { status: 400 });

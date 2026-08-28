@@ -175,6 +175,29 @@ async function writeTokens(
 }
 
 /**
+ * Push the worker onto the latest image, from the OS.
+ *
+ * Pulling a fix into the container was previously a side effect of minting an
+ * agent — the only code path that called deploy(). So shipping a worker fix
+ * meant either minting an agent you did not want or opening Railway by hand.
+ */
+export async function redeployWorker() {
+  const state = await railwayState();
+  if (!state.connected) return { deployed: false as const, why: state.blocked ?? "Railway is not connected." };
+  const conn = await stored();
+  if (!conn) return { deployed: false as const, why: "Railway is not connected." };
+  if (!state.serviceId) {
+    return {
+      deployed: false as const,
+      why: "There is no worker yet. Mint an agent on Sessions and one is built for you.",
+    };
+  }
+  const { environmentId } = state as { environmentId: string };
+  await deploy(conn.token, state.serviceId, environmentId);
+  return { deployed: true as const, service: state.serviceId };
+}
+
+/**
  * Give the worker one more agent to run as. Creates the worker the first time,
  * with the root directory and every variable it needs, so there is nothing to
  * click.

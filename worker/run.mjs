@@ -12,7 +12,7 @@
  * open_branch and it can read and think and ask, and cannot write. That is not a
  * prompt instruction; the server refuses the call.
  */
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -155,10 +155,32 @@ if (!ALLOWED.some((t) => t.startsWith("Bash(node"))) {
   throw new Error("[agent] the allowlist must let the agent run its build");
 }
 
+/**
+ * Whether this Claude Code build knows `--bare`.
+ *
+ * It matters because without it a `-p` session auto-loads the hooks in the
+ * checkout's .claude/settings.json, its CLAUDE.md and its skills — and the
+ * checkout is a customer's repository, which is exactly the thing this product
+ * treats as untrusted. House rules reach the agent through read_project, from
+ * the floor, not from the repo it was pointed at.
+ *
+ * Detected rather than assumed: an unknown flag is rejected before the run
+ * starts, and a hardening change must not be able to break every pass.
+ */
+const BARE = (() => {
+  try {
+    const r = spawnSync("claude", ["--help"], { encoding: "utf8", timeout: 20_000 });
+    return `${r.stdout || ""}${r.stderr || ""}`.includes("--bare");
+  } catch {
+    return false;
+  }
+})();
+
 function runOnce(dir) {
   return new Promise((resolve) => {
     const args = [
       "-p", BRIEF,
+      ...(BARE ? ["--bare"] : []),
       "--model", MODEL,
       "--permission-mode", "acceptEdits",
       "--mcp-config", join(dir, ".mcp.json"),
@@ -238,6 +260,11 @@ async function main() {
   console.log(`[agent] floor: ${MCP_URL}`);
   console.log(`[agent] ${TOKENS.length} agent${TOKENS.length === 1 ? "" : "s"}  model: ${MODEL}`);
   console.log(`[agent] mode: ${ONCE ? "one pass each" : `every ${INTERVAL}s`}`);
+  console.log(
+    BARE
+      ? "[agent] bare mode: the checkout's own hooks, skills and CLAUDE.md are not loaded"
+      : "[agent] this Claude Code has no --bare: a checkout's .claude/ hooks and CLAUDE.md WILL load. Update the image.",
+  );
 
   const agents = [];
   for (let i = 0; i < TOKENS.length; i++) {

@@ -335,6 +335,34 @@ export default function SessionsPage() {
                   </button>
                 </div>
               ) : null}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  className="btn-os"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    setDeployNote("Redeploying the worker…");
+                    const res = await fetch("/api/railway", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "redeploy" }),
+                    });
+                    const out = await res.json().catch(() => ({}));
+                    setDeployNote(
+                      res.ok
+                        ? "Worker redeploying. It picks up the newest image; give it a minute, then watch the floor."
+                        : out.error || "could not redeploy",
+                    );
+                    setBusy(false);
+                    await load();
+                  }}
+                >
+                  Redeploy the worker
+                </button>
+                <span className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
+                  Pulls the latest build. Use it after a worker fix lands — no Railway tab.
+                </span>
+              </div>
               {deployNote ? (
                 <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-secondary)" }}>{deployNote}</p>
               ) : null}

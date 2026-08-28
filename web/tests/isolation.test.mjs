@@ -1194,3 +1194,26 @@ describe("the cap is enforced, not displayed", () => {
     }
   });
 });
+
+describe("the worker can be redeployed from the OS", () => {
+  test("with Railway not connected it says so, and does not pretend", async () => {
+    const res = await api("/api/railway", {
+      method: "POST",
+      body: JSON.stringify({ action: "redeploy" }),
+    });
+    assert.equal(res.status, 409, "no Railway connection is a refusal, not a silent ok");
+    assert.match(res.body.error, /Railway|worker/i);
+    assert.ok(!res.body.ok, "must not report success when nothing was deployed");
+  });
+
+  test("a stranger cannot redeploy anything", async () => {
+    const saved = cookie;
+    cookie = "";
+    const res = await api("/api/railway", {
+      method: "POST",
+      body: JSON.stringify({ action: "redeploy" }),
+    });
+    cookie = saved;
+    assert.equal(res.status, 401);
+  });
+});
