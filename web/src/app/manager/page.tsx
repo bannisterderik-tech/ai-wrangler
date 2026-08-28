@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 const colors: Record<string, string> = {
   mcp: "var(--state-thinking)",
-  plan: "var(--accent-ink)",
+  plan: "var(--brand-text)",
   assign: "var(--state-thinking)",
   github: "var(--state-running)",
   vercel: "var(--state-running)",
