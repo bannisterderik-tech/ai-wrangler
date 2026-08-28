@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { statusDot, statusLabel } from "@/lib/ui";
+import { statusDot } from "@/lib/ui";
 
 type Job = { id: string; title: string; customerId: string; customerName: string; status: string };
 

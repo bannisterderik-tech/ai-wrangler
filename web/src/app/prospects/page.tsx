@@ -1,102 +1,151 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { PROSPECTS, PROSPECT_STAGES, money } from "@/lib/os-demo";
-import { DeskBar, Dossier, Kv, Rail, RollItem, Tabs } from "@/components/os/Dossier";
+import { useCallback, useEffect, useState } from "react";
+import { DeskBar, Dossier, Kv, RollItem } from "@/components/os/Dossier";
 
-const TABS: [string, string][] = [
-  ["overview", "Overview"],
-  ["people", "People"],
-  ["discovery", "Discovery"],
-  ["sequence", "Sequence"],
-  ["deal", "Deal"],
-  ["history", "History"],
-];
+type Lead = {
+  id: string; company: string; contact: string | null; phone: string | null; email: string | null;
+  city: string | null; trade: string | null; source: string | null; stage: string; value: number;
+  note: string | null; createdAt: string;
+};
+const money = (n: number) => "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 
+/**
+ * Shops we want but have not spoken to. The same pipeline as Leads, filtered to
+ * the stage before it starts — engaging one moves it, it does not copy it.
+ */
 export default function ProspectsPage() {
-  const [rows, setRows] = useState(PROSPECTS.map((p) => ({ ...p })));
+  const [all, setAll] = useState<Lead[] | null>(null);
   const [id, setId] = useState<string | null>(null);
-  const [tab, setTab] = useState("overview");
-  const [view, setView] = useState<"list" | "kanban">("list");
-  const [q, setQ] = useState("");
-  const [sort, setSort] = useState("value");
-  const shown = useMemo(() => {
-    let r = rows.slice();
-    const qq = q.toLowerCase();
-    if (qq) r = r.filter((x) => (x.name + x.city + x.trade + x.pain).toLowerCase().includes(qq));
-    r.sort((a, b) => (sort === "name" ? a.name.localeCompare(b.name) : b.value - a.value));
-    return r;
-  }, [rows, q, sort]);
-  const r = shown.find((x) => x.id === id) || shown[0] || rows[0];
-  const open = Boolean(id && shown.some((x) => x.id === id));
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ company: "", contact: "", phone: "", city: "", trade: "", source: "", value: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  const body = {
-    overview: <Kv rows={[["Trade", r.trade], ["Market", r.city], ["Stage", PROSPECT_STAGES[r.stage]], ["Retainer", `${money(r.value)}/mo`], ["Why now", r.pain], ["Demo", r.demo || "not booked"], ["Crew", String(r.employees)], ["Jobs / mo", String(r.jobsMo)]]} />,
-    people: <Kv rows={[["Decision maker", r.dm], ["Role", r.role], ["Phone", r.phone], ["Email", r.email]]} />,
-    discovery: <Kv rows={[["Pain", r.pain], ["Stack today", r.stack], ["Why us", r.why]]} />,
-    sequence: <div className="text-[13px]">{["Day 0 · Loom of the Apex rebuild", "Day 1 · Call the owner", "Day 3 · SMS the demo hold", "Day 7 · Proposal", "Day 10 · Isolation walkthrough"].map((t, i) => <label key={t} className="mb-2 flex gap-2"><input type="checkbox" checked={i < r.stage} readOnly />{t}</label>)}</div>,
-    deal: <Kv rows={[["MRR", `${money(r.value)}/mo`], ["Onboarding", "Rebuild in 10 + DID + Zernio"], ["Term", "12 mo"], ["Status", PROSPECT_STAGES[r.stage]]]} />,
-    history: <p className="text-[13px]">{r.why}</p>,
-  }[tab];
+  const load = useCallback(async () => {
+    const res = await fetch("/api/leads", { cache: "no-store" });
+    if (res.ok) setAll((await res.json()).leads ?? []);
+  }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const bar = (
-    <DeskBar>
-      <button className={`btn-os ${view === "list" ? "brand" : ""}`} onClick={() => setView("list")}>List</button>
-      <button className={`btn-os ${view === "kanban" ? "brand" : ""}`} onClick={() => setView("kanban")}>Kanban</button>
-      <input className="btn-os min-w-[160px]" placeholder="Search prospects…" value={q} onChange={(e) => setQ(e.target.value)} />
-      <select className="btn-os" value={sort} onChange={(e) => setSort(e.target.value)}>
-        <option value="value">Sort: retainer</option>
-        <option value="name">Sort: name</option>
-      </select>
-    </DeskBar>
-  );
-
-  if (view === "kanban") {
-    return (
-      <div className="flex h-full min-h-0 flex-col">
-        {bar}
-        <div className="grid min-h-0 flex-1 auto-cols-[minmax(200px,1fr)] grid-flow-col gap-2 overflow-auto p-3">
-          {PROSPECT_STAGES.map((name, i) => (
-            <div key={name} className="flex min-h-0 flex-col rounded-xl border p-2" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>
-              <div className="flex justify-between px-1 py-2 text-[11px] uppercase" style={{ color: "var(--text-secondary)" }}><span>{name}</span><span>{shown.filter((x) => x.stage === i).length}</span></div>
-              {shown.filter((x) => x.stage === i).map((x) => (
-                <button key={x.id} className="mb-2 rounded-xl border p-3 text-left" style={{ background: "var(--surface-inset)", borderColor: "var(--hairline)" }} onClick={() => { setId(x.id); setView("list"); }}>
-                  <b>{x.name}</b>
-                  <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{x.dm} · {money(x.value)}/mo</div>
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/leads", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...draft, value: Number(draft.value) || 0, stage: "prospect" }),
+    });
+    const out = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(out.error || "could not add them");
+    setAdding(false);
+    setDraft({ company: "", contact: "", phone: "", city: "", trade: "", source: "", value: "" });
+    await load();
+    setId(out.id);
   }
+
+  async function engage(leadId: string) {
+    setBusy(true);
+    await fetch("/api/leads", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: leadId, stage: "new" }),
+    });
+    setBusy(false);
+    setId(null);
+    await load();
+  }
+
+  if (!all) return <div className="p-5 text-[13px]" style={{ color: "var(--text-secondary)" }}>Reading the list…</div>;
+
+  const rows = all.filter((l) => l.stage === "prospect");
+  const open = Boolean(id && rows.some((l) => l.id === id));
+  const p = rows.find((x) => x.id === id) ?? rows[0] ?? null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-    {bar}
-    <Dossier
-      list={shown.map((x) => (
-        <RollItem key={x.id} on={open && x.id === r.id} title={x.name} meta={`${x.city} · ${PROSPECT_STAGES[x.stage]} · ${money(x.value)}/mo`} onClick={() => { setId(x.id); setTab("overview"); }} />
-      ))}
-      rail={<Rail title={r.stage >= 3 ? "Kick off onboarding" : `Call ${r.dm.split(" ")[0]}`} why={r.why} onDo={() => {}} />}
-      onClose={() => setId(null)}
-    >
-      {open ? (
-        <>
-      <div className="border-b px-4 pt-4 pb-2" style={{ borderColor: "var(--hairline)" }}>
-        <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--brand-text)" }}>{r.trade}</div>
-        <h3 className="mt-1 mb-1 text-[24px]">{r.name}</h3>
-        <div className="text-xs" style={{ color: "var(--text-secondary)" }}>{r.dm} · {r.phone} · {r.city}</div>
-        <div className="mt-3 flex gap-1.5">
-          <button className="btn-os brand" onClick={() => setRows((all) => all.map((x) => x.id === r.id ? { ...x, stage: Math.min(3, x.stage + 1) } : x))}>Advance</button>
-        </div>
-      </div>
-      <Tabs tabs={TABS} tab={tab} onTab={setTab} />
-      <div className="min-h-0 flex-1 overflow-auto p-4">{body}</div>
-        </>
+      <DeskBar>
+        <button className="btn-os brand" onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ New prospect"}</button>
+        <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+          {rows.length} on the list · {money(rows.reduce((a, x) => a + x.value, 0))} if they all land
+        </span>
+      </DeskBar>
+
+      {adding ? (
+        <form onSubmit={add} className="flex flex-wrap items-end gap-2 border-b px-4 py-3" style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}>
+          {([["company", "Company"], ["contact", "Who"], ["phone", "Phone"], ["city", "Market"], ["trade", "Trade"], ["source", "Where you found them"]] as const).map(([k, label]) => (
+            <label key={k} className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>{label}</span>
+              <input autoFocus={k === "company"} value={draft[k]} onChange={(e) => setDraft({ ...draft, [k]: e.target.value })} className="btn-os min-w-[130px]" />
+            </label>
+          ))}
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Worth /mo</span>
+            <input type="number" min="0" value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })} className="btn-os w-[110px] tabular-nums" />
+          </label>
+          <button className="btn-os brand" type="submit" disabled={busy || !draft.company.trim()}>Add</button>
+          {error ? <span className="text-[12px]" style={{ color: "var(--state-stop)" }}>{error}</span> : null}
+        </form>
       ) : null}
-    </Dossier>
+
+      <Dossier
+        onClose={() => setId(null)}
+        list={
+          rows.length === 0 ? (
+            <div className="p-5 text-[13px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              Nobody on the list. A prospect is a shop you want but have not spoken to — add one, and it becomes a
+              lead the moment you engage.
+            </div>
+          ) : (
+            rows.map((x) => (
+              <RollItem
+                key={x.id}
+                on={open && x.id === p?.id}
+                title={x.company}
+                meta={`${[x.city, x.trade].filter(Boolean).join(" · ") || "no detail yet"}${x.value ? ` · ${money(x.value)}/mo` : ""}`}
+                onClick={() => setId(x.id)}
+              />
+            ))
+          )
+        }
+        rail={
+          p ? (
+            <div className="flex flex-col gap-3">
+              <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Next move</div>
+              <p className="text-[12.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                Book the teardown. Show them their own broken funnel on screen — never open a deck.
+              </p>
+              <button className="btn-os brand" disabled={busy} onClick={() => engage(p.id)}>Engaged — move to Leads</button>
+              {p.phone ? <a className="btn-os no-underline text-center" href={`tel:${p.phone}`}>Call {p.contact ?? p.company}</a> : null}
+            </div>
+          ) : null
+        }
+      >
+        {open && p ? (
+          <>
+            <div className="border-b px-4 pt-4 pb-2.5" style={{ borderColor: "var(--hairline)" }}>
+              <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--state-running)" }}>prospect</div>
+              <h3 className="mt-1 mb-1 text-[24px] leading-tight">{p.company}</h3>
+              <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                {[p.contact, p.phone, p.city].filter(Boolean).join(" · ") || "no contact details yet"}
+              </div>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+              <Kv
+                rows={[
+                  ["Company", p.company], ["Who", p.contact ?? "—"], ["Phone", p.phone ?? "—"],
+                  ["Market", p.city ?? "—"], ["Trade", p.trade ?? "—"], ["Found via", p.source ?? "—"],
+                  ["Worth", p.value ? `${money(p.value)}/mo` : "not sized"],
+                ]}
+              />
+            </div>
+          </>
+        ) : null}
+      </Dossier>
     </div>
   );
 }

@@ -126,11 +126,11 @@ export function RollItem({ on, title, meta, onClick }: { on: boolean; title: str
   return (
     <button
       onClick={onClick}
-      className="block w-full border-b px-3.5 py-3 text-left"
+      className="block w-full min-w-0 max-w-full overflow-hidden border-b px-3.5 py-3 text-left"
       style={{ background: on ? "var(--brand-dim)" : "transparent", borderColor: "var(--hairline)" }}
     >
-      <div className="text-[13.5px] font-semibold">{title}</div>
-      <div className="mt-0.5 text-xs" style={{ color: "var(--text-secondary)" }}>{meta}</div>
+      <div className="truncate text-[13.5px] font-semibold">{title}</div>
+      <div className="mt-0.5 truncate text-xs" style={{ color: "var(--text-secondary)" }}>{meta}</div>
     </button>
   );
 }

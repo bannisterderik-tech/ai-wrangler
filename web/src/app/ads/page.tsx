@@ -1,133 +1,152 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ADS as SEED, CUSTOMERS, customerName } from "@/lib/os-demo";
+import { useCallback, useEffect, useState } from "react";
+import { DeskBar } from "@/components/os/Dossier";
 
-type Ad = (typeof SEED)[number] & { demo?: boolean };
+type Campaign = {
+  id: string; customerId: string; customer: string; name: string; platform: string;
+  status: string; goal: string | null; spend: number; leads: number; dailyCap: number; cpl: number | null;
+};
+const TONE: Record<string, string> = {
+  active: "var(--state-go)", paused: "var(--text-secondary)",
+  pending_review: "var(--state-blocked)", draft: "var(--state-thinking)",
+};
+const money = (n: number) => "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 
+/** Campaigns on a customer's own ad account. Their card, their spend, at cost. */
 export default function AdsPage() {
-  const [ads, setAds] = useState<Ad[]>(SEED);
-  const [open, setOpen] = useState(false);
-  const spend = ads.reduce((a, x) => a + x.spend, 0);
-  const leadsN = ads.reduce((a, x) => a + x.leads, 0);
+  const [rows, setRows] = useState<Campaign[] | null>(null);
+  const [platforms, setPlatforms] = useState<string[]>([]);
+  const [customers, setCustomers] = useState<{ id: string; name: string }[]>([]);
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState({ name: "", customerId: "", platform: "google", goal: "", dailyCap: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetch("/api/zernio/ads")
-      .then((r) => r.json())
-      .then((d) => { if (d.ads?.length) setAds(d.ads); })
-      .catch(() => {});
+  const load = useCallback(async () => {
+    const res = await fetch("/api/ads", { cache: "no-store" });
+    if (!res.ok) return;
+    const out = await res.json();
+    setRows(out.campaigns ?? []);
+    setPlatforms(out.platforms ?? []);
+    setCustomers(out.customers ?? []);
   }, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  async function toggle(id: string, status: string) {
-    const next = status === "active" ? "paused" : "active";
-    setAds((all) => all.map((a) => (a.id === id ? { ...a, status: next } : a)));
-    await fetch("/api/zernio/ads", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status: next }),
-    }).catch(() => {});
-  }
-
-  async function create(e: React.FormEvent<HTMLFormElement>) {
+  async function add(e: React.FormEvent) {
     e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    const body = {
-      platform: String(fd.get("platform")),
-      name: String(fd.get("name")),
-      budget: Number(fd.get("budget") || 75),
-      geo: String(fd.get("geo") || ""),
-      cust: String(fd.get("cust")),
-    };
-    const res = await fetch("/api/zernio/ads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then((r) => r.json()).catch(() => ({}));
-    const ad = res.ad || { id: `A${ads.length + 1}`, ...body, status: "pending_review", spend: 0, leads: 0, cpl: 0, roas: 0, cust: body.cust };
-    setAds((all) => [ad, ...all]);
-    setOpen(false);
+    setBusy(true);
+    setError("");
+    const res = await fetch("/api/ads", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...draft, dailyCap: Number(draft.dailyCap) }),
+    });
+    const out = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (!res.ok) return setError(out.error || "could not draft it");
+    setAdding(false);
+    setDraft({ name: "", customerId: "", platform: "google", goal: "", dailyCap: "" });
+    await load();
   }
+
+  async function setStatus(id: string, status: string) {
+    setBusy(true);
+    await fetch("/api/ads", {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, status }),
+    });
+    setBusy(false);
+    await load();
+  }
+
+  if (!rows) return <div className="p-5 text-[13px]" style={{ color: "var(--text-secondary)" }}>Reading the campaigns…</div>;
+
+  const spend = rows.reduce((a, r) => a + r.spend, 0);
+  const leads = rows.reduce((a, r) => a + r.leads, 0);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex items-end justify-between px-5 pt-5">
-        <div>
-          <h3 className="m-0 text-[28px]">Zernio · seven networks, one API.</h3>
-          <p className="mt-2 max-w-[640px] text-[13.5px]" style={{ color: "var(--text-secondary)" }}>
-            Google, Meta, TikTok, LinkedIn, Pinterest, X, OpenAI ads. Each customer is a Zernio profile. Pixels never mix.
-          </p>
-        </div>
-        <button className="btn-os brand" onClick={() => setOpen(true)}>Launch campaign</button>
-      </div>
-      <div className="grid grid-cols-6 gap-2.5 px-5 py-3">
-        {[
-          ["Spend (30d)", `$${spend.toLocaleString()}`],
-          ["Leads", String(leadsN)],
-          ["Blended CPL", `$${Math.round(spend / Math.max(1, leadsN))}`],
-          ["Best ROAS", "7.1×"],
-          ["Networks live", "4"],
-          ["In review", String(ads.filter((a) => a.status === "pending_review").length)],
-        ].map(([l, n]) => (
-          <div key={l} className="rounded-[14px] border p-4" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>
-            <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>{l}</div>
-            <div className="mt-2 font-mono text-[24px] font-semibold">{n}</div>
-          </div>
-        ))}
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto px-5 pb-5">
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr className="text-left text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-              {["Campaign", "Book", "Network", "Status", "Spend", "Leads", "CPL", "ROAS", ""].map((h) => (
-                <th key={h} className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {ads.map((a) => (
-              <tr key={a.id}>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}><b>{a.name}</b></td>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>{customerName(a.cust) || a.cust}</td>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>{a.platform}</td>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>{a.status}</td>
-                <td className="border-b px-3 py-2.5 font-mono" style={{ borderColor: "var(--hairline)" }}>${a.spend}</td>
-                <td className="border-b px-3 py-2.5 font-mono" style={{ borderColor: "var(--hairline)" }}>{a.leads}</td>
-                <td className="border-b px-3 py-2.5 font-mono" style={{ borderColor: "var(--hairline)" }}>{a.cpl ? `$${a.cpl}` : "—"}</td>
-                <td className="border-b px-3 py-2.5 font-mono" style={{ borderColor: "var(--hairline)" }}>{a.roas ? `${a.roas}×` : "—"}</td>
-                <td className="border-b px-3 py-2.5" style={{ borderColor: "var(--hairline)" }}>
-                  <button className="btn-os" onClick={() => toggle(a.id, a.status)}>{a.status === "active" ? "Pause" : "Resume"}</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {open ? (
-        <div className="fixed inset-0 z-50 grid place-items-center p-6" style={{ background: "var(--scrim)" }} onClick={() => setOpen(false)}>
-          <form className="w-[min(560px,100%)] rounded-2xl border p-5" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }} onClick={(e) => e.stopPropagation()} onSubmit={create}>
-            <h3 className="mt-0">Launch via Zernio</h3>
-            <label className="mt-3 block text-[11px] uppercase" style={{ color: "var(--text-secondary)" }}>Customer</label>
-            <select name="cust" className="btn-os mt-1 w-full">{CUSTOMERS.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-            <label className="mt-3 block text-[11px] uppercase" style={{ color: "var(--text-secondary)" }}>Network</label>
-            <select name="platform" className="btn-os mt-1 w-full">
-              <option value="google">Google Ads / LSA</option>
-              <option value="meta">Meta</option>
-              <option value="tiktok">TikTok</option>
-              <option value="openai">ChatGPT ads</option>
+      <DeskBar>
+        <button className="btn-os brand" onClick={() => setAdding((v) => !v)}>{adding ? "Cancel" : "+ New campaign"}</button>
+        <span className="ml-auto text-[11px] tabular-nums" style={{ color: "var(--text-secondary)" }}>
+          {money(spend)} spend · {leads} leads{leads ? ` · ${money(Math.round(spend / leads))} per lead` : ""}
+        </span>
+      </DeskBar>
+
+      {adding ? (
+        <form onSubmit={add} className="flex flex-wrap items-end gap-2 border-b px-4 py-3" style={{ borderColor: "var(--hairline)", background: "var(--surface-raised)" }}>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Campaign</span>
+            <input autoFocus value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="btn-os min-w-[200px]" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>For</span>
+            <select className="btn-os" value={draft.customerId} onChange={(e) => setDraft({ ...draft, customerId: e.target.value })}>
+              <option value="">Pick a customer…</option>
+              {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <label className="mt-3 block text-[11px] uppercase" style={{ color: "var(--text-secondary)" }}>Name</label>
-            <input name="name" defaultValue="Emergency — 20mi" className="btn-os mt-1 w-full" required />
-            <label className="mt-3 block text-[11px] uppercase" style={{ color: "var(--text-secondary)" }}>Daily budget</label>
-            <input name="budget" type="number" defaultValue={75} className="btn-os mt-1 w-full" />
-            <label className="mt-3 block text-[11px] uppercase" style={{ color: "var(--text-secondary)" }}>Geo</label>
-            <input name="geo" defaultValue="Red Bluff, CA + 20 miles" className="btn-os mt-1 w-full" />
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="btn-os" onClick={() => setOpen(false)}>Cancel</button>
-              <button className="btn-os brand" type="submit">Create campaign</button>
-            </div>
-          </form>
-        </div>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Where</span>
+            <select className="btn-os" value={draft.platform} onChange={(e) => setDraft({ ...draft, platform: e.target.value })}>
+              {platforms.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Daily cap</span>
+            <input type="number" min="1" value={draft.dailyCap} onChange={(e) => setDraft({ ...draft, dailyCap: e.target.value })} className="btn-os w-[100px] tabular-nums" />
+          </label>
+          <label className="flex flex-1 flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Goal</span>
+            <input value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} placeholder="calls under $50" className="btn-os min-w-[180px]" />
+          </label>
+          <button className="btn-os brand" type="submit" disabled={busy || !draft.name.trim() || !draft.customerId}>Draft it</button>
+          {error ? <span className="text-[12px]" style={{ color: "var(--state-stop)" }}>{error}</span> : null}
+        </form>
       ) : null}
+
+      <div className="min-h-0 flex-1 overflow-auto">
+        {rows.length === 0 ? (
+          <div className="p-5 text-[13.5px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+            No campaigns. These run on the customer&apos;s own ad account with their card — we pass the spend
+            through at cost and never hold it. A new one is drafted, never live: turning on spend is a decision.
+          </div>
+        ) : (
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="text-left text-[10px] uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+                {["Campaign", "Customer", "Where", "Status", "Cap/day", "Spend", "Leads", "Per lead", ""].map((h) => (
+                  <th key={h} className="sticky top-0 border-b px-3 py-2" style={{ background: "var(--surface-raised)", borderColor: "var(--hairline)" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((a) => (
+                <tr key={a.id} className="border-b" style={{ borderColor: "var(--hairline)" }}>
+                  <td className="px-3 py-2.5"><b>{a.name}</b>{a.goal ? <div className="text-[11.5px]" style={{ color: "var(--text-secondary)" }}>{a.goal}</div> : null}</td>
+                  <td className="px-3 py-2.5">{a.customer}</td>
+                  <td className="px-3 py-2.5">{a.platform}</td>
+                  <td className="px-3 py-2.5" style={{ color: TONE[a.status] }}>{a.status.replace("_", " ")}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{money(a.dailyCap)}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{money(a.spend)}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{a.leads}</td>
+                  <td className="px-3 py-2.5 tabular-nums">{a.cpl != null ? money(a.cpl) : "—"}</td>
+                  <td className="px-3 py-2.5">
+                    {a.status === "active" ? (
+                      <button className="btn-os" disabled={busy} onClick={() => setStatus(a.id, "paused")}>Pause</button>
+                    ) : (
+                      <button className="btn-os brand" disabled={busy} onClick={() => setStatus(a.id, "active")}>
+                        {a.status === "pending_review" ? "Approve & start" : "Start"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }

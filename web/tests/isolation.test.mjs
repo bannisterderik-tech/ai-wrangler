@@ -1040,3 +1040,50 @@ describe("mail says why when it fails", () => {
     assert.doesNotMatch(body.error, /^Could not send the email\.$/, "not the useless generic one");
   });
 });
+
+describe("the screens read from rows, and failures stay inside", () => {
+  test("Command answers with countable numbers", async () => {
+    // Regression: `sql`${callLog.at} > ${since}`` handed postgres.js a bare Date.
+    // Drizzle's column encoder never ran, the driver refused it, and the whole
+    // dashboard 500'd — on the one screen that opens first.
+    const { status, body } = await api("/api/command");
+    assert.equal(status, 200);
+    for (const k of ["callsToday", "unread", "customers"]) {
+      assert.equal(typeof body[k], "number", `${k} should be a number`);
+    }
+    assert.equal(typeof body.pipeline.open, "number");
+    assert.ok(Array.isArray(body.hot));
+  });
+
+  test("every desk screen loads for a signed-in operator", async () => {
+    for (const path of ["/api/leads", "/api/partners", "/api/ads", "/api/threads", "/api/calls"]) {
+      const { status, body } = await api(path);
+      assert.equal(status, 200, `${path} returned ${status}`);
+      assert.equal(typeof body, "object", `${path} did not return json`);
+    }
+  });
+
+  test("a constraint refusal is a sentence, not a statement dump", async () => {
+    const territory = "Test Territory " + Date.now();
+    const first = await api("/api/partners", {
+      method: "POST",
+      body: JSON.stringify({ name: "First Agency", territory }),
+    });
+    assert.equal(first.status, 200);
+
+    const clash = await api("/api/partners", {
+      method: "POST",
+      body: JSON.stringify({ name: "Second Agency", territory: territory.toLowerCase() }),
+    });
+    assert.equal(clash.status, 409);
+    assert.match(clash.body.error, /territory already belongs/);
+
+    // The driver's message carries the full INSERT and every bound parameter.
+    // It is logged; it never leaves the building.
+    const said = JSON.stringify(clash.body);
+    for (const leak of ["Failed query", "insert into", "params:", "$1"]) {
+      assert.ok(!said.includes(leak), `refusal leaked ${leak}: ${said}`);
+    }
+    await sql`DELETE FROM partners WHERE territory ILIKE ${territory}`;
+  });
+});

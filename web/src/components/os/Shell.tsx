@@ -62,6 +62,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
   async function signOut() {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
+    // A full document load on purpose: router.push would keep every screen's
+    // fetched rows alive in memory after the session that was allowed to read
+    // them is gone.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/login";
   }
 

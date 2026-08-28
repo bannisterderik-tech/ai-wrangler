@@ -395,3 +395,91 @@ export const agencyLeads = pgTable(
   },
   (t) => [index("agency_leads_board").on(t.stage, t.createdAt)],
 );
+
+/** Franchise licensees — other agencies running our name in their own territory. */
+export const partners = pgTable(
+  "partners",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    operatorName: text("operator_name"),
+    email: text("email"),
+    phone: text("phone"),
+    territory: text("territory"),
+    tier: text("tier").notNull().default("operator"),
+    status: text("status").notNull().default("applied"),
+    customers: integer("customers").notNull().default(0),
+    bookCents: integer("book_cents").notNull().default(0),
+    royaltyPct: integer("royalty_pct").notNull().default(12),
+    feeCents: integer("fee_cents").notNull().default(0),
+    note: text("note"),
+    since: text("since"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+);
+
+/** Campaigns we run on a customer's own ad account. */
+export const adCampaigns = pgTable(
+  "ad_campaigns",
+  {
+    id: text("id").primaryKey(),
+    customerId: text("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    platform: text("platform").notNull().default("google"),
+    status: text("status").notNull().default("draft"),
+    goal: text("goal"),
+    spendCents: integer("spend_cents").notNull().default(0),
+    leads: integer("leads").notNull().default(0),
+    dailyCapCents: integer("daily_cap_cents").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("ad_campaigns_customer").on(t.customerId, t.status)],
+);
+
+export const threads = pgTable(
+  "threads",
+  {
+    id: text("id").primaryKey(),
+    subject: text("subject"),
+    who: text("who").notNull(),
+    channel: text("channel").notNull().default("sms"),
+    phone: text("phone"),
+    email: text("email"),
+    customerId: text("customer_id"),
+    leadId: text("lead_id"),
+    unread: boolean("unread").notNull().default(false),
+    lastAt: timestamp("last_at", { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("threads_recent").on(t.lastAt)],
+);
+
+export const messages = pgTable(
+  "messages",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    threadId: text("thread_id").notNull().references(() => threads.id, { onDelete: "cascade" }),
+    direction: text("direction").notNull().default("out"),
+    channel: text("channel").notNull().default("sms"),
+    body: text("body").notNull(),
+    actor: text("actor").notNull().default("you"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("messages_thread").on(t.threadId, t.id)],
+);
+
+export const callLog = pgTable(
+  "call_log",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    leadId: text("lead_id"),
+    customerId: text("customer_id"),
+    toNumber: text("to_number"),
+    outcome: text("outcome").notNull().default("dialled"),
+    seconds: integer("seconds").notNull().default(0),
+    note: text("note"),
+    actor: text("actor").notNull().default("you"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("call_log_recent").on(t.at)],
+);

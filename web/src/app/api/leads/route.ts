@@ -5,7 +5,9 @@ import { fail, guard, operator } from "@/lib/api";
 import { agencyLeads, audit } from "@/lib/schema";
 import { newId } from "@/lib/customers";
 
-const STAGES = ["new", "talking", "proposal", "won", "lost"];
+// A prospect is a lead you have not engaged yet. One pipeline, one table:
+// two would drift, and the day they drift the same shop is in both.
+const STAGES = ["prospect", "new", "talking", "proposal", "won", "lost"];
 
 /** The agency's own pipeline — shops buying web and technology from us. */
 export async function GET() {

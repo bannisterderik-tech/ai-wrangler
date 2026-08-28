@@ -91,7 +91,7 @@ export default function ApprovalsPage() {
           </Block>
           {det.irreversible ? (
             <div className="rounded-lg border px-2.5 py-2 text-[11.5px] leading-snug" style={{ borderColor: "var(--state-blocked)", color: "var(--state-blocked)" }}>
-              This one can't be undone automatically, so approving takes two clicks.
+              This one can&apos;t be undone automatically, so approving takes two clicks.
             </div>
           ) : null}
           <div className="mt-1 flex gap-2">

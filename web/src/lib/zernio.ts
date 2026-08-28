@@ -1,4 +1,3 @@
-import { ADS } from "./os-demo";
 
 const BASE = "https://zernio.com/api/v1";
 const KEY = process.env.ZERNIO_API_KEY;
@@ -23,8 +22,10 @@ async function zernio(path: string, init?: RequestInit) {
 }
 
 export async function listAds() {
+  // No fabricated campaigns. Without a key there is nothing to report, and the
+  // Ads screen reads our own ad_campaigns table anyway.
   if (!zernioConfigured()) {
-    return { ok: true, demo: true, ads: ADS };
+    return { ok: true, demo: true, ads: [] as unknown[] };
   }
   const data = await zernio("/ads?limit=100");
   return { ok: true, demo: false, ads: data.ads || [] };
