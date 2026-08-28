@@ -1087,3 +1087,110 @@ describe("the screens read from rows, and failures stay inside", () => {
     await sql`DELETE FROM partners WHERE territory ILIKE ${territory}`;
   });
 });
+
+/**
+ * The cap has to be a wall, not a label.
+ *
+ * It was a label. `spent_cents` was written as 0 when a job opened and never
+ * touched again, and `budget_cents` was displayed but never compared to
+ * anything — so a job could be worked forever while honestly reporting
+ * "$0.00 of $2.00 spent". These tests are the receipt that it stops now.
+ */
+describe("the cap is enforced, not displayed", () => {
+  let agentToken = "";
+  let jobId = "";
+
+  before(async () => {
+    await sql`DELETE FROM jobs WHERE title = 'Capped work'`;
+    await sql`DELETE FROM people WHERE id = 'A_cap-bot'`;
+    // A raw token whose SHA-256 is what the floor stores, same as minting.
+    agentToken = "wr_sess_captest0000000000000000000";
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(agentToken).digest("hex");
+    await sql`
+      INSERT INTO people (id, name, handle, kind, customer_id, token_hash, status)
+      VALUES ('A_cap-bot','cap-bot','cap-bot','agent','acme',${hash},'connected')`;
+    await sql`
+      INSERT INTO person_tools (person_id, tool) VALUES
+        ('A_cap-bot','claim_job'), ('A_cap-bot','list_jobs')`;
+    const res = await api("/api/floor", {
+      method: "POST",
+      body: JSON.stringify({ title: "Capped work", customerId: "acme", budgetDollars: 2 }),
+    });
+    jobId = res.body.id;
+  });
+
+  async function spend(usd) {
+    return fetch(`${BASE}/api/agent/spend`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ usd }),
+    }).then(async (r) => ({ status: r.status, body: await r.json() }));
+  }
+
+  async function claim() {
+    const r = await fetch(`${BASE}/api/mcp`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${agentToken}`,
+        "Content-Type": "application/json",
+        Accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "claim_job", arguments: { job_id: jobId } },
+      }),
+    });
+    const text = await r.text();
+    return text;
+  }
+
+  test("an unknown token cannot report spend", async () => {
+    const r = await fetch(`${BASE}/api/agent/spend`, {
+      method: "POST",
+      headers: { Authorization: "Bearer wr_sess_nope", "Content-Type": "application/json" },
+      body: JSON.stringify({ usd: 500 }),
+    });
+    assert.equal(r.status, 401);
+  });
+
+  test("a pass's cost lands on the job the session holds", async () => {
+    const first = await claim();
+    assert.match(first, /Claimed/, `expected a clean claim, got: ${first}`);
+    const r = await spend(0.75);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.attributed, true);
+    assert.equal(r.body.spent, 0.75);
+    assert.equal(r.body.over, false);
+    const [row] = await sql`SELECT spent_cents FROM jobs WHERE id = ${jobId}`;
+    assert.equal(row.spent_cents, 75, "spend has to reach the row, not just the response");
+  });
+
+  test("spend accumulates across passes and trips the cap", async () => {
+    const r = await spend(1.5);
+    assert.equal(r.body.spent, 2.25);
+    assert.equal(r.body.over, true, "$2.25 of a $2.00 cap is over");
+    const [row] = await sql`SELECT status FROM jobs WHERE id = ${jobId}`;
+    assert.equal(row.status, "blocked", "over the cap, the job is held in the row");
+  });
+
+  test("and the floor then refuses to let it be worked again", async () => {
+    await sql`UPDATE jobs SET owner_id = NULL WHERE id = ${jobId}`;
+    const out = await claim();
+    assert.match(out, /refused/, `a capped job must not be claimable: ${out}`);
+    assert.match(out, /\$2\.25 of its \$2\.00 cap/);
+  });
+
+  test("nonsense costs are refused", async () => {
+    for (const usd of [-5, "lots", 999999]) {
+      const r = await fetch(`${BASE}/api/agent/spend`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${agentToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ usd }),
+      });
+      assert.equal(r.status, 400, `usd=${usd} should be refused`);
+    }
+  });
+});

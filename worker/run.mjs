@@ -102,7 +102,13 @@ Do this, in order:
 Hard rules:
 - Never guess a repository name. read_bound_repo is the only source. A name you
   guessed will be refused with a 403 and you will have wasted the turn.
-- Never write to main. open_branch, then ask.
+- Never write to main. Commit your work to the branch FIRST, then open_branch, then
+  ask. open_branch records what you tell it; it cannot see your working tree. A
+  branch recorded with the work still uncommitted reads as done and is not, and the
+  next pass will spend the budget finding that out.
+- Before you plan, read the steps already on this job. If a previous pass hit a wall
+  you are about to walk into, say so and stop. Re-deriving what the last pass
+  already established is how a cap gets spent with nothing to show.
 - If a tool refuses you, that refusal is the answer. Do not try a different phrasing
   of the same thing.
 - Spend is capped per job. When you are near the cap, post_step saying so and stop.`;
@@ -133,9 +139,21 @@ const ALLOWED = [
   "Grep",
   "Bash(git *)",
   "Bash(npm *)",
+  // Without this a static-site repo cannot be built at all: `node build.mjs` is
+  // refused, the agent correctly takes the refusal as final, goes to the wall,
+  // gets approved, comes back and hits the same wall. Four laps on one job
+  // before anyone noticed. `npm *` already runs arbitrary scripts, so this
+  // widens nothing that was not already open.
+  "Bash(node *)",
   "Bash(ls *)",
   "Bash(cat *)",
 ];
+
+if (!ALLOWED.some((t) => t.startsWith("Bash(node"))) {
+  // A guard against the exact regression: a static-site repo whose build is
+  // `node build.mjs` becomes unbuildable and every pass ends at the same wall.
+  throw new Error("[agent] the allowlist must let the agent run its build");
+}
 
 function runOnce(dir) {
   return new Promise((resolve) => {
@@ -146,19 +164,62 @@ function runOnce(dir) {
       "--mcp-config", join(dir, ".mcp.json"),
       // Only the floor. Not whatever else happens to be configured on the box.
       "--strict-mcp-config",
+      // The harness prints what the pass cost. That number is the only honest
+      // one available: asking the model to report its own spend puts the
+      // spender in charge of the cap. The floor is the live log — the agent
+      // streams there with post_step — so nothing is lost by capturing stdout.
+      "--output-format", "json",
       "--allowedTools", ...ALLOWED,
     ];
     const child = spawn("claude", args, {
       cwd: dir,
-      stdio: ["ignore", "inherit", "inherit"],
+      stdio: ["ignore", "pipe", "inherit"],
       env: process.env,
+    });
+    let out = "";
+    child.stdout.on("data", (b) => {
+      out += b;
     });
     child.on("error", (e) => {
       console.error("[agent] could not start claude:", e.message);
-      resolve(1);
+      resolve({ code: 1, usd: 0 });
     });
-    child.on("exit", (code) => resolve(code ?? 0));
+    child.on("exit", (code) => {
+      let usd = 0;
+      let text = "";
+      try {
+        const r = JSON.parse(out);
+        usd = Number(r.total_cost_usd) || 0;
+        text = String(r.result ?? "").trim();
+      } catch {
+        // Never let an unreadable result swallow the pass. A cost we could not
+        // read is reported as unknown, not as zero-and-carry-on.
+        if (out.trim()) console.log(out.trim());
+        usd = NaN;
+      }
+      if (text) console.log(text);
+      resolve({ code: code ?? 0, usd });
+    });
   });
+}
+
+/**
+ * Tell the floor what the pass cost. The floor decides whether that puts the
+ * job over its cap and holds it if so — the container does not get a vote.
+ */
+async function reportSpend(token, usd) {
+  if (!Number.isFinite(usd) || usd <= 0) return null;
+  try {
+    const res = await fetch(new URL("/api/agent/spend", MCP_URL), {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ usd }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 /** Ask the floor who this token is, so the log names the agent and its project. */
@@ -192,7 +253,7 @@ async function main() {
     // A workspace each: two agents must never share a checkout.
     const dir = join(WORKSPACE, `agent-${i + 1}`);
     writeMcpConfig(dir, token);
-    agents.push({ dir, label: who.label });
+    agents.push({ dir, label: who.label, token });
     console.log(`[agent] ${i + 1}. ${who.label}  workspace ${dir}`);
   }
 
@@ -205,8 +266,20 @@ async function main() {
     for (const a of agents) {
       const started = Date.now();
       console.log(`[agent] --- ${a.label} ---`);
-      const code = await runOnce(a.dir);
-      console.log(`[agent] ${a.label}: ${Math.round((Date.now() - started) / 1000)}s (exit ${code})`);
+      const { code, usd } = await runOnce(a.dir);
+      const secs = Math.round((Date.now() - started) / 1000);
+      const cost = Number.isFinite(usd) ? `$${usd.toFixed(2)}` : "cost unknown";
+      console.log(`[agent] ${a.label}: ${secs}s  ${cost}  (exit ${code})`);
+      if (!Number.isFinite(usd)) {
+        console.warn(`[agent] ${a.label}: could not read the pass cost — the cap cannot see this one.`);
+      }
+      const spend = await reportSpend(a.token, usd);
+      if (spend?.attributed) {
+        console.log(`[agent] ${a.label}: ${spend.job} now $${spend.spent.toFixed(2)} of $${spend.budget.toFixed(2)}`);
+        if (spend.over) {
+          console.warn(`[agent] ${a.label}: ${spend.job} is at its cap and has been held. It will not be worked again until a human raises it.`);
+        }
+      }
     }
     if (ONCE) process.exit(0);
     // A crashed pass must not become a hot loop against the API.

@@ -247,6 +247,15 @@ export async function callTool(session: McpSession, name: string, args: Args): P
 
     case "claim_job": {
       const job = await jobInScope(session, s(args.job_id));
+      // The cap, enforced where it cannot be reasoned past. A job at its budget
+      // is not workable by anyone until a human raises it — otherwise the money
+      // is spent rediscovering that the money is spent.
+      if (job.spentCents >= job.budgetCents) {
+        throw new ToolError(
+          `refused: ${job.id} has spent $${(job.spentCents / 100).toFixed(2)} of its ` +
+            `$${(job.budgetCents / 100).toFixed(2)} cap. A human has to raise the cap before it moves again.`,
+        );
+      }
       if (job.ownerId && job.ownerId !== session.id) {
         throw new ToolError(`refused: ${job.id} is already held by another session.`);
       }
