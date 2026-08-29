@@ -6,6 +6,7 @@ import { SelfTest } from "@/components/os/SelfTest";
 import { AdAccounts } from "@/components/os/AdAccounts";
 import { PhoneNumbers } from "@/components/os/PhoneNumbers";
 import { Receptionist } from "@/components/os/Receptionist";
+import { Branding } from "@/components/os/Branding";
 
 type KeyField = { id: string; label: string; hint: string; secret: boolean };
 
@@ -103,6 +104,7 @@ export default function SettingsPage() {
       </div>
       <SelfTest />
       <AgencyKeys />
+      <Branding />
       <PhoneNumbers />
       <Receptionist />
       <AdAccounts />

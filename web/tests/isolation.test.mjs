@@ -2277,9 +2277,12 @@ describe("tenant isolation reaches the agent path", () => {
     // table no tenant can ever read, so it is a decision worth being explicit
     // about rather than a thing that happened.
     const unpoliced = rows.map((r) => r.relname).sort();
+    // call_log, threads and messages were on this list for months: RLS on, no
+    // policy, so Postgres denied everything and the client desk could not read
+    // its own rows. They have policies now, which is why they are gone.
     assert.deepEqual(
       unpoliced,
-      ["agent_events", "call_log", "people", "person_scopes", "proposals", "threads"],
+      ["agent_events", "people", "person_scopes", "proposals"],
       "a customer-scoped table changed its policy status — decide which it is",
     );
   });
@@ -5454,5 +5457,235 @@ describe("the receptionist answers, and knows when not to", () => {
     const read = await (await fetch(`${BASE}/api/receptionist`, { headers: { cookie } })).json();
     assert.deepEqual(read.receptionists, []);
     assert.deepEqual(read.calls, []);
+  });
+});
+
+/**
+ * Reviews, branding, the portal's walls, and why an agent did that.
+ *
+ * The parts that need Google or a model are unreachable here, so what is proved
+ * is the rest: that a reply cannot be posted by accident, that branding cannot
+ * smuggle a script onto a client's page, that the client desk can finally read
+ * its own rows, and that none of it crosses an agency.
+ */
+describe("reviews are answered on purpose, never by accident", () => {
+  let theirs = "";
+
+  before(async () => {
+    await sql`DELETE FROM reviews WHERE external_id LIKE 'gr_%'`;
+    await sql`DELETE FROM customers WHERE id IN ('rev-ours','rev-theirs')`;
+    await sql`DELETE FROM people WHERE email = 'boss@tenth.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'tenth-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build, plan) VALUES ('tenth-agency','Tenth Agency', true, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_tenth','Tenth Boss','tenthboss','boss@tenth.test','operator','tenth-agency','admin')`;
+    await sql`
+      INSERT INTO customers (id, name, tenant_id) VALUES
+        ('rev-ours','Rev Ours Co','ai-wrangler'), ('rev-theirs','Rev Theirs Co','tenth-agency')`;
+    await sql`
+      INSERT INTO reviews (id, tenant_id, customer_id, source, external_id, author, rating, body, posted_at) VALUES
+        ('RV_ours','ai-wrangler','rev-ours','google','gr_ours','Dana',2,'Turned up late twice.', now()),
+        ('RV_theirs','tenth-agency','rev-theirs','google','gr_theirs','Sam',5,'Excellent work.', now())`;
+
+    const raw = `wr_sess_tenth_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    await sql`INSERT INTO login_links (token_hash, email, expires_at)
+              VALUES (${createHash("sha256").update(raw).digest("hex")}, 'boss@tenth.test', now() + interval '15 minutes')`;
+    const login = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    theirs = `wrangler_session=${/wrangler_session=([^;]+)/.exec(login.headers.get("set-cookie") || "")?.[1]}`;
+  });
+
+  const asThem = (path, init = {}) =>
+    fetch(`${BASE}${path}`, {
+      ...init, redirect: "manual",
+      headers: { "Content-Type": "application/json", cookie: theirs, ...(init.headers || {}) },
+    });
+
+  test("each agency sees only its own reviews", async () => {
+    const mine = await api("/api/reviews");
+    assert.equal(mine.status, 200);
+    const ids = mine.body.reviews.map((r) => r.id);
+    assert.ok(ids.includes("RV_ours"));
+    assert.ok(!ids.includes("RV_theirs"));
+
+    const them = await (await asThem("/api/reviews")).json();
+    assert.deepEqual(them.reviews.map((r) => r.id), ["RV_theirs"]);
+  });
+
+  test("a saved draft is not published", async () => {
+    const res = await api("/api/reviews", {
+      method: "POST",
+      body: JSON.stringify({ id: "RV_ours", action: "save", text: "Sorry about that, Dana. Please call us." }),
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT draft_text, draft_state, reply_text FROM reviews WHERE id = 'RV_ours'`;
+    assert.match(row.draft_text, /Sorry about that/);
+    assert.equal(row.draft_state, "draft");
+    assert.equal(row.reply_text, null, "saving must never make it public");
+  });
+
+  test("posting needs Google connected, and says so", async () => {
+    const res = await api("/api/reviews", {
+      method: "POST",
+      body: JSON.stringify({ id: "RV_ours", action: "post", text: "hello" }),
+    });
+    assert.equal(res.status, 503, "no Zernio key here");
+    const [row] = await sql`SELECT reply_text FROM reviews WHERE id = 'RV_ours'`;
+    assert.equal(row.reply_text, null, "and nothing was published");
+  });
+
+  test("another agency cannot touch your review", async () => {
+    const res = await asThem("/api/reviews", {
+      method: "POST",
+      body: JSON.stringify({ id: "RV_ours", action: "save", text: "we are terrible" }),
+    });
+    assert.equal(res.status, 404);
+    const [row] = await sql`SELECT draft_text FROM reviews WHERE id = 'RV_ours'`;
+    assert.match(row.draft_text, /Sorry about that/, "ours is unchanged");
+  });
+
+  test("syncing refuses without a bound Google account", async () => {
+    const res = await api("/api/reviews", {
+      method: "POST",
+      body: JSON.stringify({ action: "sync", customerId: "rev-ours" }),
+    });
+    assert.equal(res.status, 409);
+    assert.match(res.body.error, /bind/i);
+  });
+});
+
+describe("branding is theirs, and cannot smuggle anything onto a client's page", () => {
+  test("it starts as ours and says so", async () => {
+    const res = await api("/api/brand");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.brand.custom, false, "nothing set yet");
+    assert.equal(res.body.brand.name, "AI Wrangler");
+  });
+
+  test("a hex accent is required", async () => {
+    const bad = await api("/api/brand", { method: "POST", body: JSON.stringify({ accent: "red; }" }) });
+    assert.equal(bad.status, 400, "a style value is written into a page — it has to be a colour");
+  });
+
+  test("a logo must be https", async () => {
+    for (const logoUrl of ["javascript:alert(1)", "data:text/html,<script>", "http://x.test/l.png"]) {
+      const res = await api("/api/brand", { method: "POST", body: JSON.stringify({ logoUrl }) });
+      assert.equal(res.status, 400, `${logoUrl} should be refused`);
+    }
+  });
+
+  test("a real one saves and reads back", async () => {
+    const res = await api("/api/brand", {
+      method: "POST",
+      body: JSON.stringify({ name: "Redwood Digital", accent: "#2f7ef4", logoUrl: "https://redwood.test/l.svg" }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.brand.name, "Redwood Digital");
+    assert.equal(res.body.brand.custom, true);
+    // Put it back so later runs start clean.
+    await sql`UPDATE tenants SET brand_name = NULL, brand_accent = NULL, brand_logo_url = NULL WHERE id = 'ai-wrangler'`;
+  });
+});
+
+describe("the client desk can finally read its own rows", () => {
+  before(async () => {
+    await sql`DELETE FROM messages WHERE body IN ('portal ours','portal theirs')`;
+    await sql`DELETE FROM threads WHERE id IN ('T_portal_ours','T_portal_theirs')`;
+    await sql`DELETE FROM customers WHERE id IN ('portal-ours','portal-theirs')`;
+    await sql`
+      INSERT INTO customers (id, name, tenant_id) VALUES
+        ('portal-ours','Portal Ours','ai-wrangler'), ('portal-theirs','Portal Theirs','ai-wrangler')`;
+    await sql`
+      INSERT INTO threads (id, tenant_id, customer_id, who, channel) VALUES
+        ('T_portal_ours','ai-wrangler','portal-ours','Theirs Caller','sms'),
+        ('T_portal_theirs','ai-wrangler','portal-theirs','Other Caller','sms')`;
+    await sql`
+      INSERT INTO messages (thread_id, direction, channel, body) VALUES
+        ('T_portal_ours','in','sms','portal ours'), ('T_portal_theirs','in','sms','portal theirs')`;
+  });
+
+  test("as the tenant role, a customer sees their own threads", async () => {
+    // These tables had RLS enabled with NO policy, so Postgres denied everything
+    // and the client desk could not read a single row of its own data.
+    const rows = await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE wrangler_tenant`;
+      await tx`SELECT set_config('app.customer_id', 'portal-ours', true)`;
+      return tx`SELECT id FROM threads`;
+    });
+    assert.deepEqual(rows.map((r) => r.id), ["T_portal_ours"]);
+  });
+
+  test("and their own messages, through the thread", async () => {
+    const rows = await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE wrangler_tenant`;
+      await tx`SELECT set_config('app.customer_id', 'portal-ours', true)`;
+      return tx`SELECT body FROM messages`;
+    });
+    assert.deepEqual(rows.map((r) => r.body), ["portal ours"]);
+  });
+
+  test("and nobody else's", async () => {
+    const rows = await sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE wrangler_tenant`;
+      await tx`SELECT set_config('app.customer_id', 'portal-theirs', true)`;
+      return tx`SELECT body FROM messages`;
+    });
+    assert.deepEqual(rows.map((r) => r.body), ["portal theirs"]);
+  });
+
+  test("writing a message into another customer's thread is refused by Postgres", async () => {
+    const write = sql.begin(async (tx) => {
+      await tx`SET LOCAL ROLE wrangler_tenant`;
+      await tx`SELECT set_config('app.customer_id', 'portal-theirs', true)`;
+      return tx`INSERT INTO messages (thread_id, direction, channel, body)
+                VALUES ('T_portal_ours','in','sms','smuggled')`;
+    });
+    await assert.rejects(write, /row-level security/i, "the wall is the database, not the route");
+  });
+});
+
+describe("why an agent did that", () => {
+  before(async () => {
+    await sql`DELETE FROM agent_traces WHERE person_id IN ('P_trace_ours','P_trace_theirs')`;
+    await sql`
+      INSERT INTO agent_traces (id, tenant_id, customer_id, person_id, kind, name, input, output, ok, ms, cost_millicents) VALUES
+        ('TR_ours','ai-wrangler','portal-ours','P_trace_ours','model','copilot reply','what is open','three jobs',true,900,120),
+        ('TR_fail','ai-wrangler','portal-ours','P_trace_ours','error','read_project','','no repo bound',false,40,0),
+        ('TR_theirs','tenth-agency','rev-theirs','P_trace_theirs','model','copilot reply','x','y',true,10,5)`;
+  });
+
+  test("it shows what it saw, what it chose and what it cost", async () => {
+    const res = await api("/api/traces?personId=P_trace_ours");
+    assert.equal(res.status, 200);
+    assert.equal(res.body.traces.length, 2);
+    assert.equal(res.body.failures, 1, "the failures are the ones worth having");
+    const model = res.body.traces.find((t) => t.kind === "model");
+    assert.equal(model.input, "what is open");
+    assert.equal(model.output, "three jobs");
+    assert.equal(model.cost, 0.0012);
+  });
+
+  test("another agency's traces are not readable", async () => {
+    const res = await api("/api/traces?personId=P_trace_theirs");
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.body.traces, [], "an agency cannot read why somebody else's agent did anything");
+  });
+
+  test("a CRM-only account is refused outright", async () => {
+    await sql`DELETE FROM people WHERE email = 'boss@crmonly.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'crmonly-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build, plan) VALUES ('crmonly-agency','CRM Only', false, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_crmonly','CRM Boss','crmonlyboss','boss@crmonly.test','operator','crmonly-agency','admin')`;
+    const raw = `wr_sess_crmonly_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    await sql`INSERT INTO login_links (token_hash, email, expires_at)
+              VALUES (${createHash("sha256").update(raw).digest("hex")}, 'boss@crmonly.test', now() + interval '15 minutes')`;
+    const login = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const cookie = `wrangler_session=${/wrangler_session=([^;]+)/.exec(login.headers.get("set-cookie") || "")?.[1]}`;
+    const res = await fetch(`${BASE}/api/traces`, { headers: { cookie }, redirect: "manual" });
+    assert.equal(res.status, 403, "there are no agents on that plan to explain");
   });
 });

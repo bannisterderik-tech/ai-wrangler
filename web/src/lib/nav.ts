@@ -10,6 +10,7 @@ export const NAV = [
   ]},
   { section: "CLIENTS", items: [
     { href: "/customers", id: "customers", label: "Customers" },
+    { href: "/reviews", id: "reviews", label: "Reviews" },
     { href: "/billing", id: "billing", label: "Billing" },
     // Ads are run for a customer, not for the funnel — they belong with them.
     { href: "/ads", id: "ads", label: "Ads" },

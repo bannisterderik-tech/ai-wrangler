@@ -5,6 +5,13 @@ import { db } from "@/lib/db";
 import { boundResources } from "@/lib/schema";
 import { raiseEvent, type EventKind } from "@/lib/agent-events";
 import { ZERNIO_EVENTS } from "@/lib/zernio-generated";
+import { customers, reviews } from "@/lib/schema";
+import { newId } from "@/lib/customers";
+
+const text = (v: unknown, n: number) => {
+  const s = String(v ?? "").trim();
+  return s ? s.slice(0, n) : null;
+};
 
 /**
  * What Zernio sends us.
@@ -122,6 +129,34 @@ export async function POST(req: Request) {
   }
   if (!customerId) {
     return NextResponse.json({ ok: true, ignored: "no customer is bound to that account" });
+  }
+  // The agency the customer belongs to — never anything in the payload.
+  const [owner] = await db.select({ tenantId: customers.tenantId }).from(customers).where(eq(customers.id, customerId)).limit(1);
+  const tenantOfCustomer = owner?.tenantId ?? "ai-wrangler";
+
+  // A new review is a row, not just a notification. Recording it here means the
+  // queue is right the moment Google tells us, rather than whenever somebody
+  // next opens the screen and syncs.
+  if (event === "review.new" || event === "review.updated") {
+    const d = (body.data ?? {}) as Record<string, unknown>;
+    const externalId = String(d.reviewId ?? d.id ?? body.id ?? "");
+    if (externalId) {
+      const stars = Number(d.rating ?? d.starRating ?? 0) || null;
+      await db
+        .insert(reviews)
+        .values({
+          id: "RV" + newId().slice(0, 10),
+          tenantId: tenantOfCustomer,
+          customerId,
+          source: "google",
+          externalId,
+          author: text(d.author ?? d.reviewer, 300),
+          rating: stars && stars >= 1 && stars <= 5 ? stars : null,
+          body: text(d.comment ?? d.text, 4000),
+          postedAt: new Date(),
+        })
+        .onConflictDoNothing();
+    }
   }
 
   const kind = KIND[event] ?? "external";

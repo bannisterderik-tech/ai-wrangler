@@ -85,10 +85,9 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
   mark itself connected.
 - **Personal WhatsApp has no API.** Not a backlog item, a wall. Only WhatsApp
   Business through a provider can ever work.
-- **The client CRM is one page and one route.** `threads`, `messages` and
-  `call_log` have row level security enabled with no policy, so no tenant can
-  read them at all. Wiring clients into conversations needs a migration and a
-  schema decision, not a config change.
+- **The client CRM is still one page.** The walls under it work now — `threads`,
+  `messages` and `call_log` have policies, and a customer can read and write
+  their own conversations — but the screen on top of them has not been built.
 - **`ask()` has no call sites.** The whole model layer, including the prompt
   caching in it, is unreachable. It saves nothing until something calls it.
 - **No blog or CMS.** Asked for, not built.
@@ -101,6 +100,11 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
   suspended for that would be the customer's. Their own API key does the same
   job with neither problem; confirm the current terms with Anthropic rather than
   taking this file's word for them.
+- **Reviews are read and answered, but only for Google.** Facebook and the rest
+  of Zernio's review surface are reachable in the client and have no screen.
+- **A pointed domain is recorded, not served.** Branding stores the domain an
+  agency wants their clients to sign in on; the DNS and certificate for it are
+  still a manual step on the host.
 - **`metrics` has a reader and no writer.** The performance numbers an agent
   reads are from a table nothing fills.
 
@@ -160,7 +164,20 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
   callback number, puts it on the board as a lead, and hands urgent callers to a
   person without waiting for a model to agree.
 
+- Reviews arrive on their own from Zernio, replies are drafted by a model and
+  posted only when a person clicks — Google overwrites a reply in place and
+  keeps no history, so there is no undo to fall back on.
+- Per-agency branding: the name, colour and logo a client sees. The logo is
+  refused unless it is https, because it renders into a page the client loads.
+- Agent traces: what an agent saw, what it chose, what it cost, failures first.
+
 **True, and not fixed**
+
+- **The review-overwrite check is unproven.** Before posting, the reply is read
+  back from Google to make sure a human has not answered in the app since the
+  draft was written. That path needs a live Zernio key and has never run — it is
+  reasoned from their documented behaviour, not observed.
+
 
 - **The assistant has never spoken to anybody.** Twilio's speech `<Gather>` and
   the whole turn loop are correct by reading their docs, not by ringing a phone,

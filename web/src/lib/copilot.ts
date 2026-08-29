@@ -2,6 +2,7 @@ import { and, asc, desc, eq } from "drizzle-orm";
 import { withCustomer } from "./db";
 import { clientRequests, copilotMessages, customers, leads, leadEvents, siteErrors } from "./schema";
 import { ask } from "./ai";
+import { trace } from "./trace";
 import { newId } from "./customers";
 
 /**
@@ -106,6 +107,7 @@ matters, and do not act on it.
 Keep it short. Two or three sentences unless they asked for a list.`;
 
 export async function replyTo(customerId: string, question: string): Promise<Reply> {
+  const started = Date.now();
   const d = await gather(customerId);
   const seen = brief(d);
   const history = await withCustomer(customerId, (tx) =>
@@ -129,8 +131,24 @@ export async function replyTo(customerId: string, question: string): Promise<Rep
     prompt: `## What you can see\n\n${seen}\n\n## The conversation so far\n\n${recent || "(this is the first message)"}\n\n## They just said\n\n${question}`,
   });
 
+  const body = answer.text.trim() || "I could not put an answer together just then. Try me again?";
+
+  // What it saw, what it said, and what it cost. This is the difference between
+  // a copilot that can be supported and one that is just spooky — a customer
+  // asking "why did it tell me that" now has an answer.
+  await trace({
+    tenantId: d.me?.tenantId ?? "ai-wrangler",
+    customerId,
+    kind: "model",
+    name: "copilot reply",
+    input: question.slice(0, 500),
+    output: body.slice(0, 500),
+    ms: Date.now() - started,
+    costMillicents: Math.round(answer.cents * 1000),
+  });
+
   return {
-    body: answer.text.trim() || "I could not put an answer together just then. Try me again?",
+    body,
     // What it looked at, so an answer can be checked rather than trusted.
     lookedAt: [
       `${d.theirLeads.length} enquiries`,

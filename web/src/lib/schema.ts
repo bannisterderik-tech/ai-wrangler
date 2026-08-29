@@ -24,6 +24,13 @@ export const tenants = pgTable("tenants", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   canBuild: boolean("can_build").notNull().default(false),
+  /** What a client sees. Multi-tenancy without these is a database feature. */
+  brandName: text("brand_name"),
+  brandLogoUrl: text("brand_logo_url"),
+  brandAccent: text("brand_accent"),
+  brandDomain: text("brand_domain"),
+  brandFromEmail: text("brand_from_email"),
+  brandSupport: text("brand_support"),
   status: text("status").notNull().default("active"),
   plan: text("plan"),
   note: text("note"),
@@ -913,4 +920,66 @@ export const receptionistCalls = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("receptionist_calls_customer").on(t.customerId, t.createdAt)],
+);
+
+/**
+ * What people say in public about a shop we run.
+ *
+ * Replies are drafted and approved by a person. Google overwrites a reply in
+ * place and keeps no history, so a machine answering a one-star review
+ * unsupervised cannot be undone — only overwritten again by somebody upset.
+ */
+export const reviews = pgTable(
+  "reviews",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
+    customerId: text("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    source: text("source").notNull().default("google"),
+    externalId: text("external_id").notNull(),
+    author: text("author"),
+    rating: integer("rating"),
+    body: text("body"),
+    postedAt: timestamp("posted_at", { withTimezone: true }),
+    /** What is already public. */
+    replyText: text("reply_text"),
+    repliedAt: timestamp("replied_at", { withTimezone: true }),
+    /** What we would say. none | draft | approved | posted | skipped */
+    draftText: text("draft_text"),
+    draftState: text("draft_state").notNull().default("none"),
+    draftBy: text("draft_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("reviews_customer").on(t.customerId, t.postedAt)],
+);
+
+/**
+ * What an agent saw, chose, and what it cost.
+ *
+ * Spend and a heartbeat say an agent is alive and what it burned. Neither
+ * answers "why did it do that", which is the question a customer asks and the
+ * one that makes a managed agent supportable.
+ */
+export const agentTraces = pgTable(
+  "agent_traces",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "cascade" }),
+    personId: text("person_id"),
+    jobId: text("job_id"),
+    /** tool | model | decision | error | event */
+    kind: text("kind").notNull(),
+    name: text("name").notNull(),
+    input: text("input"),
+    output: text("output"),
+    ok: boolean("ok").notNull().default(true),
+    ms: integer("ms").notNull().default(0),
+    costMillicents: integer("cost_millicents").notNull().default(0),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("agent_traces_customer").on(t.customerId, t.at), index("agent_traces_person").on(t.personId, t.at)],
 );
