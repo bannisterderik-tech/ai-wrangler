@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { fail, guardTenant } from "@/lib/api";
 import { placeCall, twilioStatus, voiceToken } from "@/lib/twilio";
 import { getAgencyKey } from "@/lib/keys";
+import { customerInTenant } from "@/lib/tenant-scope";
+import { numberForCustomer } from "@/lib/numbers";
 
 export async function GET() {
   const t = await guardTenant();
@@ -21,11 +23,25 @@ export async function POST(req: Request) {
   const t = await guardTenant();
   if ("error" in t) return t.error;
   try {
-    const { to } = await req.json();
+    const { to, customerId } = await req.json().catch(() => ({}));
     if (!to) return NextResponse.json({ error: "who are we calling?" }, { status: 400 });
+
+    // Whose number the person on the other end sees, and calls back on.
+    let from: string | null = null;
+    if (customerId) {
+      if (!(await customerInTenant(t.tenantId, String(customerId)))) {
+        return NextResponse.json({ error: "no such customer" }, { status: 404 });
+      }
+      from = (await numberForCustomer(String(customerId)))?.number ?? null;
+    }
+
     // The number Twilio rings first. The lead only hears a human.
     const bridge = (await getAgencyKey("callback_number")) ?? process.env.OPERATOR_CALLBACK_NUMBER ?? "";
-    return NextResponse.json(await placeCall(String(to), bridge));
+    const placed = await placeCall(String(to), bridge, from);
+    return NextResponse.json({
+      ...placed,
+      warning: placed.shared ? "Calling from the shared number — this customer has none of their own." : undefined,
+    });
   } catch (e) {
     return fail(e);
   }

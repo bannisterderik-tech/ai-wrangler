@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { fail, guardTenant, operator } from "@/lib/api";
-import { audit, customers, subscriptionInvoices, subscriptions } from "@/lib/schema";
+import { audit, customers, subscriptionInvoices, subscriptions, usageEvents } from "@/lib/schema";
+import { customerIdsFor, ownedBy } from "@/lib/tenant-scope";
 import { billingPortal, cancelSubscription, stripeConfigured } from "@/lib/stripe";
 import { publicOrigin } from "@/lib/origin";
 
@@ -52,8 +53,34 @@ export async function GET() {
     // of them recover; writing them off today would understate the business.
     const billing = rows.filter((r) => ["active", "trialing", "past_due"].includes(r.status));
 
+    // What this month has cost us per customer. Not yet marked up or charged —
+    // the meter has to exist and be trusted before anything is billed from it.
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
+    const mine = await customerIdsFor(t.tenantId);
+    const usage = await db
+      .select({
+        customerId: usageEvents.customerId,
+        kind: usageEvents.kind,
+        quantity: sql<number>`sum(${usageEvents.quantity})::int`,
+        millicents: sql<number>`sum(${usageEvents.costMillicents})::int`,
+      })
+      .from(usageEvents)
+      .where(and(ownedBy(usageEvents.customerId, mine), gte(usageEvents.at, monthStart)))
+      .groupBy(usageEvents.customerId, usageEvents.kind);
+
     return NextResponse.json({
       configured: stripeConfigured(),
+      usage: usage.map((u) => ({
+        customerId: u.customerId,
+        kind: u.kind,
+        quantity: u.quantity,
+        // Tenths of a cent to dollars. Kept as a number of dollars because that
+        // is what a screen shows; the precision lives in the column.
+        cost: u.millicents / 100000,
+      })),
+      usageCost: usage.reduce((a, u) => a + u.millicents, 0) / 100000,
       mrr: billing.reduce((a, r) => a + r.monthlyCents, 0) / 100,
       collected: rows.reduce((a, r) => a + r.collectedCents, 0) / 100,
       counts: {

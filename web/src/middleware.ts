@@ -13,6 +13,13 @@ const PUBLIC = [
   // HMAC signature on the raw body is the only wall — and the route refuses
   // outright when no secret is set rather than trusting anything unsigned.
   "/api/zernio/webhook",
+  // What Twilio tells us: a call arriving on a customer's own number, a text,
+  // and how a call ended. Twilio has no session with us, so the HMAC-SHA1
+  // signature over the exact URL and body is the only wall — and each route
+  // checks it before reading a single field.
+  "/api/twilio/inbound/voice",
+  "/api/twilio/inbound/sms",
+  "/api/twilio/inbound/status",
   "/api/agent/spend",
   "/api/agent/next",
   // A worker reporting its own health, Bearer-authenticated like the rest.

@@ -40,7 +40,7 @@ Stripe key and no Twilio account on the machine it was written on.
 | **GitHub App tokens** | No installation token has ever been minted. If the JWT signing is wrong, `checkout` fails and the agent still cannot push. |
 | **`open_branch` verification** | Never called against a real repository. |
 | **Stripe** | Tested against self-signed payloads with a test secret — including the whole subscription lifecycle. Never talked to Stripe. The one-off deposit path has the same standing it always had; the recurring path is newer and has the same gap. |
-| **Twilio** | No call has ever been placed. The `<Dial>` TwiML is correct by reading, not by ringing a phone. |
+| **Twilio** | No call has ever been placed and no number has ever been bought. The `<Dial>` TwiML, the purchase call and the number search are correct by reading, not by ringing a phone. What IS proven without Twilio: the webhook signature (mutation-tested), inbound routing by the number dialled, and the meter counting a retried callback once. |
 | **Resend** | Mail has failed in testing, not succeeded. |
 | **Zernio** | All 596 operations are generated from Zernio's published spec and typecheck. **No live call has ever been made** — there is no `ZERNIO_API_KEY` on the machine this was written on. The spec-conformance and validation tests pass without one; they prove the client matches the spec, not that the spec matches Zernio's behaviour. |
 | **The Zernio webhook** | The signature check is mutation-tested (removing it fails two tests) and the accept path is exercised with a real HMAC. Zernio itself has never called it. |
@@ -85,9 +85,6 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
   mark itself connected.
 - **Personal WhatsApp has no API.** Not a backlog item, a wall. Only WhatsApp
   Business through a provider can ever work.
-- **One shared Twilio number for every customer.** A customer's message goes out
-  from the same number as every other customer's. This is the loudest remaining
-  contradiction in a product whose premise is per-customer isolation.
 - **The client CRM is one page and one route.** `threads`, `messages` and
   `call_log` have row level security enabled with no policy, so no tenant can
   read them at all. Wiring clients into conversations needs a migration and a
@@ -153,7 +150,22 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
 - `/team` drew a hardcoded card saying "claude-code connected · this laptop"
   regardless of whether anything was. It redirects to Sessions now.
 
+- Every customer can have their own phone number, bound through the same
+  unique index as a repository. Inbound calls and texts are routed by the number
+  they arrived ON — never by `From`, which the caller controls — and land in
+  that customer's call log and conversations.
+
 **True, and not fixed**
+
+- **The usage meter has never been reconciled against a real invoice.** The
+  Twilio rates in `numbers.ts` are US list prices read from their pricing page,
+  not what your account is actually charged. Nothing is billed from the meter
+  yet, deliberately: check a month of it against a real Twilio invoice before
+  marking anything up.
+- **A customer with no number still sends from the shared caller id.** That is
+  now a visible, counted state rather than the design — Settings says how many
+  are still sharing — but it is still true for anyone not yet migrated.
+
 
 - **Customer ids are still global slugs.** Two agencies both signing "Acme"
   want one primary key. Every path now refuses rather than adopting, but the

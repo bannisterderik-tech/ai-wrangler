@@ -27,6 +27,12 @@ const env = {
   // only half a proof. Without a secret the route refuses everything, and a
   // suite that only ever sees refusals would pass with the verification gone.
   ZERNIO_WEBHOOK_SECRET: process.env.ZERNIO_WEBHOOK_SECRET || "zwh_test_only_not_a_real_secret",
+  // Twilio signs its webhooks with the auth token. Without one the inbound
+  // routes can only ever refuse, and a suite that only sees refusals passes
+  // just as happily with the verification deleted. The SID is set alongside it
+  // so twilioConfigured() is honest, but no request is ever made to Twilio.
+  TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID || "ACtest0000000000000000000000000000",
+  TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN || "test-twilio-auth-token",
 };
 const base = `http://localhost:${env.PORT}`;
 env.TEST_BASE_URL = base;

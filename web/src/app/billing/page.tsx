@@ -13,8 +13,9 @@ type Invoice = {
   id: string; subscriptionId: string | null; amount: number; status: string;
   reason: string | null; hostedUrl: string | null; paidAt: string | null; createdAt: string;
 };
+type Usage = { customerId: string | null; kind: string; quantity: number; cost: number };
 type Payload = {
-  configured: boolean; mrr: number; collected: number;
+  configured: boolean; mrr: number; collected: number; usageCost: number; usage: Usage[];
   counts: { billing: number; pastDue: number; ended: number };
   subscriptions: Sub[]; invoices: Invoice[];
 };
@@ -75,6 +76,7 @@ export default function BillingPage() {
         <Figure label="Collected" value={money(data.collected)} />
         <Figure label="Billing" value={String(data.counts.billing)} />
         <Figure label="Overdue" value={String(data.counts.pastDue)} tone={data.counts.pastDue ? "var(--state-blocked)" : undefined} />
+        <Figure label="Cost this month" value={money(data.usageCost)} />
         {!data.configured ? (
           <span className="ml-auto text-[11.5px]" style={{ color: "var(--state-blocked)" }}>
             Stripe is not configured — nothing can be charged.
@@ -158,6 +160,30 @@ export default function BillingPage() {
             </tbody>
           </table>
         )}
+
+        {data.usage.length ? (
+          <div className="p-4">
+            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[1.4px]" style={{ color: "var(--text-secondary)" }}>
+              What they cost us this month
+            </div>
+            <p className="mb-2 max-w-[74ch] text-[12px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+              Measured, not marked up. Nothing here is charged to anybody yet — the meter has to be reconciled
+              against a real Twilio invoice before a number on it is worth billing from.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {data.usage.map((u) => (
+                <div key={`${u.customerId}-${u.kind}`} className="flex flex-wrap items-baseline gap-2 border-b pb-1.5 text-[12px]" style={{ borderColor: "var(--hairline)" }}>
+                  <span className="w-[150px] shrink-0 font-semibold">{u.customerId ?? "—"}</span>
+                  <span className="w-[52px] shrink-0" style={{ color: "var(--text-secondary)" }}>{u.kind}</span>
+                  <span className="w-[110px] shrink-0 tabular-nums" style={{ color: "var(--text-secondary)" }}>
+                    {u.quantity.toLocaleString()}
+                  </span>
+                  <span className="tabular-nums">{money(u.cost)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {data.invoices.length ? (
           <div className="p-4">

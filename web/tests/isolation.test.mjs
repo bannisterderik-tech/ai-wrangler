@@ -4946,3 +4946,245 @@ describe("the converted routes actually keep two agencies apart", () => {
     await sql`DELETE FROM agency_leads WHERE company = 'Imported By Them'`;
   });
 });
+
+/**
+ * A number of their own.
+ *
+ * Everything used to go out from one shared caller id: every shop's texts came
+ * from the same number, inbound could not be routed to anybody in particular,
+ * and no minute could be attributed to whoever spent it.
+ *
+ * These prove the parts that do not need Twilio: the signature wall on three
+ * public routes, that a number belongs to exactly one customer, that inbound is
+ * routed by the number it arrived ON rather than anything in the payload, and
+ * that the meter counts once.
+ */
+describe("every customer gets their own number", () => {
+  const AUTH = "test-twilio-auth-token";
+  let theirs = "";
+
+  /** Twilio's own algorithm: URL + sorted name/value pairs, HMAC-SHA1, base64. */
+  async function sign(url, params) {
+    const { createHmac } = await import("node:crypto");
+    const payload = Object.keys(params).sort().reduce((acc, k) => acc + k + params[k], url);
+    return createHmac("sha1", AUTH).update(Buffer.from(payload, "utf8")).digest("base64");
+  }
+
+  async function inbound(path, params, { signature, url } = {}) {
+    const full = url ?? `${process.env.PUBLIC_ORIGIN}${path}`;
+    const sig = signature ?? (await sign(full, params));
+    return fetch(`${BASE}${path}`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "x-twilio-signature": sig },
+      body: new URLSearchParams(params),
+    });
+  }
+
+  before(async () => {
+    await sql`DELETE FROM usage_events WHERE ref LIKE 'CAtest%' OR ref LIKE 'SMtest%'`;
+    await sql`DELETE FROM call_log WHERE ref LIKE 'CAtest%'`;
+    await sql`DELETE FROM messages WHERE body = 'is the sink fixed'`;
+    await sql`DELETE FROM threads WHERE phone = '+15305559999'`;
+    await sql`DELETE FROM bound_resources WHERE provider = 'twilio_number'`;
+    await sql`DELETE FROM customers WHERE id IN ('num-ours','num-theirs')`;
+    await sql`DELETE FROM people WHERE email = 'boss@eighth.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'eighth-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build, plan) VALUES ('eighth-agency','Eighth Agency', true, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_eighth','Eighth Boss','eighthboss','boss@eighth.test','operator','eighth-agency','admin')`;
+    await sql`
+      INSERT INTO customers (id, name, tenant_id) VALUES
+        ('num-ours','Numbers Ours Co','ai-wrangler'), ('num-theirs','Numbers Theirs Co','eighth-agency')`;
+    // Bound directly: buying one is a real purchase and Twilio is not connected
+    // here. What is under test is the routing and the walls, not the purchase.
+    await sql`
+      INSERT INTO bound_resources (id, customer_id, provider, resource_id, name, meta_json) VALUES
+        ('B_num_ours','num-ours','twilio_number','+15305550001','Numbers Ours Co','{"sid":"PNours"}'),
+        ('B_num_theirs','num-theirs','twilio_number','+15305550002','Numbers Theirs Co','{"sid":"PNtheirs"}')`;
+
+    const raw = `wr_sess_eighth_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`INSERT INTO login_links (token_hash, email, expires_at)
+              VALUES (${hash}, 'boss@eighth.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    theirs = v ? `wrangler_session=${v}` : "";
+  });
+
+  test("the inbound routes are reachable without a session", async () => {
+    // Twilio has no cookie. If the door redirects them, nothing inbound works.
+    const res = await inbound("/api/twilio/inbound/sms", { To: "+15305550001", From: "+1", Body: "x" });
+    assert.notEqual(res.status, 307, "the door must not redirect Twilio to the login page");
+  });
+
+  test("an unsigned inbound request is refused", async () => {
+    const res = await fetch(`${BASE}/api/twilio/inbound/voice`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ To: "+15305550001", From: "+15305559999", CallSid: "CAtest0" }),
+    });
+    assert.equal(res.status, 401);
+  });
+
+  test("a signature over a DIFFERENT url is refused", async () => {
+    // The URL is part of what is signed, so this is what stops somebody
+    // replaying a valid signature at another one of our endpoints.
+    const params = { To: "+15305550001", From: "+15305559999", CallSid: "CAtest0" };
+    const wrong = await sign(`${process.env.PUBLIC_ORIGIN}/api/twilio/inbound/sms`, params);
+    const res = await inbound("/api/twilio/inbound/voice", params, { signature: wrong });
+    assert.equal(res.status, 401);
+  });
+
+  test("a tampered body is refused", async () => {
+    const params = { To: "+15305550001", From: "+15305559999", CallSid: "CAtest0" };
+    const sig = await sign(`${process.env.PUBLIC_ORIGIN}/api/twilio/inbound/voice`, params);
+    const res = await inbound("/api/twilio/inbound/voice", { ...params, To: "+15305550002" }, { signature: sig });
+    assert.equal(res.status, 401, "changing whose number it came in on must break the signature");
+  });
+
+  test("nothing was recorded by any of that", async () => {
+    const rows = await sql`SELECT id FROM call_log WHERE ref = 'CAtest0'`;
+    assert.equal(rows.length, 0, "an unverified webhook must never write a call");
+  });
+
+  test("a signed call is attributed by the number it arrived on", async () => {
+    const res = await inbound("/api/twilio/inbound/voice", {
+      To: "+15305550002", From: "+15305559999", CallSid: "CAtest1", CallStatus: "ringing",
+    });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type") ?? "", /xml/);
+
+    const [row] = await sql`SELECT customer_id, tenant_id, direction, from_number FROM call_log WHERE ref = 'CAtest1'`;
+    assert.ok(row, "the call should be logged");
+    assert.equal(row.customer_id, "num-theirs", "routed by To, which is the number they dialled");
+    assert.equal(row.tenant_id, "eighth-agency");
+    assert.equal(row.direction, "in");
+    assert.equal(row.from_number, "+15305559999");
+  });
+
+  test("the caller cannot choose whose customer they reach", async () => {
+    // `From` is the caller and is trivially spoofed; only `To` decides.
+    const res = await inbound("/api/twilio/inbound/voice", {
+      To: "+15305550002", From: "+15305550001", CallSid: "CAtest2", CallStatus: "ringing",
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT customer_id FROM call_log WHERE ref = 'CAtest2'`;
+    assert.equal(row.customer_id, "num-theirs", "a spoofed From must not move the call to another customer");
+  });
+
+  test("a call on a number nobody owns is answered, not dropped", async () => {
+    const res = await inbound("/api/twilio/inbound/voice", {
+      To: "+15309999999", From: "+15305559999", CallSid: "CAtest3", CallStatus: "ringing",
+    });
+    assert.equal(res.status, 200);
+    const body = await res.text();
+    assert.match(body, /not in service/i, "a real person dialled it; say something");
+  });
+
+  test("a text lands in that customer's conversation", async () => {
+    const res = await inbound("/api/twilio/inbound/sms", {
+      To: "+15305550002", From: "+15305559999", Body: "is the sink fixed",
+      MessageSid: "SMtest1", NumSegments: "1",
+    });
+    assert.equal(res.status, 200);
+    const [t] = await sql`
+      SELECT t.id, t.customer_id, t.tenant_id, t.unread FROM threads t WHERE t.phone = '+15305559999'`;
+    assert.ok(t);
+    assert.equal(t.customer_id, "num-theirs");
+    assert.equal(t.tenant_id, "eighth-agency");
+    assert.equal(t.unread, true);
+    const msgs = await sql`SELECT body, direction FROM messages WHERE thread_id = ${t.id}`;
+    assert.equal(msgs[0].body, "is the sink fixed");
+    assert.equal(msgs[0].direction, "in");
+  });
+
+  test("a second text continues the same conversation", async () => {
+    await inbound("/api/twilio/inbound/sms", {
+      To: "+15305550002", From: "+15305559999", Body: "still waiting",
+      MessageSid: "SMtest2", NumSegments: "1",
+    });
+    const rows = await sql`SELECT id FROM threads WHERE phone = '+15305559999'`;
+    assert.equal(rows.length, 1, "one person, one thread");
+  });
+
+  test("the meter counts a call once, however often Twilio retries", async () => {
+    const params = {
+      To: "+15305550002", From: "+15305559999", CallSid: "CAtest1",
+      CallStatus: "completed", CallDuration: "95",
+    };
+    await inbound("/api/twilio/inbound/status", params);
+    await inbound("/api/twilio/inbound/status", params);
+
+    const rows = await sql`SELECT quantity, unit, cost_millicents, customer_id FROM usage_events WHERE ref = 'CAtest1'`;
+    assert.equal(rows.length, 1, "a retried status callback must not bill twice");
+    assert.equal(rows[0].quantity, 95);
+    assert.equal(rows[0].unit, "seconds");
+    assert.equal(rows[0].customer_id, "num-theirs");
+    // 95 seconds is two billed minutes; Twilio rounds up, so we do.
+    assert.equal(rows[0].cost_millicents, 280);
+
+    const [call] = await sql`SELECT seconds, outcome FROM call_log WHERE ref = 'CAtest1'`;
+    assert.equal(call.seconds, 95);
+    assert.equal(call.outcome, "answered");
+  });
+
+  test("one number, one customer — enforced by the database", async () => {
+    const dupe = sql`
+      INSERT INTO bound_resources (id, customer_id, provider, resource_id, name)
+      VALUES ('B_num_dupe','num-ours','twilio_number','+15305550002','Sneaky')`;
+    await assert.rejects(dupe, /duplicate key|unique/i, "two customers cannot share a number");
+  });
+
+  test("another agency cannot see or release your number", async () => {
+    const asThem = (path, init = {}) =>
+      fetch(`${BASE}${path}`, {
+        ...init, redirect: "manual",
+        headers: { "Content-Type": "application/json", cookie: theirs, ...(init.headers || {}) },
+      });
+
+    const list = await (await asThem("/api/twilio/numbers")).json();
+    assert.deepEqual(list.bound.map((b) => b.number), ["+15305550002"], "only their own");
+
+    const gone = await asThem("/api/twilio/numbers?customerId=num-ours", { method: "DELETE" });
+    assert.equal(gone.status, 404);
+    const still = await sql`SELECT id FROM bound_resources WHERE resource_id = '+15305550001'`;
+    assert.equal(still.length, 1, "and it is still bound");
+  });
+
+  test("texting for another agency's customer is refused", async () => {
+    const res = await fetch(`${BASE}/api/twilio/sms`, {
+      method: "POST", redirect: "manual",
+      headers: { "Content-Type": "application/json", cookie: theirs },
+      body: JSON.stringify({ to: "+15305559999", body: "hello", customerId: "num-ours" }),
+    });
+    assert.equal(res.status, 404);
+  });
+
+  test("sending without a customer says it used the shared number", async () => {
+    const res = await api("/api/twilio/sms", {
+      method: "POST",
+      body: JSON.stringify({ to: "+15305559999", body: "hello" }),
+    });
+    assert.equal(res.status, 200);
+    // Twilio is not configured here, so this is the demo path — what matters is
+    // that no customer means no number of their own was used.
+    assert.equal(res.body.from, null);
+  });
+});
+
+describe("the meter is per agency too", () => {
+  test("usage on the billing screen is only your own customers'", async () => {
+    // num-theirs belongs to eighth-agency and has a metered call from the
+    // inbound tests above. The house must not see it on its own money screen.
+    const mine = await api("/api/billing");
+    assert.equal(mine.status, 200);
+    const leaked = (mine.body.usage ?? []).filter((u) => u.customerId === "num-theirs");
+    assert.deepEqual(leaked, [], "another agency's phone bill is not ours to read");
+
+    const [theirRow] = await sql`SELECT customer_id FROM usage_events WHERE ref = 'CAtest1'`;
+    assert.equal(theirRow.customer_id, "num-theirs", "and the row does exist — this is not vacuous");
+  });
+});

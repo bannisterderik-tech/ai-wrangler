@@ -9,8 +9,12 @@ import { boundResources } from "./schema";
  * account. It goes through the same wall as a repo for the same reason: an ad
  * account is somebody's money, and pointing two customers at one of them spends
  * the wrong person's.
+ *
+ * `twilio_number` is sharper still. A phone number is the identity a shop's own
+ * customers see and ring back — two customers on one number means one shop
+ * answering the other's calls.
  */
-export type BoundKind = "vercel" | "github" | "google_ads";
+export type BoundKind = "vercel" | "github" | "google_ads" | "twilio_number";
 
 export class IsolationError extends Error {
   status: number;

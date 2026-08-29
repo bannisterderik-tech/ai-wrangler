@@ -524,6 +524,11 @@ export const callLog = pgTable(
     leadId: text("lead_id"),
     customerId: text("customer_id"),
     toNumber: text("to_number"),
+    fromNumber: text("from_number"),
+    /** out — somebody clicked Call. in — they rang the customer's own number. */
+    direction: text("direction").notNull().default("out"),
+    /** Twilio's CallSid, so the status callback can find this row later. */
+    ref: text("ref"),
     outcome: text("outcome").notNull().default("dialled"),
     seconds: integer("seconds").notNull().default(0),
     note: text("note"),
@@ -818,4 +823,35 @@ export const subscriptionInvoices = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("subscription_invoices_sub").on(t.subscriptionId, t.createdAt)],
+);
+
+/**
+ * What each customer costs us, line by line.
+ *
+ * One table for calls, texts, model tokens and ad spend, because the question
+ * is always the same: what did this customer cost this month. It is the
+ * foundation for rebilling — you cannot mark up what you never measured.
+ *
+ * Costs are in TENTHS of a cent. Twilio charges $0.0079 for a text; in whole
+ * cents that rounds to nothing, and a meter that rounds every row to zero is
+ * not a meter.
+ */
+export const usageEvents = pgTable(
+  "usage_events",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "cascade" }),
+    /** call | sms | ai | ads */
+    kind: text("kind").notNull(),
+    /** Seconds, segments or tokens — whichever `unit` names. */
+    quantity: integer("quantity").notNull().default(0),
+    unit: text("unit").notNull().default("unit"),
+    costMillicents: integer("cost_millicents").notNull().default(0),
+    /** The provider's id, so a retried webhook cannot count the same call twice. */
+    ref: text("ref"),
+    detail: text("detail"),
+    at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("usage_events_customer").on(t.customerId, t.at), index("usage_events_tenant").on(t.tenantId, t.at)],
 );
