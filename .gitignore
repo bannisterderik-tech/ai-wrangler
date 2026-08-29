@@ -17,3 +17,6 @@ web/.vercel
 
 # CRM exports: real customer names and deal values. Import them, do not commit them.
 web/scripts/import/*.csv
+
+# A scaffolded project that landed in the repo root. Not ours to ship.
+/test/
