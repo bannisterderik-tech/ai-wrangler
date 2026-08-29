@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SelfTest } from "@/components/os/SelfTest";
 import { AdAccounts } from "@/components/os/AdAccounts";
 import { PhoneNumbers } from "@/components/os/PhoneNumbers";
+import { Receptionist } from "@/components/os/Receptionist";
 
 type KeyField = { id: string; label: string; hint: string; secret: boolean };
 
@@ -103,6 +104,7 @@ export default function SettingsPage() {
       <SelfTest />
       <AgencyKeys />
       <PhoneNumbers />
+      <Receptionist />
       <AdAccounts />
       <Row
         name="Vercel"

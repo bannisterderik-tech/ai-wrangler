@@ -5188,3 +5188,271 @@ describe("the meter is per agency too", () => {
     assert.equal(theirRow.customer_id, "num-theirs", "and the row does exist — this is not vacuous");
   });
 });
+
+/**
+ * The assistant that answers the phone.
+ *
+ * There is no model key here, so what the assistant SAYS is not under test —
+ * every path that would call one falls through to a human, which is itself the
+ * behaviour that matters most. What IS proven is everything deterministic: who
+ * it answers for, when it answers, the bounds it cannot exceed, that urgent
+ * callers reach a person without waiting for a model to agree, and that a call
+ * becomes a lead on the right agency's board.
+ */
+describe("the receptionist answers, and knows when not to", () => {
+  const AUTH = "test-twilio-auth-token";
+
+  async function sign(url, params) {
+    const { createHmac } = await import("node:crypto");
+    const payload = Object.keys(params).sort().reduce((acc, k) => acc + k + params[k], url);
+    return createHmac("sha1", AUTH).update(Buffer.from(payload, "utf8")).digest("base64");
+  }
+  async function inbound(path, params) {
+    const url = `${process.env.PUBLIC_ORIGIN}${path}`;
+    return fetch(`${BASE}${path}`, {
+      method: "POST",
+      redirect: "manual",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "x-twilio-signature": await sign(url, params),
+      },
+      body: new URLSearchParams(params),
+    });
+  }
+
+  before(async () => {
+    await sql`DELETE FROM receptionist_calls WHERE call_sid LIKE 'CArec%'`;
+    await sql`DELETE FROM agency_leads WHERE source = 'answered by the assistant'`;
+    await sql`DELETE FROM receptionists WHERE customer_id = 'rec-co'`;
+    await sql`DELETE FROM bound_resources WHERE resource_id = '+15305557777'`;
+    await sql`DELETE FROM customers WHERE id = 'rec-co'`;
+    await sql`INSERT INTO customers (id, name, tenant_id) VALUES ('rec-co','Rec Plumbing','ai-wrangler')`;
+    await sql`
+      INSERT INTO bound_resources (id, customer_id, provider, resource_id, name, meta_json)
+      VALUES ('B_rec','rec-co','twilio_number','+15305557777','Rec Plumbing','{"sid":"PNrec"}')`;
+  });
+
+  const setup = (patch = {}) =>
+    api("/api/receptionist", {
+      method: "POST",
+      body: JSON.stringify({
+        customerId: "rec-co", enabled: true, mode: "always",
+        businessName: "Rec Plumbing", forwardTo: "+15305556666",
+        urgentWords: "no hot water", maxTurns: 4, monthlyCap: 20,
+        ...patch,
+      }),
+    });
+
+  test("a receptionist that is off changes nothing", async () => {
+    await setup({ enabled: false });
+    const res = await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec0", CallStatus: "ringing",
+    });
+    const body = await res.text();
+    assert.match(body, /<Dial/, "it should still ring the humans");
+    assert.doesNotMatch(body, /<Gather/, "and must not answer");
+  });
+
+  test("switched on, it greets and listens", async () => {
+    await setup();
+    const res = await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec1", CallStatus: "ringing",
+    });
+    const body = await res.text();
+    assert.match(body, /<Gather/);
+    assert.match(body, /Rec Plumbing/);
+    const [row] = await sql`SELECT customer_id, turns FROM receptionist_calls WHERE call_sid = 'CArec1'`;
+    assert.equal(row.customer_id, "rec-co");
+  });
+
+  test("it always says it is a machine, whatever the greeting says", async () => {
+    // Not configurable on purpose: several states require the disclosure, and a
+    // switch for it is a switch somebody eventually turns off.
+    await setup({ greeting: "Rec Plumbing, how can I help." });
+    const res = await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec2", CallStatus: "ringing",
+    });
+    assert.match(await res.text(), /automated assistant/i);
+  });
+
+  test("an urgent caller reaches a person without waiting for a model", async () => {
+    await setup();
+    await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec3", CallStatus: "ringing",
+    });
+    const res = await inbound("/api/twilio/inbound/gather", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec3",
+      SpeechResult: "there is a gas leak in my kitchen",
+    });
+    const body = await res.text();
+    assert.match(body, /<Dial/, "urgent means a human, now");
+    assert.match(body, /\+15305556666/);
+    const [row] = await sql`SELECT outcome, urgent FROM receptionist_calls WHERE call_sid = 'CArec3'`;
+    assert.equal(row.outcome, "transferred");
+    assert.equal(row.urgent, true);
+  });
+
+  test("an urgent call still becomes a lead on the board", async () => {
+    const [row] = await sql`SELECT lead_id FROM receptionist_calls WHERE call_sid = 'CArec3'`;
+    assert.ok(row.lead_id, "the call must not be lost just because it was transferred");
+    const [lead] = await sql`SELECT tenant_id, phone, note, stage FROM agency_leads WHERE id = ${row.lead_id}`;
+    assert.equal(lead.tenant_id, "ai-wrangler");
+    assert.equal(lead.phone, "+15305558888");
+    assert.match(lead.note, /gas leak/);
+  });
+
+  test("the shop's own urgent words count too", async () => {
+    await setup({ urgentWords: "no hot water" });
+    await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec4", CallStatus: "ringing",
+    });
+    const res = await inbound("/api/twilio/inbound/gather", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec4",
+      SpeechResult: "we have no hot water since this morning",
+    });
+    assert.match(await res.text(), /<Dial/);
+  });
+
+  test("with no model it hands over rather than stalling", async () => {
+    // There is no AI key in the suite, so decide() takes its failure path. A
+    // receptionist that fails closed loses the call it was bought to catch.
+    await setup({ urgentWords: "" });
+    await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec5", CallStatus: "ringing",
+    });
+    const res = await inbound("/api/twilio/inbound/gather", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec5",
+      SpeechResult: "my tap is dripping and I would like someone to look at it",
+    });
+    const body = await res.text();
+    assert.match(body, /<Dial/, "a broken model must end at a human");
+    assert.doesNotMatch(body, /undefined|null|\{/, "and must never read JSON at somebody");
+  });
+
+  test("silence gets one nudge, then a person", async () => {
+    await setup();
+    await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec6", CallStatus: "ringing",
+    });
+    const first = await inbound("/api/twilio/inbound/gather", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec6", SpeechResult: "",
+    });
+    assert.match(await first.text(), /<Gather/, "one more try");
+    const second = await inbound("/api/twilio/inbound/gather", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec6", SpeechResult: "",
+    });
+    assert.match(await second.text(), /<Dial/, "not forever");
+  });
+
+  test("the turn limit ends at a human, not a loop", async () => {
+    await setup({ maxTurns: 2, urgentWords: "" });
+    await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec7", CallStatus: "ringing",
+    });
+    await sql`UPDATE receptionist_calls SET turns = 1 WHERE call_sid = 'CArec7'`;
+    const res = await inbound("/api/twilio/inbound/gather", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec7", SpeechResult: "hello there",
+    });
+    assert.match(await res.text(), /<Dial/);
+  });
+
+  test("over the monthly cap it stops answering and rings the humans", async () => {
+    await setup({ monthlyCap: 1, mode: "always" });
+    await sql`
+      INSERT INTO usage_events (id, tenant_id, customer_id, kind, quantity, unit, cost_millicents, ref)
+      VALUES ('UE_reccap','ai-wrangler','rec-co','ai',1,'turns',200000,'capfill')`;
+    const res = await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec8", CallStatus: "ringing",
+    });
+    const body = await res.text();
+    assert.doesNotMatch(body, /<Gather/, "past the cap it must not answer");
+    assert.match(body, /<Dial/, "but the call still reaches somebody");
+    await sql`DELETE FROM usage_events WHERE id = 'UE_reccap'`;
+  });
+
+  test("after_hours does not answer during business hours", async () => {
+    const hour = new Date().getUTCHours();
+    // A window that certainly contains right now, in UTC.
+    await setup({
+      mode: "after_hours",
+      hours: { tz: "UTC", open: Math.max(0, hour - 1), close: Math.min(24, hour + 2), days: [0, 1, 2, 3, 4, 5, 6] },
+    });
+    const res = await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArec9", CallStatus: "ringing",
+    });
+    assert.doesNotMatch(await res.text(), /<Gather/, "the humans are in");
+  });
+
+  test("after_hours does answer outside them", async () => {
+    await setup({ mode: "after_hours", hours: { tz: "UTC", open: 0, close: 0, days: [] } });
+    const res = await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArecA", CallStatus: "ringing",
+    });
+    assert.match(await res.text(), /<Gather/);
+  });
+
+  test("on_no_answer rings the humans first and catches the miss", async () => {
+    await setup({ mode: "on_no_answer" });
+    const ring = await inbound("/api/twilio/inbound/voice", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArecB", CallStatus: "ringing",
+    });
+    const body = await ring.text();
+    assert.match(body, /<Dial/, "humans first");
+    assert.match(body, /inbound\/missed/, "and the assistant catches what they miss");
+    assert.doesNotMatch(body, /<Gather/, "it does not answer over them");
+
+    const missed = await inbound("/api/twilio/inbound/missed", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArecB", DialCallStatus: "no-answer",
+    });
+    assert.match(await missed.text(), /<Gather/, "nobody picked up, so it picks up");
+  });
+
+  test("if a human DID answer, it stays quiet", async () => {
+    const res = await inbound("/api/twilio/inbound/missed", {
+      To: "+15305557777", From: "+15305558888", CallSid: "CArecC", DialCallStatus: "completed",
+    });
+    const body = await res.text();
+    assert.doesNotMatch(body, /<Gather|<Say/, "talking over the end of a real call is worse than nothing");
+  });
+
+  test("every turn route is behind the signature", async () => {
+    for (const path of ["/api/twilio/inbound/gather", "/api/twilio/inbound/missed"]) {
+      const res = await fetch(`${BASE}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ To: "+15305557777", CallSid: "CAforged", SpeechResult: "hi" }),
+      });
+      assert.equal(res.status, 401, `${path} must refuse an unsigned turn`);
+    }
+    const rows = await sql`SELECT id FROM receptionist_calls WHERE call_sid = 'CAforged'`;
+    assert.equal(rows.length, 0);
+  });
+
+  test("another agency cannot configure or read it", async () => {
+    const raw = `wr_sess_ninth_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    await sql`DELETE FROM people WHERE email = 'boss@ninth.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'ninth-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build, plan) VALUES ('ninth-agency','Ninth Agency', true, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_ninth','Ninth Boss','ninthboss','boss@ninth.test','operator','ninth-agency','admin')`;
+    await sql`INSERT INTO login_links (token_hash, email, expires_at)
+              VALUES (${createHash("sha256").update(raw).digest("hex")}, 'boss@ninth.test', now() + interval '15 minutes')`;
+    const login = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const cookie = `wrangler_session=${/wrangler_session=([^;]+)/.exec(login.headers.get("set-cookie") || "")?.[1]}`;
+
+    const write = await fetch(`${BASE}/api/receptionist`, {
+      method: "POST", redirect: "manual",
+      headers: { "Content-Type": "application/json", cookie },
+      body: JSON.stringify({ customerId: "rec-co", enabled: false }),
+    });
+    assert.equal(write.status, 404);
+    const [still] = await sql`SELECT enabled FROM receptionists WHERE customer_id = 'rec-co'`;
+    assert.equal(still.enabled, true, "and it was not switched off");
+
+    const read = await (await fetch(`${BASE}/api/receptionist`, { headers: { cookie } })).json();
+    assert.deepEqual(read.receptionists, []);
+    assert.deepEqual(read.calls, []);
+  });
+});

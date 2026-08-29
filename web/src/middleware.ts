@@ -20,6 +20,10 @@ const PUBLIC = [
   "/api/twilio/inbound/voice",
   "/api/twilio/inbound/sms",
   "/api/twilio/inbound/status",
+  // Each turn of a call the assistant is handling, and the fall-through when
+  // the humans do not pick up. Same signature wall as the rest.
+  "/api/twilio/inbound/gather",
+  "/api/twilio/inbound/missed",
   "/api/agent/spend",
   "/api/agent/next",
   // A worker reporting its own health, Bearer-authenticated like the rest.

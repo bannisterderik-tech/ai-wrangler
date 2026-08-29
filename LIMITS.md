@@ -91,7 +91,7 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
   schema decision, not a config change.
 - **`ask()` has no call sites.** The whole model layer, including the prompt
   caching in it, is unreachable. It saves nothing until something calls it.
-- **No AI receptionist, blog or CMS.** Asked for, not built.
+- **No blog or CMS.** Asked for, not built.
 - **A customer's Claude subscription cannot run their agent.** Claude Code can
   sign in with a Pro or Max login, but `--bare` — which stops their own
   repository injecting hooks and CLAUDE.md into the agent — never reads OAuth or
@@ -155,7 +155,29 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
   they arrived ON — never by `From`, which the caller controls — and land in
   that customer's call log and conversations.
 
+- The assistant answers a customer's phone, in three layers: always, after
+  hours, or catching what the humans miss. It takes a name, the job and a
+  callback number, puts it on the board as a lead, and hands urgent callers to a
+  person without waiting for a model to agree.
+
 **True, and not fixed**
+
+- **The assistant has never spoken to anybody.** Twilio's speech `<Gather>` and
+  the whole turn loop are correct by reading their docs, not by ringing a phone,
+  and there is no model key on the machine this was written on — so every test
+  exercises the failure path, where it hands over to a human. What it SAYS is
+  entirely unproven. Ring it yourself before it answers for a paying customer.
+- **Call recording and AI disclosure are jurisdictional.** The greeting always
+  says it is an automated assistant, and that is not configurable. But
+  two-party-consent states have their own rules about recording and
+  transcription, and Twilio transcribes every turn. This is worth ten minutes
+  with somebody who knows the law in the states your customers operate in — it
+  is not a thing to find out about afterwards.
+- **Latency is unmeasured.** Each turn is a Twilio round trip plus a model call.
+  It uses the fast model for that reason, but nobody has timed it on a real
+  call, and a receptionist that pauses three seconds before every sentence is
+  one people hang up on.
+
 
 - **The usage meter has never been reconciled against a real invoice.** The
   Twilio rates in `numbers.ts` are US list prices read from their pricing page,

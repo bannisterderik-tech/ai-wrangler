@@ -855,3 +855,62 @@ export const usageEvents = pgTable(
   },
   (t) => [index("usage_events_customer").on(t.customerId, t.at), index("usage_events_tenant").on(t.tenantId, t.at)],
 );
+
+/**
+ * The assistant that answers a customer's phone.
+ *
+ * Layered the way the trade actually runs it: the office answers when it can,
+ * this sweeps what they miss, and it owns nights outright.
+ */
+export const receptionists = pgTable("receptionists", {
+  customerId: text("customer_id")
+    .primaryKey()
+    .references(() => customers.id, { onDelete: "cascade" }),
+  tenantId: text("tenant_id").notNull().default("ai-wrangler"),
+  enabled: boolean("enabled").notNull().default(false),
+  /** always | after_hours | on_no_answer */
+  mode: text("mode").notNull().default("on_no_answer"),
+  businessName: text("business_name"),
+  greeting: text("greeting"),
+  brief: text("brief"),
+  /** {"tz":"America/Los_Angeles","open":8,"close":17,"days":[1,2,3,4,5]} */
+  hoursJson: text("hours_json"),
+  forwardTo: text("forward_to"),
+  urgentWords: text("urgent_words"),
+  /** A phone call cannot cost whatever it likes. */
+  maxTurns: integer("max_turns").notNull().default(8),
+  monthlyCapCents: integer("monthly_cap_cents").notNull().default(2000),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * One call it handled.
+ *
+ * Twilio is stateless between webhooks — each turn is a fresh request carrying
+ * only the CallSid — so this is where the conversation lives between them.
+ */
+export const receptionistCalls = pgTable(
+  "receptionist_calls",
+  {
+    id: text("id").primaryKey(),
+    callSid: text("call_sid").notNull().unique(),
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "cascade" }),
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
+    fromNumber: text("from_number"),
+    turns: integer("turns").notNull().default(0),
+    /** talking | captured | transferred | voicemail | ended | failed */
+    outcome: text("outcome").notNull().default("talking"),
+    /** [{who:"them"|"it", text}] — what was said to somebody's customer in their name. */
+    transcriptJson: text("transcript_json"),
+    callerName: text("caller_name"),
+    jobSummary: text("job_summary"),
+    callback: text("callback"),
+    urgent: boolean("urgent").notNull().default(false),
+    leadId: text("lead_id"),
+    costMillicents: integer("cost_millicents").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("receptionist_calls_customer").on(t.customerId, t.createdAt)],
+);
