@@ -39,11 +39,18 @@ Stripe key and no Twilio account on the machine it was written on.
 | **Every worker change** | The worker has never completed a single pass. Session resume, `--bare`, `--resume`, spend reporting, model selection, the pass timeout, `MAX_SPEND_USD` — all unexecuted. |
 | **GitHub App tokens** | No installation token has ever been minted. If the JWT signing is wrong, `checkout` fails and the agent still cannot push. |
 | **`open_branch` verification** | Never called against a real repository. |
-| **Stripe** | Tested against a self-signed payload with a test secret. Never talked to Stripe. |
+| **Stripe** | Tested against self-signed payloads with a test secret — including the whole subscription lifecycle. Never talked to Stripe. The one-off deposit path has the same standing it always had; the recurring path is newer and has the same gap. |
 | **Twilio** | No call has ever been placed. The `<Dial>` TwiML is correct by reading, not by ringing a phone. |
 | **Resend** | Mail has failed in testing, not succeeded. |
 | **Zernio** | All 596 operations are generated from Zernio's published spec and typecheck. **No live call has ever been made** — there is no `ZERNIO_API_KEY` on the machine this was written on. The spec-conformance and validation tests pass without one; they prove the client matches the spec, not that the spec matches Zernio's behaviour. |
 | **The Zernio webhook** | The signature check is mutation-tested (removing it fails two tests) and the accept path is exercised with a real HMAC. Zernio itself has never called it. |
+
+**The recurring billing specifically.** The webhook handling is proven against
+forged and redelivered events, and mutation-tested — making the counter
+double-count, or dropping the newer invoice shape, both fail tests. What is NOT
+proven is that Stripe accepts the Checkout Session we build. The mixed
+one-time-plus-recurring cart is read from Stripe's API reference verbatim, not
+tried. Run one test-mode proposal end to end before trusting it with a real card.
 
 **How to close this gap, in order:**
 

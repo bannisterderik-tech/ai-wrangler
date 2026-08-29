@@ -769,3 +769,53 @@ export const agentEvents = pgTable(
   },
   (t) => [index("agent_events_queue").on(t.personId, t.status, t.createdAt)],
 );
+
+/**
+ * Recurring revenue, mirrored from Stripe.
+ *
+ * Stripe is the ledger. This is the copy the OS can read without a round trip,
+ * so a screen can answer "what is our MRR" and "who is overdue" in one query.
+ */
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: text("id").primaryKey(),
+    tenantId: text("tenant_id").notNull().default("ai-wrangler"),
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    proposalId: text("proposal_id").references(() => proposals.id, { onDelete: "set null" }),
+    stripeSubscriptionId: text("stripe_subscription_id").unique(),
+    stripeCustomerId: text("stripe_customer_id"),
+    /** trialing | active | past_due | unpaid | canceled | incomplete | paused */
+    status: text("status").notNull().default("incomplete"),
+    currency: text("currency").notNull().default("usd"),
+    monthlyCents: integer("monthly_cents").notNull().default(0),
+    collectedCents: integer("collected_cents").notNull().default(0),
+    invoicesPaid: integer("invoices_paid").notNull().default(0),
+    failures: integer("failures").notNull().default(0),
+    lastFailure: text("last_failure"),
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    canceledAt: timestamp("canceled_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("subscriptions_tenant").on(t.tenantId, t.status), index("subscriptions_customer").on(t.customerId)],
+);
+
+/** Every invoice Stripe told us about, so "collected" is a sum of facts. */
+export const subscriptionInvoices = pgTable(
+  "subscription_invoices",
+  {
+    id: text("id").primaryKey(),
+    subscriptionId: text("subscription_id").references(() => subscriptions.id, { onDelete: "cascade" }),
+    customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
+    stripeInvoiceId: text("stripe_invoice_id").unique(),
+    amountCents: integer("amount_cents").notNull().default(0),
+    status: text("status").notNull().default("open"),
+    reason: text("reason"),
+    hostedUrl: text("hosted_url"),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("subscription_invoices_sub").on(t.subscriptionId, t.createdAt)],
+);

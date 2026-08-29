@@ -132,14 +132,19 @@ export async function POST(req: Request, ctx: RouteContext<"/api/p/[token]">) {
       }
       const { items, lead } = await full(p);
       const t = totals(items, p);
-      if (t.dueTodayCents <= 0) {
-        return NextResponse.json({ error: "There is no deposit due on this proposal." }, { status: 400 });
+      // Nothing due today AND nothing monthly means there is nothing to charge.
+      // A monthly-only agreement is perfectly normal and still starts here.
+      if (t.dueTodayCents <= 0 && p.monthlyCents <= 0) {
+        return NextResponse.json({ error: "There is nothing to charge on this proposal." }, { status: 400 });
       }
       const origin = trustedOrigin(req);
       const session = await depositCheckout({
         proposalId: p.id,
-        title: `${p.title} — deposit`,
+        title: p.title,
         amountCents: t.dueTodayCents,
+        // The retainer they just signed for. Charged from the same page, on the
+        // same card, rather than chased by hand every month afterwards.
+        monthlyCents: p.monthlyCents,
         currency: p.currency,
         email: lead?.email ?? null,
         successUrl: `${origin}/p/${token}?paid=1`,
@@ -152,7 +157,7 @@ export async function POST(req: Request, ctx: RouteContext<"/api/p/[token]">) {
         amountCents: t.dueTodayCents,
         status: "pending",
       });
-      return NextResponse.json({ ok: true, url: session.url });
+      return NextResponse.json({ ok: true, url: session.url, recurring: session.recurring });
     }
 
     return NextResponse.json({ error: "unknown action" }, { status: 400 });

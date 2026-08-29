@@ -4400,3 +4400,259 @@ describe("agents can be deleted, and only your own", () => {
     assert.equal(res.status, 404);
   });
 });
+
+/**
+ * The recurring half.
+ *
+ * The deposit was always charged and the retainer never was. These prove the
+ * subscription is created by the same signed webhook that creates the customer,
+ * that renewals add up, that a redelivery cannot double-count, and that a
+ * declined card is recorded without cutting anybody off.
+ *
+ * No live Stripe call is made. What is proven is our side of the contract: the
+ * events Stripe sends, handled correctly and idempotently.
+ */
+describe("the retainer is actually charged", () => {
+  const SECRET = "whsec_test_only_not_a_real_secret";
+  let proposalId = "";
+  const SUB = "sub_test_retainer";
+
+  async function send(body, { secret = SECRET, age = 0 } = {}) {
+    const { createHmac } = await import("node:crypto");
+    const payload = JSON.stringify(body);
+    const t = Math.floor(Date.now() / 1000) - age;
+    const sig = createHmac("sha256", secret).update(`${t}.${payload}`).digest("hex");
+    return fetch(`${BASE}/api/stripe/webhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "stripe-signature": `t=${t},v1=${sig}` },
+      body: payload,
+    });
+  }
+
+  before(async () => {
+    await sql`DELETE FROM subscription_invoices WHERE stripe_invoice_id LIKE 'in_test_%'`;
+    await sql`DELETE FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    await sql`DELETE FROM proposals WHERE title = 'Retainer deal'`;
+    await sql`DELETE FROM agency_leads WHERE company = 'Retainer Co'`;
+    await sql`DELETE FROM customers WHERE id = 'retainer-co'`;
+    await sql`
+      INSERT INTO agency_leads (id, company, contact, email, stage, value_cents)
+      VALUES ('L_retainer','Retainer Co','Pat Retainer','pat@retainer.test','offer_sent',0)`;
+    const made = await api("/api/proposals", {
+      method: "POST",
+      body: JSON.stringify({ leadId: "L_retainer", title: "Retainer deal" }),
+    });
+    proposalId = made.body.id;
+    // $1,000 up front and $500 a month — the shape almost every deal has.
+    await api(`/api/proposals/${proposalId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        items: [
+          { name: "Build", cadence: "once", qty: 1, unitCents: 100000 },
+          { name: "Retainer", cadence: "monthly", qty: 1, unitCents: 50000 },
+        ],
+      }),
+    });
+    await api(`/api/proposals/${proposalId}`, { method: "PATCH", body: JSON.stringify({ action: "send" }) });
+  });
+
+  test("the proposal carries a monthly figure at all", async () => {
+    const [p] = await sql`SELECT monthly_cents, once_cents FROM proposals WHERE id = ${proposalId}`;
+    assert.equal(p.monthly_cents, 50000, "the retainer is on the proposal");
+    assert.equal(p.once_cents, 100000);
+  });
+
+  test("paying starts a subscription, not just a deposit", async () => {
+    const res = await send({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_test_retainer", payment_status: "paid", payment_intent: "pi_r1",
+          subscription: SUB, customer: "cus_test_retainer",
+          metadata: { proposal_id: proposalId },
+        },
+      },
+    });
+    assert.equal(res.status, 200, await res.text());
+
+    const [sub] = await sql`
+      SELECT customer_id, status, monthly_cents, stripe_customer_id
+        FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.ok(sub, "a subscription row should exist");
+    assert.equal(sub.customer_id, "retainer-co");
+    assert.equal(sub.monthly_cents, 50000, "priced from the proposal, not from the webhook");
+    assert.equal(sub.stripe_customer_id, "cus_test_retainer");
+  });
+
+  test("redelivering that same session makes no second subscription", async () => {
+    await send({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_test_retainer", payment_status: "paid", subscription: SUB,
+          customer: "cus_test_retainer", metadata: { proposal_id: proposalId },
+        },
+      },
+    });
+    const [{ count }] = await sql`SELECT count(*)::int FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.equal(count, 1);
+  });
+
+  test("a paid invoice is counted", async () => {
+    const res = await send({
+      type: "invoice.paid",
+      data: {
+        object: {
+          id: "in_test_1", subscription: SUB, amount_paid: 50000,
+          billing_reason: "subscription_cycle", hosted_invoice_url: "https://stripe.test/i/1",
+        },
+      },
+    });
+    assert.equal(res.status, 200);
+    const [sub] = await sql`
+      SELECT collected_cents, invoices_paid, status FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.equal(sub.collected_cents, 50000);
+    assert.equal(sub.invoices_paid, 1);
+    assert.equal(sub.status, "active");
+  });
+
+  test("the same invoice delivered twice is counted once", async () => {
+    // Stripe redelivers until it gets a 2xx. A counter that a retry can double
+    // is a revenue figure nobody can trust, so this is the load-bearing test.
+    await send({
+      type: "invoice.paid",
+      data: { object: { id: "in_test_1", subscription: SUB, amount_paid: 50000, billing_reason: "subscription_cycle" } },
+    });
+    const [sub] = await sql`
+      SELECT collected_cents, invoices_paid FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.equal(sub.collected_cents, 50000, "still one month");
+    assert.equal(sub.invoices_paid, 1);
+  });
+
+  test("a second month adds up", async () => {
+    await send({
+      type: "invoice.paid",
+      data: { object: { id: "in_test_2", subscription: SUB, amount_paid: 50000, billing_reason: "subscription_cycle" } },
+    });
+    const [sub] = await sql`
+      SELECT collected_cents, invoices_paid FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.equal(sub.collected_cents, 100000);
+    assert.equal(sub.invoices_paid, 2);
+  });
+
+  test("the newer Stripe invoice shape is read too", async () => {
+    // Stripe moved this field from invoice.subscription to
+    // invoice.parent.subscription_details.subscription. Missing it silently
+    // means renewals stop being counted the day the account's API version moves.
+    await send({
+      type: "invoice.paid",
+      data: {
+        object: {
+          id: "in_test_3", amount_paid: 25000, billing_reason: "subscription_cycle",
+          parent: { subscription_details: { subscription: SUB } },
+        },
+      },
+    });
+    const [sub] = await sql`SELECT collected_cents FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.equal(sub.collected_cents, 125000, "the nested shape must count exactly like the flat one");
+  });
+
+  test("a declined card is recorded but nobody is cut off", async () => {
+    const res = await send({
+      type: "invoice.payment_failed",
+      data: {
+        object: {
+          id: "in_test_fail", subscription: SUB, amount_due: 50000,
+          last_finalization_error: { message: "Your card was declined." },
+        },
+      },
+    });
+    assert.equal(res.status, 200);
+    const [sub] = await sql`
+      SELECT status, failures, last_failure FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.equal(sub.status, "past_due");
+    assert.equal(sub.failures, 1);
+    assert.match(sub.last_failure, /declined/i);
+    // Stripe retries for days and most recover. Cancelling on the first decline
+    // loses a customer who would have paid on Tuesday.
+    assert.notEqual(sub.status, "canceled");
+  });
+
+  test("a later success clears the failure", async () => {
+    await send({
+      type: "invoice.paid",
+      data: { object: { id: "in_test_4", subscription: SUB, amount_paid: 50000, billing_reason: "subscription_cycle" } },
+    });
+    const [sub] = await sql`
+      SELECT status, failures, last_failure FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.equal(sub.status, "active");
+    assert.equal(sub.failures, 0);
+    assert.equal(sub.last_failure, null);
+  });
+
+  test("an unsigned subscription event changes nothing", async () => {
+    const before = await sql`SELECT collected_cents FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    const res = await fetch(`${BASE}/api/stripe/webhook`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "invoice.paid", data: { object: { id: "in_forged", subscription: SUB, amount_paid: 999999 } } }),
+    });
+    assert.equal(res.status, 400);
+    const after = await sql`SELECT collected_cents FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.equal(after[0].collected_cents, before[0].collected_cents);
+  });
+
+  test("an invoice for a subscription we do not know is ignored, not an error", async () => {
+    // Stripe orders nothing, so an invoice can arrive before the checkout that
+    // created it. Erroring would make Stripe retry it forever.
+    const res = await send({
+      type: "invoice.paid",
+      data: { object: { id: "in_test_stranger", subscription: "sub_not_ours", amount_paid: 100 } },
+    });
+    assert.equal(res.status, 200);
+  });
+
+  test("cancellation is recorded when Stripe says so", async () => {
+    await send({
+      type: "customer.subscription.deleted",
+      data: { object: { id: SUB, status: "canceled", current_period_end: 1800000000 } },
+    });
+    const [sub] = await sql`SELECT status, canceled_at FROM subscriptions WHERE stripe_subscription_id = ${SUB}`;
+    assert.equal(sub.status, "canceled");
+    assert.ok(sub.canceled_at, "and when");
+  });
+
+  test("the billing screen reports collected money, not projections", async () => {
+    const res = await api("/api/billing");
+    assert.equal(res.status, 200);
+    const mine = res.body.subscriptions.find((s) => s.customerId === "retainer-co");
+    assert.ok(mine);
+    assert.equal(mine.collected, 1750, "$1,750 across four paid invoices");
+    assert.equal(mine.status, "canceled");
+    // A cancelled subscription is worth nothing a month, whatever it used to be.
+    assert.ok(!res.body.subscriptions.filter((s) => ["active", "trialing", "past_due"].includes(s.status))
+      .some((s) => s.customerId === "retainer-co"));
+  });
+
+  test("another agency sees none of it", async () => {
+    await sql`DELETE FROM people WHERE email = 'boss@sixth.test'`;
+    await sql`DELETE FROM tenants WHERE id = 'sixth-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build, plan) VALUES ('sixth-agency','Sixth Agency', false, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_sixth','Sixth Boss','sixthboss','boss@sixth.test','operator','sixth-agency','admin')`;
+    const raw = `wr_sess_sixth_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`INSERT INTO login_links (token_hash, email, expires_at)
+              VALUES (${hash}, 'boss@sixth.test', now() + interval '15 minutes')`;
+    const login = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(login.headers.get("set-cookie") || "")?.[1];
+
+    const theirs = await (await fetch(`${BASE}/api/billing`, {
+      headers: { cookie: `wrangler_session=${v}` },
+    })).json();
+    assert.equal(theirs.mrr, 0);
+    assert.deepEqual(theirs.subscriptions, [], "another agency's revenue is not their business");
+  });
+});
