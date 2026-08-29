@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guardOwner, operator } from "@/lib/api";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/schema";
 import { agencyKeyStatus, keyLabels, saveAgencyKey, type AgencyKey } from "@/lib/keys";
 
 /** Which agency keys are set. Never the values. */
 export async function GET() {
-  const denied = await guard();
+  const denied = await guardOwner();
   if (denied) return denied;
   return NextResponse.json({ keys: await agencyKeyStatus(), fields: keyLabels() });
 }
 
 /** Save one. Shape-checked before it is stored, so a typo fails here. */
 export async function POST(req: Request) {
-  const denied = await guard();
+  const denied = await guardOwner();
   if (denied) return denied;
   const actor = (await operator())?.name || "you";
   try {

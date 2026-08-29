@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, guardTenant, operator } from "@/lib/api";
+import { fail, guardTenant, operator } from "@/lib/api";
+import { personInTenant } from "@/lib/tenant-scope";
 import { audit, jobs, people, personScopes, personTools } from "@/lib/schema";
 import { mintToken } from "@/lib/session-token";
 import { TOOLS } from "@/lib/mcp-tools";
@@ -15,9 +16,14 @@ import { publicOrigin } from "@/lib/origin";
  * or kill the session outright.
  */
 export async function POST(req: Request, ctx: RouteContext<"/api/people/[id]">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const { id } = await ctx.params;
+  // Somebody else's agent or teammate reads as not found, the same as one
+  // that never existed.
+  if (!(await personInTenant(t.tenantId, id))) {
+    return NextResponse.json({ error: "no such person" }, { status: 404 });
+  }
   const actor = (await operator())?.name || "you";
 
   try {

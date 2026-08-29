@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { fail, guard } from "@/lib/api";
+import { fail, guardBuild } from "@/lib/api";
 import { disconnectAgencyGithub, ghCliToken, saveAgencyGithub, setAgencyOrg } from "@/lib/github";
 
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardBuild();
+  if ("error" in t) return t.error;
   const body = await req.json().catch(() => ({}));
   try {
     if (body.disconnect) {
@@ -41,8 +41,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE() {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardBuild();
+  if ("error" in t) return t.error;
   await disconnectAgencyGithub();
   return NextResponse.json({ ok: true });
 }

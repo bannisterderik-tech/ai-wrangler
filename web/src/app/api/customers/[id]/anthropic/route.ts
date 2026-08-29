@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guardBuild, operator} from "@/lib/api";
+import { customerInTenant } from "@/lib/tenant-scope";
 import { audit } from "@/lib/schema";
 import { checkCustomerKey, clearCustomerKey, customerKeyStatus, setCustomerKey } from "@/lib/customer-keys";
 import { getCustomer } from "@/lib/customers";
 
 /** Whether they brought their own key, and whether it works. Never the key. */
 export async function GET(_req: Request, ctx: RouteContext<"/api/customers/[id]/anthropic">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardBuild();
+  if ("error" in t) return t.error;
   try {
     const { id } = await ctx.params;
+    // Another agency's customer reads as not found, the same as one that
+    // never existed — the refusal must not confirm it is out there.
+    if (!(await customerInTenant(t.tenantId, id))) {
+      return NextResponse.json({ error: "no such customer" }, { status: 404 });
+    }
     const status = await customerKeyStatus(id);
     return NextResponse.json({
       ...status,
@@ -23,11 +29,16 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/customers/[id]/
 }
 
 export async function POST(req: Request, ctx: RouteContext<"/api/customers/[id]/anthropic">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardBuild();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const { id } = await ctx.params;
+    // Another agency's customer reads as not found, the same as one that
+    // never existed — the refusal must not confirm it is out there.
+    if (!(await customerInTenant(t.tenantId, id))) {
+      return NextResponse.json({ error: "no such customer" }, { status: 404 });
+    }
     if (!(await getCustomer(id))) return NextResponse.json({ error: "no such customer" }, { status: 404 });
     const body = await req.json().catch(() => ({}));
 

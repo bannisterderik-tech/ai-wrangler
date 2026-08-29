@@ -3,13 +3,19 @@ import { and, eq } from "drizzle-orm";
 import { encrypt } from "@/lib/crypto";
 import { ensureCustomer, newId } from "@/lib/customers";
 import { db } from "@/lib/db";
-import { fail, guard } from "@/lib/api";
+import { fail, guardBuild} from "@/lib/api";
+import { customerInTenant } from "@/lib/tenant-scope";
 import { audit, connections } from "@/lib/schema";
 
 export async function POST(req: Request, ctx: RouteContext<"/api/customers/[id]/vercel/token">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardBuild();
+  if ("error" in t) return t.error;
   const { id } = await ctx.params;
+  // Another agency's customer reads as not found, the same as one that
+  // never existed — the refusal must not confirm it is out there.
+  if (!(await customerInTenant(t.tenantId, id))) {
+    return NextResponse.json({ error: "no such customer" }, { status: 404 });
+  }
   const body = await req.json().catch(() => ({}));
   const token = String(body.token || "").trim();
   if (token.length < 12) {

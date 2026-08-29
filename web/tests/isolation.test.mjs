@@ -4656,3 +4656,293 @@ describe("the retainer is actually charged", () => {
     assert.deepEqual(theirs.subscriptions, [], "another agency's revenue is not their business");
   });
 });
+
+/**
+ * The guard audit.
+ *
+ * `guard()` asks whether SOMEBODY is signed in. It is not a tenant check, and
+ * it reads exactly like one, which is how three separate routes ended up
+ * handing one agency another's customers, ad spend and agents.
+ *
+ * This test enumerates every route on disk rather than trusting a list somebody
+ * maintains. A new route answering `guard()` fails it, so the class of bug
+ * cannot come back quietly.
+ */
+describe("no route mistakes guard() for a tenant check", () => {
+  /**
+   * Routes that legitimately answer guard(), each with the reason.
+   *
+   * The bar is: it touches no tenant-owned row, or it carries its own stronger
+   * check. Adding to this list is a decision somebody has to write down.
+   */
+  const ALLOWED = {
+    "selftest/route.ts": "asks vendors about the platform's own accounts; guarded to the owner separately",
+  };
+
+  test("every API route uses a tenant-aware guard, or is listed with a reason", async () => {
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join, relative } = await import("node:path");
+    const root = new URL("../src/app/api", import.meta.url).pathname;
+
+    const files = [];
+    (function walk(dir) {
+      for (const name of readdirSync(dir)) {
+        const full = join(dir, name);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (name === "route.ts") files.push(full);
+      }
+    })(root);
+
+    assert.ok(files.length > 20, `expected to find the API routes, found ${files.length}`);
+
+    const offenders = [];
+    for (const f of files) {
+      const rel = relative(root, f);
+      if (rel in ALLOWED) continue;
+      const src = readFileSync(f, "utf8");
+      if (/await guard\(\)/.test(src)) offenders.push(rel);
+    }
+
+    assert.deepEqual(
+      offenders,
+      [],
+      `these routes answer guard(), which is not a tenant check:\n  ${offenders.join("\n  ")}\n` +
+        `Use guardTenant / guardBuild / guardOwner, scope the query, and add a test — ` +
+        `or add the file to ALLOWED with the reason it is safe.`,
+    );
+  });
+});
+
+/**
+ * The audit, proved rather than asserted.
+ *
+ * Renaming guard() to guardTenant() everywhere would pass the enumeration test
+ * above and leak exactly as much as before. So this signs in as a second agency
+ * with its own customer, lead, thread and memory, and walks the routes that
+ * were converted — checking both directions each time: they cannot see ours,
+ * and we cannot see theirs.
+ */
+describe("the converted routes actually keep two agencies apart", () => {
+  let theirs = "";
+  const asThem = (path, init = {}) =>
+    fetch(`${BASE}${path}`, {
+      ...init, redirect: "manual",
+      headers: { "Content-Type": "application/json", cookie: theirs, ...(init.headers || {}) },
+    });
+
+  before(async () => {
+    await sql`DELETE FROM messages WHERE body IN ('ours only','theirs only')`;
+    await sql`DELETE FROM threads WHERE who IN ('Ours Caller','Theirs Caller')`;
+    await sql`DELETE FROM memories WHERE text IN ('ours only','theirs only')`;
+    await sql`DELETE FROM orch_log WHERE text LIKE 'goal: audit-%'`;
+    await sql`DELETE FROM agency_leads WHERE company IN ('Audit Ours','Audit Theirs')`;
+    await sql`DELETE FROM customers WHERE id IN ('audit-ours','audit-theirs')`;
+    await sql`DELETE FROM people WHERE email = 'boss@seventh.test'`;
+    await sql`DELETE FROM people WHERE id IN ('P_audit_ours','P_audit_theirs')`;
+    await sql`DELETE FROM tenants WHERE id = 'seventh-agency'`;
+    await sql`INSERT INTO tenants (id, name, can_build, plan) VALUES ('seventh-agency','Seventh Agency', true, 'crm')`;
+    await sql`
+      INSERT INTO people (id, name, handle, email, kind, tenant_id, tenant_role)
+      VALUES ('U_seventh','Seventh Boss','seventhboss','boss@seventh.test','operator','seventh-agency','admin')`;
+    await sql`
+      INSERT INTO customers (id, name, tenant_id) VALUES
+        ('audit-ours','Audit Ours Co','ai-wrangler'), ('audit-theirs','Audit Theirs Co','seventh-agency')`;
+    await sql`
+      INSERT INTO agency_leads (id, tenant_id, company, phone, stage, value_cents) VALUES
+        ('L_audit_ours','ai-wrangler','Audit Ours','+15305551111','lead',1000),
+        ('L_audit_theirs','seventh-agency','Audit Theirs','+15305552222','lead',2000)`;
+    await sql`
+      INSERT INTO threads (id, tenant_id, customer_id, who, channel) VALUES
+        ('T_audit_ours','ai-wrangler','audit-ours','Ours Caller','sms'),
+        ('T_audit_theirs','seventh-agency','audit-theirs','Theirs Caller','sms')`;
+    await sql`
+      INSERT INTO messages (thread_id, direction, channel, body) VALUES
+        ('T_audit_ours','in','sms','ours only'), ('T_audit_theirs','in','sms','theirs only')`;
+    await sql`
+      INSERT INTO memories (id, customer_id, text, kind) VALUES
+        ('M_audit_ours','audit-ours','ours only','note'),
+        ('M_audit_theirs','audit-theirs','theirs only','note')`;
+    await sql`
+      INSERT INTO people (id, name, handle, kind, agent_kind, tenant_id, customer_id) VALUES
+        ('P_audit_ours','Ours Agent','oursauditagent','agent','build','ai-wrangler','audit-ours'),
+        ('P_audit_theirs','Theirs Agent','theirsauditagent','agent','build','seventh-agency','audit-theirs')`;
+
+    const raw = `wr_sess_seventh_${Date.now()}`;
+    const { createHash } = await import("node:crypto");
+    const hash = createHash("sha256").update(raw).digest("hex");
+    await sql`INSERT INTO login_links (token_hash, email, expires_at)
+              VALUES (${hash}, 'boss@seventh.test', now() + interval '15 minutes')`;
+    const res = await fetch(`${BASE}/api/auth/magic/callback?token=${raw}`, { redirect: "manual" });
+    const v = /wrangler_session=([^;]+)/.exec(res.headers.get("set-cookie") || "")?.[1];
+    theirs = v ? `wrangler_session=${v}` : "";
+    assert.ok(theirs, "the rival must be able to sign in");
+  });
+
+  test("the command screen shows only your own business", async () => {
+    const them = await (await asThem("/api/command")).json();
+    const us = (await api("/api/command")).body;
+    assert.equal(them.pipeline.open, 1, "one lead, theirs");
+    assert.ok(us.pipeline.open >= 1);
+    assert.ok(them.pipeline.value === 20, `their pipeline is worth $20, saw ${them.pipeline.value}`);
+  });
+
+  test("the call board carries only your own leads", async () => {
+    const them = await (await asThem("/api/calls")).json();
+    const names = them.board.map((b) => b.company);
+    assert.ok(names.includes("Audit Theirs"));
+    assert.ok(!names.includes("Audit Ours"), "another agency's leads are not callable from here");
+  });
+
+  test("conversations do not cross", async () => {
+    const them = await (await asThem("/api/threads")).json();
+    const who = them.threads.map((t) => t.who);
+    assert.deepEqual(who, ["Theirs Caller"]);
+    const bodies = them.threads.flatMap((t) => t.messages.map((m) => m.body));
+    assert.ok(!bodies.includes("ours only"), "messages must not leak past the thread filter");
+  });
+
+  test("posting into another agency's thread is refused", async () => {
+    const res = await asThem("/api/threads", {
+      method: "POST",
+      body: JSON.stringify({ threadId: "T_audit_ours", body: "sneaking in", channel: "note" }),
+    });
+    assert.equal(res.status, 404);
+    const rows = await sql`SELECT body FROM messages WHERE thread_id = 'T_audit_ours'`;
+    assert.deepEqual(rows.map((r) => r.body), ["ours only"]);
+  });
+
+  test("a new thread is stamped from the session, not the body", async () => {
+    const res = await asThem("/api/threads", {
+      method: "POST",
+      body: JSON.stringify({ who: "Fresh Caller", body: "hello", channel: "note", tenantId: "ai-wrangler" }),
+    });
+    assert.equal(res.status, 200);
+    const [row] = await sql`SELECT tenant_id FROM threads WHERE who = 'Fresh Caller'`;
+    assert.equal(row.tenant_id, "seventh-agency", "a body cannot choose whose account it lands in");
+    await sql`DELETE FROM threads WHERE who = 'Fresh Caller'`;
+  });
+
+  test("memories stay with their agency, and cannot be deleted across one", async () => {
+    const them = await (await asThem("/api/memories")).json();
+    assert.deepEqual(them.memories.map((m) => m.text), ["theirs only"]);
+
+    const byId = await asThem("/api/memories?customerId=audit-ours");
+    assert.equal(byId.status, 404, "naming our customer must not read their memories");
+
+    const del = await asThem("/api/memories?id=M_audit_ours", { method: "DELETE" });
+    assert.equal(del.status, 404);
+    const still = await sql`SELECT id FROM memories WHERE id = 'M_audit_ours'`;
+    assert.equal(still.length, 1, "and it is still there");
+  });
+
+  test("recall refuses another agency's customer", async () => {
+    const res = await asThem("/api/memories/recall?customerId=audit-ours&q=anything");
+    assert.equal(res.status, 404);
+  });
+
+  test("writing a memory cannot invent a customer in another agency", async () => {
+    const res = await asThem("/api/memories", {
+      method: "POST",
+      body: JSON.stringify({ customerId: "brand-new-co", text: "should not exist" }),
+    });
+    assert.equal(res.status, 404, "ensureCustomer must not be reachable as a way to create one");
+    const rows = await sql`SELECT id FROM customers WHERE id = 'brand-new-co'`;
+    assert.equal(rows.length, 0);
+  });
+
+  test("the orchestrator log is per agency", async () => {
+    await asThem("/api/orch", { method: "POST", body: JSON.stringify({ goal: "audit-theirs", customerId: "audit-theirs" }) });
+    await api("/api/orch", { method: "POST", body: JSON.stringify({ goal: "audit-ours", customerId: "audit-ours" }) });
+    const them = await (await asThem("/api/orch")).json();
+    const text = them.log.map((l) => l.text).join(" ");
+    assert.ok(text.includes("audit-theirs"));
+    assert.ok(!text.includes("audit-ours"), "another agency's plan log is not theirs to read");
+  });
+
+  test("a goal cannot be filed against another agency's customer", async () => {
+    const res = await asThem("/api/orch", {
+      method: "POST",
+      body: JSON.stringify({ goal: "audit-sneaky", customerId: "audit-ours" }),
+    });
+    assert.equal(res.status, 404);
+  });
+
+  test("the people list is per agency, and an agent cannot be attached across one", async () => {
+    const them = await (await asThem("/api/people")).json();
+    const handles = them.people.map((p) => p.handle);
+    assert.ok(handles.includes("theirsauditagent"));
+    assert.ok(!handles.includes("oursauditagent"));
+
+    const made = await asThem("/api/people", {
+      method: "POST",
+      body: JSON.stringify({ name: "Sneaky Agent", kind: "agent", customerId: "audit-ours" }),
+    });
+    assert.equal(made.status, 404, "our customer is not a home for their agent");
+  });
+
+  test("another agency's person cannot be read, tokened or rescoped", async () => {
+    const res = await asThem("/api/people/P_audit_ours", {
+      method: "POST",
+      body: JSON.stringify({ action: "token" }),
+    });
+    assert.equal(res.status, 404);
+    const [row] = await sql`SELECT token_hash FROM people WHERE id = 'P_audit_ours'`;
+    assert.equal(row.token_hash, null, "no token was minted on our agent");
+
+    const conns = await asThem("/api/people/P_audit_ours/connections");
+    assert.equal(conns.status, 404);
+  });
+
+  test("customer records and their credentials are not reachable", async () => {
+    for (const path of [
+      "/api/customers/audit-ours",
+      "/api/customers/audit-ours/github",
+      "/api/customers/audit-ours/vercel/projects",
+      "/api/customers/audit-ours/anthropic",
+    ]) {
+      const res = await asThem(path);
+      assert.ok(res.status === 403 || res.status === 404, `${path} answered ${res.status}`);
+    }
+    const token = await asThem("/api/customers/audit-ours/vercel/token", {
+      method: "POST",
+      body: JSON.stringify({ token: "a-token-long-enough" }),
+    });
+    assert.ok(token.status === 403 || token.status === 404, `writing a deploy token answered ${token.status}`);
+  });
+
+  test("the inbox is per agency", async () => {
+    const them = await (await asThem("/api/inbox")).json();
+    assert.ok(Array.isArray(them.items));
+    assert.equal(them.items.filter((i) => i.customerId === "audit-ours").length, 0);
+  });
+
+  test("the house keys belong to the house alone", async () => {
+    const read = await asThem("/api/keys");
+    assert.equal(read.status, 403, "an agency admin is not the platform owner");
+    const write = await asThem("/api/keys", {
+      method: "POST",
+      body: JSON.stringify({ key: "anthropic", value: "sk-ant-not-a-real-key" }),
+    });
+    assert.equal(write.status, 403, "and cannot set the key every agency's agents would use");
+  });
+
+  test("an import lands in the importing agency, not the house", async () => {
+    const csv = [
+      "Record ID,record,Deal stage,Deal value,Deal MRR Value,Deal One-Time Value,Product,Deal owner",
+      "9001,Imported By Them,Lead,1200,100,200,Website,Their Owner",
+    ].join("\n");
+    const res = await asThem("/api/import/deals", {
+      method: "POST",
+      body: JSON.stringify({ csvB64: Buffer.from(csv).toString("base64"), write: true }),
+    });
+    assert.equal(res.status, 200, await res.text());
+    const rows = await sql`SELECT tenant_id FROM agency_leads WHERE company = 'Imported By Them'`;
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].tenant_id, "seventh-agency", "an import must not write into the house account");
+    const props = await sql`
+      SELECT p.tenant_id FROM proposals p
+      JOIN agency_leads l ON l.id = p.lead_id WHERE l.company = 'Imported By Them'`;
+    for (const p of props) assert.equal(p.tenant_id, "seventh-agency");
+    await sql`DELETE FROM agency_leads WHERE company = 'Imported By Them'`;
+  });
+});

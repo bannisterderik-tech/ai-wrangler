@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { fail, guard } from "@/lib/api";
+import { fail, guardTenant } from "@/lib/api";
 import { placeCall, twilioStatus, voiceToken } from "@/lib/twilio";
 import { getAgencyKey } from "@/lib/keys";
 
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const status = twilioStatus();
   return NextResponse.json({
     ...status,
@@ -18,8 +18,8 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   try {
     const { to } = await req.json();
     if (!to) return NextResponse.json({ error: "who are we calling?" }, { status: 400 });

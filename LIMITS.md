@@ -133,11 +133,33 @@ Not bugs. Nothing here is scheduled, and none of it should be sold.
   campaigns. Found while checking something else. Five tests were written
   first, failed, and now pass.
 
+- Every API route was audited. 23 of them answered `guard()` — which asks only
+  whether somebody is signed in — and are now on `guardTenant`, `guardBuild` or
+  `guardOwner` with the query scoped. A test enumerates the route files and
+  fails if a new one answers `guard()`, so the class cannot come back quietly.
+  The scoping is proved by a second agency walking the routes, not by the
+  rename: three of the fixes were mutation-tested.
+- The importer wrote leads, customers, partners and proposals with no tenant
+  stamp, so any agency's import landed in the house account. It also keyed rows
+  on the source CRM's record id, which is unique only within one export — two
+  agencies importing collided on every id and the second one's rows were
+  silently skipped as "already here".
+- `/api/threads` POST let the request body choose which agency a conversation
+  belonged to, and a local variable named `t` shadowed the tenant guard exactly
+  where the check was needed.
+- `/api/deals` was removed. Nothing called it, `agency_leads` replaced it, and
+  the `deals` table has no tenant or customer column at all — so the route was
+  an unscoped read of a dead table. The table itself is still there.
+- `/team` drew a hardcoded card saying "claude-code connected · this laptop"
+  regardless of whether anything was. It redirects to Sessions now.
+
 **True, and not fixed**
 
-- **24 routes still answer `guard()`.** The two that displayed other agencies'
-  data are fixed; the rest have not been audited one by one. `guard()` is not a
-  tenant check and reads as one, which is how this happened.
+- **Customer ids are still global slugs.** Two agencies both signing "Acme"
+  want one primary key. Every path now refuses rather than adopting, but the
+  real fix is a composite key and a migration.
+
+
 - **Customer ids are global slugs.** Two agencies both signing "Acme" want the
   same primary key. `ensureCustomer` now refuses rather than letting the second
   adopt and rename the first one's row, but the real answer is a composite key,

@@ -1,20 +1,32 @@
 import { NextResponse } from "next/server";
 import { isOpen } from "@/lib/stages";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guardTenant, operator } from "@/lib/api";
 import { agencyLeads, callLog } from "@/lib/schema";
 
 const OUTCOMES = ["dialled", "answered", "voicemail", "no-answer"];
 
 /** The call board: who to ring, and what happened last time. */
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
-  const [leads, calls] = await Promise.all([
-    db.select().from(agencyLeads).orderBy(desc(agencyLeads.createdAt)),
-    db.select().from(callLog).orderBy(desc(callLog.at)).limit(200),
-  ]);
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
+  // The call log reaches the agency only through the lead it is against, so it
+  // is filtered by this agency's lead ids rather than read whole.
+  const leads = await db
+    .select()
+    .from(agencyLeads)
+    .where(eq(agencyLeads.tenantId, t.tenantId))
+    .orderBy(desc(agencyLeads.createdAt));
+  const ids = leads.map((l) => l.id);
+  const calls = ids.length
+    ? await db
+        .select()
+        .from(callLog)
+        .where(inArray(callLog.leadId, ids))
+        .orderBy(desc(callLog.at))
+        .limit(200)
+    : [];
   return NextResponse.json({
     outcomes: OUTCOMES,
     // Only people with a number are callable. A board full of rows you cannot
@@ -36,8 +48,8 @@ export async function GET() {
 
 /** Log what happened. Twilio dials from the browser until per-customer DIDs exist. */
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));

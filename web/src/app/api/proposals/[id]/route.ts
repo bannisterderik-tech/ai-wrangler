@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guardTenant, operator } from "@/lib/api";
 import { agencyLeads, audit, proposalItems, proposals } from "@/lib/schema";
 import { newId } from "@/lib/customers";
 import { loadProposal, proposalToken, renderDocument, totals } from "@/lib/proposals";
@@ -11,12 +11,15 @@ const EDITABLE = new Set(["draft"]);
 
 /** The whole proposal, plus the document exactly as the client will read it. */
 export async function GET(req: Request, ctx: RouteContext<"/api/proposals/[id]">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   try {
     const { id } = await ctx.params;
     const loaded = await loadProposal(id);
-    if (!loaded) return NextResponse.json({ error: "no such proposal" }, { status: 404 });
+    // Another agency's proposal reads as not found.
+    if (!loaded || loaded.proposal.tenantId !== t.tenantId) {
+      return NextResponse.json({ error: "no such proposal" }, { status: 404 });
+    }
     const [lead] = await db.select().from(agencyLeads).where(eq(agencyLeads.id, loaded.proposal.leadId)).limit(1);
     const document = renderDocument(loaded.proposal, loaded.items, lead?.company ?? "the client");
     return NextResponse.json({
@@ -40,13 +43,19 @@ export async function GET(req: Request, ctx: RouteContext<"/api/proposals/[id]">
  * another one.
  */
 export async function PATCH(req: Request, ctx: RouteContext<"/api/proposals/[id]">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const who = (await operator())?.name || "you";
   try {
     const { id } = await ctx.params;
     const body = await req.json().catch(() => ({}));
-    const [p] = await db.select().from(proposals).where(eq(proposals.id, id)).limit(1);
+    // Scoped in the query, not filtered after: another agency's proposal is
+    // never loaded at all, so there is nothing to leak into an error message.
+    const [p] = await db
+      .select()
+      .from(proposals)
+      .where(and(eq(proposals.id, id), eq(proposals.tenantId, t.tenantId)))
+      .limit(1);
     if (!p) return NextResponse.json({ error: "no such proposal" }, { status: 404 });
 
     if (body.action === "send") {
@@ -144,11 +153,17 @@ export async function PATCH(req: Request, ctx: RouteContext<"/api/proposals/[id]
 }
 
 export async function DELETE(_req: Request, ctx: RouteContext<"/api/proposals/[id]">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   try {
     const { id } = await ctx.params;
-    const [p] = await db.select().from(proposals).where(eq(proposals.id, id)).limit(1);
+    // Scoped in the query, not filtered after: another agency's proposal is
+    // never loaded at all, so there is nothing to leak into an error message.
+    const [p] = await db
+      .select()
+      .from(proposals)
+      .where(and(eq(proposals.id, id), eq(proposals.tenantId, t.tenantId)))
+      .limit(1);
     if (!p) return NextResponse.json({ error: "no such proposal" }, { status: 404 });
     if (p.status !== "draft") {
       return NextResponse.json(

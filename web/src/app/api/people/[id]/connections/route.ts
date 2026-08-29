@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guardTenant, operator } from "@/lib/api";
+import { personInTenant } from "@/lib/tenant-scope";
 import { agentConnections, audit, people } from "@/lib/schema";
 import { newId } from "@/lib/customers";
 import { CATEGORIES, CONNECTORS, connector } from "@/lib/connectors";
@@ -11,10 +12,15 @@ const STATUSES = ["needed", "connected", "blocked", "dropped"];
 
 /** What this agent needs to reach, and what we can actually reach today. */
 export async function GET(_req: Request, ctx: RouteContext<"/api/people/[id]/connections">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   try {
     const { id } = await ctx.params;
+    // Somebody else's agent or teammate reads as not found, the same as one
+    // that never existed.
+    if (!(await personInTenant(t.tenantId, id))) {
+      return NextResponse.json({ error: "no such person" }, { status: 404 });
+    }
     const rows = await db
       .select()
       .from(agentConnections)
@@ -53,11 +59,16 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/people/[id]/con
 
 /** Add a dependency to this agent's map. */
 export async function POST(req: Request, ctx: RouteContext<"/api/people/[id]/connections">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const { id } = await ctx.params;
+    // Somebody else's agent or teammate reads as not found, the same as one
+    // that never existed.
+    if (!(await personInTenant(t.tenantId, id))) {
+      return NextResponse.json({ error: "no such person" }, { status: 404 });
+    }
     const [person] = await db.select().from(people).where(eq(people.id, id)).limit(1);
     if (!person) return NextResponse.json({ error: "no such agent" }, { status: 404 });
     if (person.kind !== "agent") {
@@ -91,10 +102,15 @@ export async function POST(req: Request, ctx: RouteContext<"/api/people/[id]/con
 }
 
 export async function PATCH(req: Request, ctx: RouteContext<"/api/people/[id]/connections">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   try {
     const { id } = await ctx.params;
+    // Somebody else's agent or teammate reads as not found, the same as one
+    // that never existed.
+    if (!(await personInTenant(t.tenantId, id))) {
+      return NextResponse.json({ error: "no such person" }, { status: 404 });
+    }
     const body = await req.json().catch(() => ({}));
     const rowId = String(body.id || "");
     if (body.remove === true) {

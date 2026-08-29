@@ -1,22 +1,28 @@
 import { NextResponse } from "next/server";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guardTenant, operator } from "@/lib/api";
 import { agencyLeads, customers, messages, threads } from "@/lib/schema";
 import { newId } from "@/lib/customers";
+import { customerInTenant } from "@/lib/tenant-scope";
 
 const CHANNELS = ["sms", "email", "call", "note"];
 
 /** Every conversation, with whoever it is with. */
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
-  const [rows, msgs, custs, leads] = await Promise.all([
-    db.select().from(threads).orderBy(desc(threads.lastAt)),
-    db.select().from(messages).orderBy(asc(messages.id)),
-    db.select().from(customers),
-    db.select().from(agencyLeads),
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
+  // threads carries tenant_id; messages does not, so they are fetched by the
+  // thread ids this agency owns rather than read whole and filtered after.
+  const [rows, custs, leads] = await Promise.all([
+    db.select().from(threads).where(eq(threads.tenantId, t.tenantId)).orderBy(desc(threads.lastAt)),
+    db.select().from(customers).where(eq(customers.tenantId, t.tenantId)),
+    db.select().from(agencyLeads).where(eq(agencyLeads.tenantId, t.tenantId)),
   ]);
+  const threadIds = rows.map((r) => r.id);
+  const msgs = threadIds.length
+    ? await db.select().from(messages).where(inArray(messages.threadId, threadIds)).orderBy(asc(messages.id))
+    : [];
   return NextResponse.json({
     channels: CHANNELS,
     customers: custs.map((c) => ({ id: c.id, name: c.name })),
@@ -36,8 +42,8 @@ export async function GET() {
 
 /** Start a conversation, or add to one. */
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
@@ -49,20 +55,34 @@ export async function POST(req: Request) {
     if (!threadId) {
       const who = String(body.who || "").trim();
       if (!who) return NextResponse.json({ error: "who is it with?" }, { status: 400 });
+      const customerId = String(body.customerId || "").trim() || null;
+      // Attaching a conversation to a customer has to mean one of yours.
+      if (customerId && !(await customerInTenant(t.tenantId, customerId))) {
+        return NextResponse.json({ error: "no such customer" }, { status: 404 });
+      }
       threadId = "T" + newId().slice(0, 8);
       await db.insert(threads).values({
         id: threadId,
+        // Stamped from the session, never from the body. Without this every
+        // thread any agency started landed in the house account.
+        tenantId: t.tenantId,
         who,
         subject: String(body.subject || "").trim() || null,
         channel,
         phone: String(body.phone || "").trim() || null,
         email: String(body.email || "").trim() || null,
-        customerId: String(body.customerId || "").trim() || null,
+        customerId,
         leadId: String(body.leadId || "").trim() || null,
       });
     } else {
-      const [t] = await db.select().from(threads).where(eq(threads.id, threadId)).limit(1);
-      if (!t) return NextResponse.json({ error: "no such thread" }, { status: 404 });
+      // Named `existing`, not `t` — the old name shadowed the guard, so the
+      // tenant was out of scope exactly where it needed checking.
+      const [existing] = await db
+        .select()
+        .from(threads)
+        .where(and(eq(threads.id, threadId), eq(threads.tenantId, t.tenantId)))
+        .limit(1);
+      if (!existing) return NextResponse.json({ error: "no such thread" }, { status: 404 });
     }
 
     await db.insert(messages).values({

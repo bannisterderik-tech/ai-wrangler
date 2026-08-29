@@ -1,24 +1,35 @@
 import { NextResponse } from "next/server";
 import { isOpen } from "@/lib/stages";
-import { desc, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { guard } from "@/lib/api";
+import { guardTenant } from "@/lib/api";
+import { customerIdsFor, ownedBy } from "@/lib/tenant-scope";
 import { adCampaigns, agencyLeads, approvals, callLog, customers, jobs, threads } from "@/lib/schema";
 
 /** The dashboard, from rows. Every number here is countable. */
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  // The morning screen reads almost every table, which makes it the single
+  // worst place to forget a tenant filter — one missing clause here shows an
+  // agency somebody else's whole business on the first screen they open.
+  const mine = await customerIdsFor(t.tenantId);
   const [leads, custs, live, gates, ads, calls, unread] = await Promise.all([
-    db.select().from(agencyLeads).orderBy(desc(agencyLeads.createdAt)),
-    db.select().from(customers),
-    db.select().from(jobs),
-    db.select().from(approvals).where(eq(approvals.status, "pending")),
-    db.select().from(adCampaigns),
-    db.select({ n: sql<number>`count(*)::int` }).from(callLog).where(gt(callLog.at, since)),
-    db.select({ n: sql<number>`count(*)::int` }).from(threads).where(eq(threads.unread, true)),
+    db.select().from(agencyLeads).where(eq(agencyLeads.tenantId, t.tenantId)).orderBy(desc(agencyLeads.createdAt)),
+    db.select().from(customers).where(eq(customers.tenantId, t.tenantId)),
+    db.select().from(jobs).where(ownedBy(jobs.customerId, mine)),
+    db.select().from(approvals).where(and(eq(approvals.status, "pending"), ownedBy(approvals.customerId, mine))),
+    db.select().from(adCampaigns).where(ownedBy(adCampaigns.customerId, mine)),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(callLog)
+      .where(and(gt(callLog.at, since), eq(callLog.tenantId, t.tenantId))),
+    db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(threads)
+      .where(and(eq(threads.unread, true), eq(threads.tenantId, t.tenantId))),
   ]);
 
   const open = leads.filter((l) => isOpen(l.stage));

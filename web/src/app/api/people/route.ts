@@ -1,24 +1,28 @@
 import { NextResponse } from "next/server";
-import { asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guardTenant, operator } from "@/lib/api";
+import { customerInTenant } from "@/lib/tenant-scope";
 import { audit, jobs, people, personScopes, personTools } from "@/lib/schema";
 import { TOOLS } from "@/lib/mcp-tools";
 import { PLATFORM_TOOLS } from "@/lib/mcp-platform";
 import { slug } from "@/lib/crypto";
-import { getCustomer } from "@/lib/customers";
 import { isAgentKind } from "@/lib/connectors";
 
 /** Everyone on the floor, with what their session is allowed to touch. */
 export async function GET() {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
 
   const [rows, scopes, tools, counts] = await Promise.all([
     // Operators and agents only. A client user is a person row too, but they
     // sign in to their own CRM and have no MCP session — listing them here
     // invites minting them a token that could never do anything.
-    db.select().from(people).where(inArray(people.kind, ["operator", "agent"])).orderBy(asc(people.createdAt)),
+    db
+      .select()
+      .from(people)
+      .where(and(eq(people.tenantId, t.tenantId), inArray(people.kind, ["operator", "agent"])))
+      .orderBy(asc(people.createdAt)),
     db.select().from(personScopes),
     db.select().from(personTools),
     db
@@ -65,8 +69,8 @@ export async function GET() {
  * product exists to prevent.
  */
 export async function POST(req: Request) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const actor = (await operator())?.name || "you";
   try {
     const body = await req.json().catch(() => ({}));
@@ -86,7 +90,9 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    if ((kind === "agent" || kind === "client") && !(await getCustomer(customerId))) {
+    // Not getCustomer: that would happily attach an agent to another agency's
+    // customer, which is the whole shape of the bug this audit is closing.
+    if ((kind === "agent" || kind === "client") && !(await customerInTenant(t.tenantId, customerId))) {
       return NextResponse.json({ error: "no such customer" }, { status: 404 });
     }
     // A client signs in by magic link and has no other route in, so an address

@@ -1,13 +1,19 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db, withCustomer } from "@/lib/db";
-import { fail, guard } from "@/lib/api";
+import { fail, guardTenant} from "@/lib/api";
+import { customerInTenant } from "@/lib/tenant-scope";
 import { boundResources, connections, customers } from "@/lib/schema";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/customers/[id]">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardTenant();
+  if ("error" in t) return t.error;
   const { id } = await ctx.params;
+  // Another agency's customer reads as not found, the same as one that
+  // never existed — the refusal must not confirm it is out there.
+  if (!(await customerInTenant(t.tenantId, id))) {
+    return NextResponse.json({ error: "no such customer" }, { status: 404 });
+  }
   try {
     const [row] = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
     if (!row) return NextResponse.json({ error: "not found" }, { status: 404 });

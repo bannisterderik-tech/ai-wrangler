@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { fail, guard, operator } from "@/lib/api";
+import { fail, guardBuild, operator} from "@/lib/api";
+import { customerInTenant } from "@/lib/tenant-scope";
 import { boundResources } from "@/lib/schema";
 import { ensureCustomer } from "@/lib/customers";
 import { IsolationError } from "@/lib/isolation";
@@ -9,9 +10,14 @@ import { bindResources } from "@/lib/binding";
 import { createAgencyRepo, listAgencyRepos } from "@/lib/github";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/customers/[id]/github">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardBuild();
+  if ("error" in t) return t.error;
   const { id } = await ctx.params;
+  // Another agency's customer reads as not found, the same as one that
+  // never existed — the refusal must not confirm it is out there.
+  if (!(await customerInTenant(t.tenantId, id))) {
+    return NextResponse.json({ error: "no such customer" }, { status: 404 });
+  }
   const bound = await db
     .select()
     .from(boundResources)
@@ -26,9 +32,14 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/customers/[id]/
 }
 
 export async function POST(req: Request, ctx: RouteContext<"/api/customers/[id]/github">) {
-  const denied = await guard();
-  if (denied) return denied;
+  const t = await guardBuild();
+  if ("error" in t) return t.error;
   const { id } = await ctx.params;
+  // Another agency's customer reads as not found, the same as one that
+  // never existed — the refusal must not confirm it is out there.
+  if (!(await customerInTenant(t.tenantId, id))) {
+    return NextResponse.json({ error: "no such customer" }, { status: 404 });
+  }
   const body = await req.json().catch(() => ({}));
   const actor = (await operator())?.name || "you";
 
